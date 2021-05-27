@@ -1,0 +1,8 @@
+*.pyc
+*.pyo
+
+docs/build/
+datasets/
+.ipynb_checkpoints/
+__pycache__/
+*.onnx

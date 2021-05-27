@@ -1,0 +1,195 @@
+
+# ------------------------------------------------------------------------------
+# Copyright (c) Microsoft
+# Licensed under the MIT License.
+# Written by Bin Xiao (leoxiaobin@gmail.com)
+# Modified by Bowen Cheng (bcheng9@illinois.edu)
+# ------------------------------------------------------------------------------
+
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+
+import os
+
+from yacs.config import CfgNode as CN
+
+from .models import MODEL_EXTRAS
+
+
+_C = CN()
+
+_C.PROJECT_NAME = 'handPose_GN_2'
+_C.NUM_GPUS = 1
+_C.LOG_PATH = 'logs/'
+_C.MODEL_SAVE_PATH = 'model_savefiles_combined'
+
+
+_C.DATASET = CN()
+_C.DATASET.DATASET_DIR = '/home/timo/Documents/CombiNet/datasets/handPose3D'
+_C.DATASET.TRAIN_SET = 'train'
+_C.DATASET.VAL_SET = 'val'
+_C.DATASET.ORIGINAL_IMG_SIZE = [1280,1024]
+_C.DATASET.MEAN = [0.485, 0.456, 0.406]
+_C.DATASET.STD = [0.229, 0.224, 0.225]
+_C.DATASET.OBJ_LIST = ['right_hand']
+
+_C.DATASET.EFFICIENTDET = CN()
+_C.DATASET.EFFICIENTDET.IMG_SIZE = 256
+_C.DATASET.EFFICIENTDET.MAX_ROTATION = 30
+_C.DATASET.EFFICIENTDET.MIN_SCALE = 0.75
+_C.DATASET.EFFICIENTDET.MAX_SCALE = 1.25
+_C.DATASET.HRNET = CN()
+_C.DATASET.HRNET.NUM_JOINTS = 23
+_C.DATASET.HRNET.TAG_PER_JOINT = True
+_C.DATASET.HRNET.MAX_NUM_PEOPLE = 30
+_C.DATASET.HRNET.BOUNDING_BOX_SIZE = 320
+_C.DATASET.HRNET.IMG_SIZE = 320
+# training data augmentation
+_C.DATASET.HRNET.MAX_ROTATION = 30
+_C.DATASET.HRNET.MIN_SCALE = 0.75
+_C.DATASET.HRNET.MAX_SCALE = 1.25
+# heatmap generator (default is OUTPUT_SIZE/64)
+_C.DATASET.HRNET.SIGMA = -1
+_C.DATASET.HRNET.SCALE_AWARE_SIGMA = False
+_C.DATASET.HRNET.BASE_SIZE = 256.0
+_C.DATASET.HRNET.BASE_SIGMA = 2.0
+_C.DATASET.HRNET.INT_SIGMA = False
+_C.DATASET.HRNET.OUTPUT_SIZE = [80, 160]
+
+
+
+_C.EFFICIENTDET = CN()
+_C.EFFICIENTDET.ANCHOR_SCALES = '[2 ** 0, 2 ** (1.0 / 3.0), 2 ** (2.0 / 3.0)]'
+_C.EFFICIENTDET.ANCHOR_RATIOS = '[(1.0, 1.0), (1.4, 0.7), (0.7, 1.4)]'
+_C.EFFICIENTDET.COMPOUND_COEF = 0
+_C.EFFICIENTDET.OPTIMIZER = 'adamw'
+_C.EFFICIENTDET.LEARNING_RATE = 0.001
+_C.EFFICIENTDET.SAVE_INTERVAL = 10
+_C.EFFICIENTDET.VAL_INTERVAL = 1
+_C.EFFICIENTDET.EARLY_STOPPING_MIN_DELTA = 0.002
+_C.EFFICIENTDET.EARLY_STOPPING_PATIENCE = 5
+_C.EFFICIENTDET.BATCH_SIZE = 12
+_C.EFFICIENTDET.NUM_WORKERS = 2
+
+
+_C.HRNET = CN()
+_C.HRNET.NAME = 'pose_multi_resolution_net_v16'
+_C.HRNET.INIT_WEIGHTS = True
+#_C.HRNET.PRETRAINED = '/home/lambda/Documents/TrackingDMDS/CombiNet/pretrained/pose_higher_hrnet_w32_512.pth'
+_C.HRNET.PRETRAINED = ''
+_C.HRNET.SYNC_BN = False
+_C.HRNET.SAVE_INTERVAL = 5
+
+
+_C.HRNET.LOSS = CN()
+_C.HRNET.LOSS.NUM_STAGES = 2
+_C.HRNET.LOSS.WITH_HEATMAPS_LOSS = (True,True)
+_C.HRNET.LOSS.HEATMAPS_LOSS_FACTOR = (1.0,1.0)
+_C.HRNET.LOSS.WITH_AE_LOSS = (False,False)
+_C.HRNET.LOSS.AE_LOSS_TYPE = 'exp'
+_C.HRNET.LOSS.PUSH_LOSS_FACTOR = (0.001,0.001)
+_C.HRNET.LOSS.PULL_LOSS_FACTOR = (0.001,0.001)
+
+
+# train
+_C.HRNET.TRAIN = CN()
+
+_C.HRNET.TRAIN.LEARNING_RATE = 0.001
+
+_C.HRNET.TRAIN.OPTIMIZER = 'adam'
+_C.HRNET.TRAIN.MOMENTUM = 0.9
+_C.HRNET.TRAIN.WD = 0.0001
+_C.HRNET.TRAIN.NESTEROV = False
+_C.HRNET.TRAIN.GAMMA1 = 0.99
+_C.HRNET.TRAIN.GAMMA2 = 0.0
+
+_C.HRNET.TRAIN.BEGIN_EPOCH = 0
+_C.HRNET.TRAIN.END_EPOCH = 140
+_C.HRNET.TRAIN.RESUME = False
+_C.HRNET.TRAIN.CHECKPOINT = ''
+
+_C.HRNET.TRAIN.BATCH_SIZE = 8
+_C.HRNET.TRAIN.SHUFFLE = True
+
+_C.HRNET.EXTRA = CN(new_allowed = True)
+_C.HRNET.EXTRA.FINAL_CONV_KERNEL = 1
+_C.HRNET.EXTRA.PRETRAINED_LAYERS = ['*']
+_C.HRNET.EXTRA.STEM_INPLANES = 64
+_C.HRNET.EXTRA.STAGE2 = CN()
+_C.HRNET.EXTRA.STAGE2.NUM_MODULES = 1
+_C.HRNET.EXTRA.STAGE2.NUM_BRANCHES = 2
+_C.HRNET.EXTRA.STAGE2.BLOCK = 'MBCONV'
+_C.HRNET.EXTRA.STAGE2.NUM_BLOCKS = [1,1]
+_C.HRNET.EXTRA.STAGE2.NUM_CHANNELS = [32, 64]
+_C.HRNET.EXTRA.STAGE2.FUSE_METHOD = 'SUM'
+_C.HRNET.EXTRA.STAGE3 = CN()
+_C.HRNET.EXTRA.STAGE3.NUM_MODULES = 3
+_C.HRNET.EXTRA.STAGE3.NUM_BRANCHES = 3
+_C.HRNET.EXTRA.STAGE3.BLOCK = 'BASIC'
+_C.HRNET.EXTRA.STAGE3.NUM_BLOCKS = [4, 3, 3]
+_C.HRNET.EXTRA.STAGE3.NUM_CHANNELS = [32, 64, 128]
+_C.HRNET.EXTRA.STAGE3.FUSE_METHOD = 'SUM'
+_C.HRNET.EXTRA.STAGE4 = CN()
+_C.HRNET.EXTRA.STAGE4.NUM_MODULES = 1
+_C.HRNET.EXTRA.STAGE4.NUM_BRANCHES = 4
+_C.HRNET.EXTRA.STAGE4.BLOCK = 'BASIC'
+_C.HRNET.EXTRA.STAGE4.NUM_BLOCKS = [4, 3, 2, 1]
+_C.HRNET.EXTRA.STAGE4.NUM_CHANNELS = [32, 64, 128, 256]
+_C.HRNET.EXTRA.STAGE4.FUSE_METHOD = 'SUM'
+_C.HRNET.EXTRA.DECONV = CN()
+_C.HRNET.EXTRA.DECONV.NUM_DECONVS = 1
+_C.HRNET.EXTRA.DECONV.NUM_CHANNELS = [32]
+_C.HRNET.EXTRA.DECONV.KERNEL_SIZE = [4]
+_C.HRNET.EXTRA.DECONV.NUM_BASIC_BLOCKS = 2
+_C.HRNET.EXTRA.DECONV.CAT_OUTPUT = [True]
+
+# debug
+_C.HRNET.DEBUG = CN()
+_C.HRNET.DEBUG.DEBUG = True
+_C.HRNET.DEBUG.SAVE_BATCH_IMAGES_GT = False
+_C.HRNET.DEBUG.SAVE_BATCH_IMAGES_PRED = False
+_C.HRNET.DEBUG.SAVE_HEATMAPS_GT = True
+_C.HRNET.DEBUG.SAVE_HEATMAPS_PRED = True
+_C.HRNET.DEBUG.SAVE_TAGMAPS_PRED = False
+
+
+def update_config(cfg, cfg_filename):
+    cfg.defrost()
+    cfg.merge_from_file(cfg_filename)
+
+    if not isinstance(cfg.LOSS.WITH_HEATMAPS_LOSS, (list, tuple)):
+        cfg.LOSS.WITH_HEATMAPS_LOSS = (cfg.LOSS.WITH_HEATMAPS_LOSS)
+
+    if not isinstance(cfg.LOSS.HEATMAPS_LOSS_FACTOR, (list, tuple)):
+        cfg.LOSS.HEATMAPS_LOSS_FACTOR = (cfg.LOSS.HEATMAPS_LOSS_FACTOR)
+
+    if not isinstance(cfg.LOSS.WITH_AE_LOSS, (list, tuple)):
+        cfg.LOSS.WITH_AE_LOSS = (cfg.LOSS.WITH_AE_LOSS)
+
+    if not isinstance(cfg.LOSS.PUSH_LOSS_FACTOR, (list, tuple)):
+        cfg.LOSS.PUSH_LOSS_FACTOR = (cfg.LOSS.PUSH_LOSS_FACTOR)
+
+    if not isinstance(cfg.LOSS.PULL_LOSS_FACTOR, (list, tuple)):
+        cfg.LOSS.PULL_LOSS_FACTOR = (cfg.LOSS.PULL_LOSS_FACTOR)
+
+    cfg.freeze()
+
+
+def check_config(cfg):
+    assert cfg.LOSS.NUM_STAGES == len(cfg.LOSS.WITH_HEATMAPS_LOSS), \
+        'LOSS.NUM_SCALE should be the same as the length of LOSS.WITH_HEATMAPS_LOSS'
+    assert cfg.LOSS.NUM_STAGES == len(cfg.LOSS.HEATMAPS_LOSS_FACTOR), \
+        'LOSS.NUM_SCALE should be the same as the length of LOSS.HEATMAPS_LOSS_FACTOR'
+    assert cfg.LOSS.NUM_STAGES == len(cfg.LOSS.WITH_AE_LOSS), \
+        'LOSS.NUM_SCALE should be the same as the length of LOSS.WITH_AE_LOSS'
+    assert cfg.LOSS.NUM_STAGES == len(cfg.LOSS.PUSH_LOSS_FACTOR), \
+        'LOSS.NUM_SCALE should be the same as the length of LOSS.PUSH_LOSS_FACTOR'
+    assert cfg.LOSS.NUM_STAGES == len(cfg.LOSS.PULL_LOSS_FACTOR), \
+        'LOSS.NUM_SCALE should be the same as the length of LOSS.PULL_LOSS_FACTOR'
+
+
+if __name__ == '__main__':
+    import sys
+    with open(sys.argv[1], 'w') as f:
+        print(_C, file=f)
