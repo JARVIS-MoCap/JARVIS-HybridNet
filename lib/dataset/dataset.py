@@ -22,6 +22,7 @@ sys.path.insert(0, parent_dir)
 #from core.hrnet.target_generators import HeatmapGenerator
 #from core.hrnet.target_generators import JointsGenerator
 
+
 class CocoDataset(Dataset):
     def __init__(self, cfg, set='train', mode = 'cropping'):
         self.cfg = cfg
@@ -34,51 +35,48 @@ class CocoDataset(Dataset):
             self.num_keypoints.append(category['num_keypoints'])
         self.image_ids = self.coco.getImgIds()
         self.load_classes()
+        if self.cfg.DATASET.OBJ_LIST == None:
+            self.cfg.DATASET.OBJ_LIST = [value for key, value in self.labels.items()]
 
-        #self.heatmap_generator = [
-        #    HeatmapGenerator(
-        #        320, output_size, cfg.DATASET.HRNET.NUM_JOINTS, cfg.DATASET.HRNET.SIGMA
-        #    ) for output_size in cfg.DATASET.HRNET.OUTPUT_SIZE
-        #]
-        #self.joints_generator = [
-        #    JointsGenerator(
-        #        cfg.DATASET.HRNET.MAX_NUM_PEOPLE,
-        #        cfg.DATASET.HRNET.NUM_JOINTS,
-        #        output_size,
-        #        cfg.DATASET.HRNET.TAG_PER_JOINT
-        #    ) for output_size in cfg.DATASET.HRNET.OUTPUT_SIZE
-        #]
-        #self.num_scales = self._init_check(self.heatmap_generator, self.joints_generator)
+        self.build_augpipe()
+        self.transform = transforms.Compose([Normalizer(mean=cfg.DATASET.MEAN, std=cfg.DATASET.STD, mode=mode)])
 
-        if mode == 'cropping':
-            width, height = cfg.DATASET.ORIGINAL_IMG_SIZE
-            self.scale = cfg.DATASET.EFFICIENTDET.IMG_SIZE / max(height, width)
-            self.augpipe = iaa.Sequential([
-                iaa.Resize(self.scale,  interpolation='linear'),
-                iaa.Affine(rotate=(-25,25),scale=(0.7,1.75)),
-                iaa.PadToFixedSize(256,256)],
-                random_order=False)
-        elif mode == 'keypoints':
-            self.scale = cfg.DATASET.HRNET.IMG_SIZE / cfg.DATASET.HRNET.BOUNDING_BOX_SIZE
-            self.augpipe = iaa.Sequential([
-                iaa.Sometimes(0.5, iaa.GaussianBlur(sigma=(0, 0.5))),
-                iaa.LinearContrast((0.7, 1)),
-                iaa.AdditiveGaussianNoise(loc=0, scale=(0.0, 0.02), per_channel=0.6),
-                iaa.Multiply((0.7, 1.5)),
-                iaa.Fliplr(0.5),
-                iaa.Sometimes(0.3, iaa.Multiply((0.8, 1.2), per_channel=1.0)),
-                iaa.Resize(self.scale,  interpolation='linear'),
-                iaa.Affine(rotate=(-60,60),scale=(0.8,1.25))],
-                #iaa.PadToFixedSize(256,256)],
-                random_order=False)
-        elif mode == '3D':
-            self.scale = 1.0
-            self.reproTool = ReprojectionTool('T', self.root_dir, self.coco.dataset['calibration']['intrinsics'], self.coco.dataset['calibration']['extrinsics'])
-            #self.reproTool.renderPoints([], True)
-            self.image_ids_all = self.image_ids
-            self.image_ids = [self.coco.dataset['framesets'][set][0] for set in self.coco.dataset['framesets']]
 
-        self.transform = transforms.Compose([Normalizer(mean=cfg.DATASET.MEAN, std=cfg.DATASET.STD, scale = self.scale, mode=mode)])
+
+    def build_augpipe(self):
+        augmentors = []
+
+        if self.mode == 'cropping':
+            width, height = self.coco.dataset['info']['width'], self.coco.dataset['info']['height']
+            scale = self.cfg.EFFICIENTDET.IMG_SIZE / max(height, width)
+            cfg = self.cfg.EFFICIENTDET.AUGMENTATION
+        elif self.mode == 'keypoints':
+            scale = cfg.EfficientTrack.IMG_SIZE / cfg.EfficientTrack.BOUNDING_BOX_SIZE
+            cfg = self.cfg.EfficientTrack.AUGMENTATION
+
+        augmentors.append(iaa.Resize(scale,  interpolation='linear'))
+        if cfg.COLOR_MANIPULATION.ENABLED:
+            cman = cfg.COLOR_MANIPULATION
+            augmentors.append(iaa.Sometimes(cman.GAUSSIAN_BLUR.PROBABILITY,
+                              iaa.GaussianBlur(sigma=cman.GAUSSIAN_BLUR.SIGMA)))
+            augmentors.append(iaa.AdditiveGaussianNoise(loc = 0, scale = cman.GAUSSIAN_NOISE.SCALE,
+                              per_channel = cman.GAUSSIAN_NOISE.PER_CHANNEL_PROBABILITY))
+            augmentors.append(iaa.Sometimes(cman.LINEAR_CONTRAST.PROBABILITY,
+                              iaa.LinearContrast(cman.LINEAR_CONTRAST.SCALE)))
+            augmentors.append(iaa.Sometimes(cman.MULTIPLY.PROBABILITY,
+                              iaa.Multiply(cman.MULTIPLY.SCALE)))
+            augmentors.append(iaa.Sometimes(cman.PER_CHANNEL_MULTIPLY.PROBABILITY,
+                              iaa.Multiply(cman.PER_CHANNEL_MULTIPLY.SCALE,
+                              per_channel=cman.PER_CHANNEL_MULTIPLY.PER_CHANNEL_PROBABILITY)))
+
+        augmentors.append(iaa.Fliplr(cfg.MIRROR.PROBABILITY))
+        augmentors.append(iaa.Sometimes(cfg.AFFINE_TRANSFORM.PROBABILITY,
+                          iaa.Affine(rotate=cfg.AFFINE_TRANSFORM.ROTATION_RANGE,
+                          scale=cfg.AFFINE_TRANSFORM.SCALE_RANGE)))
+        if self.mode == 'cropping':
+            augmentors.append(iaa.PadToFixedSize(self.cfg.EFFICIENTDET.IMG_SIZE,self.cfg.EFFICIENTDET.IMG_SIZE))
+            
+        self.augpipe = iaa.Sequential(augmentors, random_order = False)
 
 
 
@@ -107,7 +105,7 @@ class CocoDataset(Dataset):
             bboxs[0][1] = bboxs_aug[0].y1
             bboxs[0][2] = bboxs_aug[0].x2
             bboxs[0][3] = bboxs_aug[0].y2
-            sample = {'img': img, 'bboxs': bboxs}
+            sample = [img, bboxs]
 
         elif self.mode == 'keypoints':
             img = self.load_image(idx)
@@ -206,9 +204,9 @@ class CocoDataset(Dataset):
             cv2.waitKey(0)
 
         elif self.mode == 'cropping':
-            img = (sample['img'].numpy()*self.cfg.DATASET.STD+self.cfg.DATASET.MEAN)
+            img = (sample[0].numpy()*self.cfg.DATASET.STD+self.cfg.DATASET.MEAN)
             img = cv2.cvtColor(img.astype(np.float32), cv2.COLOR_RGB2BGR)
-            bboxs = sample['bboxs'].numpy()
+            bboxs = sample[1].numpy()
             for i,bbox in enumerate(bboxs):
                 cv2.rectangle(img, (int(bbox[0]), int(bbox[1])), (int(bbox[2]), int(bbox[3])), (0, 0, 255), 1)
                 cv2.putText(img, '{}'.format(self.labels[int(bbox[4])]),
@@ -230,57 +228,46 @@ class CocoDataset(Dataset):
 
 
 def collater_bbox(data):
-    imgs = [s['img'] for s in data]
-    annots = [s['bboxs'] for s in data]
-    scales = [s['scale'] for s in data]
+    imgs = [s[0] for s in data]
+    annots = [s[1] for s in data]
 
     imgs = torch.from_numpy(np.stack(imgs, axis=0))
-
     max_num_annots = max(annot.shape[0] for annot in annots)
-
     if max_num_annots > 0:
-
         annot_padded = torch.ones((len(annots), max_num_annots, 5)) * -1
-
         for idx, annot in enumerate(annots):
             if annot.shape[0] > 0:
                 annot_padded[idx, :annot.shape[0], :] = annot
     else:
         annot_padded = torch.ones((len(annots), 1, 5)) * -1
-
     imgs = imgs.permute(0, 3, 1, 2)
+    return [imgs, annot_padded]
 
-    return {'img': imgs, 'annot': annot_padded, 'scale': scales}
 
 def collater_keypoints(data):
     imgs = [s[0] for s in data]
     heatmaps = [torch.from_numpy(np.array([s[1][i] for s in data])) for i in range(2)]
-    scales = [s[2] for s in data]
-
     imgs = torch.from_numpy(np.stack(imgs, axis=0))
-    #heatmaps = torch.from_numpy(np.stack(heatmaps, axis=0))
-
     imgs = imgs.permute(0, 3, 1, 2)
 
-    return [imgs, heatmaps, scales]
+    return [imgs, heatmaps]
 
 
 class Normalizer(object):
-    def __init__(self, mean, std, scale, mode = 'cropping'):
+    def __init__(self, mean, std, mode = 'cropping'):
         self.mean = np.array([[mean]])
         self.std = np.array([[std]])
         self.mode = mode
-        self.scale = scale
 
     def __call__(self, sample):
         if self.mode == 'cropping':
-            image, bboxs = sample['img'], sample['bboxs']
-            return {'img': torch.from_numpy((image.astype(np.float32) - self.mean) / self.std).to(torch.float32), 'bboxs': torch.from_numpy(bboxs), 'scale': self.scale}
+            image, bboxs = sample[0], sample[1]
+            return [torch.from_numpy((image.astype(np.float32) - self.mean) / self.std).to(torch.float32), torch.from_numpy(bboxs)]
 
         elif self.mode == 'keypoints':
             image, heatmaps = sample[0], sample[1]
             keypoints = sample[2]
-            return [torch.from_numpy((image.astype(np.float32) - self.mean) / self.std).to(torch.float32), heatmaps, keypoints,self.scale]
+            return [torch.from_numpy((image.astype(np.float32) - self.mean) / self.std).to(torch.float32), heatmaps, keypoints]
 
 
 if __name__ == "__main__":

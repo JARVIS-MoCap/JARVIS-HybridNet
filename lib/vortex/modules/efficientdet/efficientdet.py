@@ -42,14 +42,14 @@ class EfficientDet:
         ratios=eval(self.cfg.EFFICIENTDET.ANCHOR_RATIOS), scales=eval(self.cfg.EFFICIENTDET.ANCHOR_SCALES))
 
         if mode  == 'train':
-            self.cfg.MODEL_SAVE_PATH = os.path.join(self.cfg.MODEL_SAVE_PATH, self.cfg.PROJECT_NAME)
-            self.cfg.LOG_PATH = os.path.join(self.cfg.LOG_PATH, self.cfg.PROJECT_NAME, 'tensorboard')
-            self.logger = NetLogger(self.cfg.LOG_PATH, ['Class Loss', 'Reg Loss', 'Total Loss'])
+            self.model_savepath = os.path.join(self.cfg.PROJECTS_ROOT_PATH, self.cfg.PROJECT_NAME, 'efficientdet' , 'models', self.cfg.EXPERIMENT_NAME)
+            self.log_path = os.path.join(self.cfg.PROJECTS_ROOT_PATH, self.cfg.PROJECT_NAME, 'efficientdet', 'logs', self.cfg.EXPERIMENT_NAME)
+            self.logger = NetLogger(self.log_path, ['Class Loss', 'Reg Loss', 'Total Loss'])
             self.classLossMeter = AverageMeter()
             self.regLossMeter = AverageMeter()
             self.totalLossMeter = AverageMeter()
-            os.makedirs(self.cfg.LOG_PATH, exist_ok=True)
-            os.makedirs(self.cfg.MODEL_SAVE_PATH, exist_ok=True)
+            os.makedirs(self.log_path, exist_ok=True)
+            os.makedirs(self.model_savepath, exist_ok=True)
 
             self.load_weights(weights)
 
@@ -213,8 +213,8 @@ class EfficientDet:
                     progress_bar.update()
                     continue
                 #try:
-                imgs = data['img']
-                annot = data['annot']
+                imgs = data[0]
+                annot = data[1]
 
                 if self.cfg.NUM_GPUS == 1:
                     # if only one gpu, just send it to cuda:0
@@ -256,7 +256,7 @@ class EfficientDet:
             self.regLossMeter.reset()
             self.totalLossMeter.reset()
 
-            if epoch % self.cfg.EFFICIENTDET.SAVE_INTERVAL == 0 and epoch > 0:
+            if epoch % self.cfg.EFFICIENTDET.CHECKPOINT_SAVE_INTERVAL == 0 and epoch > 0:
                 self.save_checkpoint(f'efficientdet-d{self.cfg.EFFICIENTDET.COMPOUND_COEF}_{epoch}_{step}.pth')
                 print('checkpoint...')
 
@@ -266,8 +266,8 @@ class EfficientDet:
                 loss_classification_ls = []
                 for iter, data in enumerate(val_generator):
                     with torch.no_grad():
-                        imgs = data['img']
-                        annot = data['annot']
+                        imgs = data[0]
+                        annot = data[1]
 
                         if self.cfg.NUM_GPUS == 1:
                             imgs = imgs.cuda()
@@ -314,9 +314,9 @@ class EfficientDet:
 
     def save_checkpoint(self, name):
         if isinstance(self.model, utils.CustomDataParallel):
-            torch.save(self.module.model.state_dict(), os.path.join(self.cfg.MODEL_SAVE_PATH, name))
+            torch.save(self.module.model.state_dict(), os.path.join(self.model_savepath, name))
         else:
-            torch.save(self.model.state_dict(), os.path.join(self.cfg.MODEL_SAVE_PATH, name))
+            torch.save(self.model.state_dict(), os.path.join(self.model_savepath, name))
 
     def export_to_onnx(self, savefile_name, input_size = 256, export_params = True, opset_version = 9):
         input = torch.zeros(1,3,input_size,input_size).cuda()

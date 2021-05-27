@@ -3,6 +3,7 @@
 
 docs/build/
 datasets/
+projects/
 .ipynb_checkpoints/
 __pycache__/
 *.onnx
