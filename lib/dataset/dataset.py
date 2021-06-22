@@ -1,7 +1,13 @@
+"""
+dataset.py
+========
+Vortex dataset loader.
+"""
+
+
 import os,sys,inspect
 import torch
 import numpy as np
-import yaml
 import cv2
 
 import imgaug.augmenters as iaa
@@ -19,11 +25,19 @@ import matplotlib.pyplot as plt
 current_dir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
 parent_dir = os.path.dirname(current_dir)
 sys.path.insert(0, parent_dir)
-#from core.hrnet.target_generators import HeatmapGenerator
-#from core.hrnet.target_generators import JointsGenerator
 
 
-class CocoDataset(Dataset):
+class VortexDataset(Dataset):
+    """
+    Dataset Class to load datasets in the VoRTEx dataset format. See HERE for more details.
+
+    :param cfg: handle of the global configuration
+    :param set: specifies wether to load training ('train') or validation ('val') split.
+                Augmentation will only be applied to training split.
+    :type set: string
+    :param mode: specifies wether bounding box annotations ('cropping') or keypoint
+                 annotations ('keypoints') will be loaded.
+    """
     def __init__(self, cfg, set='train', mode = 'cropping'):
         self.cfg = cfg
         self.root_dir = cfg.DATASET.DATASET_DIR
@@ -34,16 +48,21 @@ class CocoDataset(Dataset):
         for category in self.coco.dataset['categories']:
             self.num_keypoints.append(category['num_keypoints'])
         self.image_ids = self.coco.getImgIds()
-        self.load_classes()
+        self._load_classes()
         if self.cfg.DATASET.OBJ_LIST == None:
             self.cfg.DATASET.OBJ_LIST = [value for key, value in self.labels.items()]
 
-        self.build_augpipe()
+        self.heatmap_generator = [
+            HeatmapGenerator(
+                cfg.EFFICIENTTRACK.BOUNDING_BOX_SIZE, output_size, cfg.EFFICIENTTRACK.NUM_JOINTS)  \
+                    for output_size in [int(cfg.EFFICIENTTRACK.BOUNDING_BOX_SIZE/4), int(cfg.EFFICIENTTRACK.BOUNDING_BOX_SIZE/2)]
+        ]
+
+        self._build_augpipe()
         self.transform = transforms.Compose([Normalizer(mean=cfg.DATASET.MEAN, std=cfg.DATASET.STD, mode=mode)])
 
 
-
-    def build_augpipe(self):
+    def _build_augpipe(self):
         augmentors = []
 
         if self.mode == 'cropping':
@@ -51,8 +70,8 @@ class CocoDataset(Dataset):
             scale = self.cfg.EFFICIENTDET.IMG_SIZE / max(height, width)
             cfg = self.cfg.EFFICIENTDET.AUGMENTATION
         elif self.mode == 'keypoints':
-            scale = cfg.EfficientTrack.IMG_SIZE / cfg.EfficientTrack.BOUNDING_BOX_SIZE
-            cfg = self.cfg.EfficientTrack.AUGMENTATION
+            scale = self.cfg.EFFICIENTTRACK.IMG_SIZE / self.cfg.EFFICIENTTRACK.BOUNDING_BOX_SIZE
+            cfg = self.cfg.EFFICIENTTRACK.AUGMENTATION
 
         augmentors.append(iaa.Resize(scale,  interpolation='linear'))
         if cfg.COLOR_MANIPULATION.ENABLED:
@@ -75,12 +94,12 @@ class CocoDataset(Dataset):
                           scale=cfg.AFFINE_TRANSFORM.SCALE_RANGE)))
         if self.mode == 'cropping':
             augmentors.append(iaa.PadToFixedSize(self.cfg.EFFICIENTDET.IMG_SIZE,self.cfg.EFFICIENTDET.IMG_SIZE))
-            
+
         self.augpipe = iaa.Sequential(augmentors, random_order = False)
 
 
 
-    def load_classes(self):
+    def _load_classes(self):
         categories = self.coco.loadCats(self.coco.getCatIds())
         categories.sort(key=lambda x: x['id'])
         self.classes = {}
@@ -97,20 +116,20 @@ class CocoDataset(Dataset):
 
     def __getitem__(self, idx):
         if self.mode == 'cropping':
-            img = self.load_image(idx)
-            bboxs, keypoints = self.load_annotations(idx)
-            bboxs_iaa = BoundingBoxesOnImage([BoundingBox(x1=bboxs[0][0], y1=bboxs[0][1], x2=bboxs[0][2], y2=bboxs[0][3])], shape=(img.shape[0],img.shape[1],3))
+            img = self._load_image(idx)
+            bboxs, keypoints = self._load_annotations(idx)
+            bboxs_iaa = BoundingBoxesOnImage([BoundingBox(x1=bboxs[0,0], y1=bboxs[0,1], x2=bboxs[0,2], y2=bboxs[0,3])], shape=(img.shape[0],img.shape[1],3))
             img, bboxs_aug = self.augpipe(image=img, bounding_boxes=bboxs_iaa)
-            bboxs[0][0] = bboxs_aug[0].x1
-            bboxs[0][1] = bboxs_aug[0].y1
-            bboxs[0][2] = bboxs_aug[0].x2
-            bboxs[0][3] = bboxs_aug[0].y2
+            bboxs[0,0] = bboxs_aug[0].x1
+            bboxs[0,1] = bboxs_aug[0].y1
+            bboxs[0,2] = bboxs_aug[0].x2
+            bboxs[0,3] = bboxs_aug[0].y2
             sample = [img, bboxs]
 
         elif self.mode == 'keypoints':
-            img = self.load_image(idx)
-            bboxs, keypoints = self.load_annotations(idx)
-            bbox_hw = int(self.cfg.DATASET.HRNET.BOUNDING_BOX_SIZE/2)
+            img = self._load_image(idx)
+            bboxs, keypoints = self._load_annotations(idx)
+            bbox_hw = int(self.cfg.EFFICIENTTRACK.BOUNDING_BOX_SIZE/2)
             center_y = min(max(bbox_hw, int((bboxs[0][1]+int(bboxs[0][3]))/2)), 1024-bbox_hw)
             center_x = min(max(bbox_hw, int((bboxs[0][0]+int(bboxs[0][2]))/2)), 1280-bbox_hw)
             img = img[center_y-bbox_hw:center_y+bbox_hw, center_x-bbox_hw:center_x+bbox_hw, :]
@@ -119,21 +138,19 @@ class CocoDataset(Dataset):
                 keypoints[0][i+1] += -center_y+bbox_hw
             if self.set_name == 'train':
                 keypoints_iaa = KeypointsOnImage([Keypoint(x=keypoints[0][i], y=keypoints[0][i+1]) for i in range(0,len(keypoints[0]),3)],
-                                                 shape=(self.cfg.DATASET.HRNET.BOUNDING_BOX_SIZE,self.cfg.DATASET.HRNET.BOUNDING_BOX_SIZE,3))
+                                                 shape=(self.cfg.EFFICIENTTRACK.BOUNDING_BOX_SIZE,self.cfg.EFFICIENTTRACK.BOUNDING_BOX_SIZE,3))
                 img, keypoints_aug = self.augpipe(image=img, keypoints = keypoints_iaa)
                 for i,point in enumerate(keypoints_aug.keypoints):
                     keypoints[0][i*3] = point.x
                     keypoints[0][i*3+1] = point.y
 
-            joints = np.zeros((1,self.cfg.DATASET.HRNET.NUM_JOINTS, 3))
-            joints[0, :self.cfg.DATASET.HRNET.NUM_JOINTS, :3] = np.array(keypoints[0]).reshape([-1, 3])
-            joints_list = [joints.copy() for _ in range(self.num_scales)]
+            joints = np.zeros((1,self.cfg.EFFICIENTTRACK.NUM_JOINTS, 3))
+            joints[0, :self.cfg.EFFICIENTTRACK.NUM_JOINTS, :3] = np.array(keypoints[0]).reshape([-1, 3])
+            joints_list = [joints.copy() for _ in range(2)]
             target_list = list()
-            for scale_id in range(self.num_scales):
+            for scale_id in range(2):
                 target_t = self.heatmap_generator[scale_id](joints_list[scale_id])
-                joints_t = self.joints_generator[scale_id](joints_list[scale_id])
                 target_list.append(target_t.astype(np.float32))
-                joints_list[scale_id] = joints_t.astype(np.int32)
             sample = [img, target_list, keypoints]
 
         if self.transform:
@@ -141,7 +158,7 @@ class CocoDataset(Dataset):
         return sample
 
 
-    def load_image(self, image_index, is_id = False):
+    def _load_image(self, image_index, is_id = False):
         if is_id:
             image_info = self.coco.loadImgs(image_index)[0]
         else:
@@ -153,7 +170,7 @@ class CocoDataset(Dataset):
         return img
 
 
-    def load_annotations(self, image_index, is_id = False):
+    def _load_annotations(self, image_index, is_id = False):
         # get ground truth annotations
         if is_id:
             annotations_ids = self.coco.getAnnIds(imgIds=image_index, iscrowd=False)
@@ -216,21 +233,10 @@ class CocoDataset(Dataset):
             cv2.waitKey(0)
 
 
-    def _init_check(self, heatmap_generator, joints_generator):
-        assert isinstance(heatmap_generator, (list, tuple)), 'heatmap_generator should be a list or tuple'
-        assert isinstance(joints_generator, (list, tuple)), 'joints_generator should be a list or tuple'
-        assert len(heatmap_generator) == len(joints_generator), \
-            'heatmap_generator and joints_generator should have same length,'\
-            'got {} vs {}.'.format(
-                len(heatmap_generator), len(joints_generator)
-            )
-        return len(heatmap_generator)
-
 
 def collater_bbox(data):
     imgs = [s[0] for s in data]
     annots = [s[1] for s in data]
-
     imgs = torch.from_numpy(np.stack(imgs, axis=0))
     max_num_annots = max(annot.shape[0] for annot in annots)
     if max_num_annots > 0:
@@ -247,10 +253,11 @@ def collater_bbox(data):
 def collater_keypoints(data):
     imgs = [s[0] for s in data]
     heatmaps = [torch.from_numpy(np.array([s[1][i] for s in data])) for i in range(2)]
+    keypoints = [s[2] for s in data]
     imgs = torch.from_numpy(np.stack(imgs, axis=0))
     imgs = imgs.permute(0, 3, 1, 2)
 
-    return [imgs, heatmaps]
+    return [imgs, heatmaps, keypoints]
 
 
 class Normalizer(object):
@@ -269,6 +276,44 @@ class Normalizer(object):
             keypoints = sample[2]
             return [torch.from_numpy((image.astype(np.float32) - self.mean) / self.std).to(torch.float32), heatmaps, keypoints]
 
+
+class HeatmapGenerator():
+    def __init__(self, original_res, output_res, num_joints, sigma=-1):
+        self.output_res = output_res
+        self.num_joints = num_joints
+        self.scale_factor = float(output_res)/float(original_res)
+        if sigma < 0:
+            sigma = 2*self.output_res/64
+        self.sigma = sigma
+        size = 6*sigma + 3
+        x = np.arange(0, size, 1, float)
+        y = x[:, np.newaxis]
+        x0, y0 = 3*sigma + 1, 3*sigma + 1
+        self.g = 255.0*np.exp(- ((x - x0) ** 2 + (y - y0) ** 2) / (2 * sigma ** 2))
+
+    def __call__(self, joints):
+        hms = np.zeros((self.num_joints, self.output_res, self.output_res),
+                       dtype=np.float32)
+        sigma = self.sigma
+        for p in joints:
+            for idx, pt in enumerate(p):
+                if pt[2] > 0:
+                    x, y = int(pt[0]*self.scale_factor), int(pt[1]*self.scale_factor)
+                    if x < 0 or y < 0 or \
+                       x >= self.output_res or y >= self.output_res:
+                        continue
+
+                    ul = int(np.round(x - 3 * sigma - 1)), int(np.round(y - 3 * sigma - 1))
+                    br = int(np.round(x + 3 * sigma + 2)), int(np.round(y + 3 * sigma + 2))
+
+                    c, d = max(0, -ul[0]), min(br[0], self.output_res) - ul[0]
+                    a, b = max(0, -ul[1]), min(br[1], self.output_res) - ul[1]
+
+                    cc, dd = max(0, ul[0]), min(br[0], self.output_res)
+                    aa, bb = max(0, ul[1]), min(br[1], self.output_res)
+                    hms[idx, aa:bb, cc:dd] = np.maximum(
+                        hms[idx, aa:bb, cc:dd], self.g[a:b, c:d])
+        return hms
 
 if __name__ == "__main__":
     from config import cfg

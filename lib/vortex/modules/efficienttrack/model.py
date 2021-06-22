@@ -1,7 +1,7 @@
 """
 model.py
 ========
-EfficientDet torch module.
+EfficientTrack torch module.
 """
 
 import torch
@@ -9,53 +9,46 @@ from torch import nn
 from torchvision.ops.boxes import nms as nms_torch
 
 from lib.vortex.modules.efficientnet.model import EfficientNet as EffNet
-from .utils import Anchors
 from .utils import MaxPool2dStaticSamePadding
 from lib.utils.utils import Swish, MemoryEfficientSwish
 
 
-class EfficientDetBackbone(nn.Module):
+class EfficientTrackBackbone(nn.Module):
     """
-    EfficientDet torch module. Uses group normalization instead of batch norm.
+    EfficientTrack torch module. Uses group normalization instead of batch norm.
 
     :param num_classes: Number of object classes
     :type num_classes: int
-    :param compound_coef: Compound Coefficient of the network as defined in the
-        paper. Smaller coefficients correspond to smaller (both in memory and FLOPs)
+    :param compound_coef: Compound Coefficient of the network. Smaller coefficients correspond to smaller (both in memory and FLOPs)
         networks.
     :type compound_coef: int
     :param onnx_export: Select if model will be exported to onnx format. If True
         regular swish implementation will be used
     :type onnx_export: bool, optional
     """
-    def __init__(self, num_classes, compound_coef=0, onnx_export = False, **kwargs):
-        super(EfficientDetBackbone, self).__init__()
-        self.compound_coef = compound_coef
+    def __init__(self, cfg, compound_coef=0, onnx_export = False, **kwargs):
+        super(EfficientTrackBackbone, self).__init__()
         self.num_groups = 8
+        self.cfg = cfg
+        self.compound_coef = compound_coef
 
         self.backbone_compound_coef = [0, 1, 2, 3, 4, 5, 6, 6, 7]
-        self.fpn_num_filters = [64, 88, 112, 160, 224, 288, 384, 384, 384]
-        self.fpn_cell_repeats = [3, 4, 5, 6, 7, 7, 8, 8, 8]
+        self.fpn_num_filters = [88, 112, 160, 224, 288, 384, 384, 384, 384]
+        self.fpn_cell_repeats = [4, 5, 6, 7, 7, 8, 8, 8, 8]
         self.input_sizes = [512, 640, 768, 896, 1024, 1280, 1280, 1536, 1536]
-        self.box_class_repeats = [3, 3, 3, 4, 4, 4, 5, 5, 5]
         self.pyramid_levels = [5, 5, 5, 5, 5, 5, 5, 5, 6]
-        self.anchor_scale = [4., 4., 4., 4., 4., 4., 4., 5., 4.]
-        self.aspect_ratios = kwargs.get('ratios', [(1.0, 1.0), (1.4, 0.7), (0.7, 1.4)])
-        self.num_scales = len(kwargs.get('scales', [2 ** 0, 2 ** (1.0 / 3.0), 2 ** (2.0 / 3.0)]))
         conv_channel_coef = {
             # the channels of P3/P4/P5.
-            0: [40, 112, 320],
-            1: [40, 112, 320],
-            2: [48, 120, 352],
-            3: [48, 136, 384],
-            4: [56, 160, 448],
-            5: [64, 176, 512],
+            0: [24, 40, 112],
+            1: [24, 40, 112],
+            2: [24, 48, 120],
+            3: [32, 48, 136],
+            4: [32, 56, 160],
+            5: [40, 64, 176],
             6: [72, 200, 576],
             7: [72, 200, 576],
             8: [80, 224, 640],
         }
-
-        num_anchors = len(self.aspect_ratios) * self.num_scales
 
         self.bifpn = nn.Sequential(
             *[BiFPN(self.fpn_num_filters[self.compound_coef],
@@ -65,40 +58,56 @@ class EfficientDetBackbone(nn.Module):
                     use_p8=compound_coef > 7, onnx_export = onnx_export)
               for _ in range(self.fpn_cell_repeats[compound_coef])])
 
-        self.num_classes = num_classes
-        self.regressor = Regressor(in_channels=self.fpn_num_filters[self.compound_coef], num_anchors=num_anchors,
-                                   num_layers=self.box_class_repeats[self.compound_coef],
-                                   pyramid_levels=self.pyramid_levels[self.compound_coef], onnx_export = onnx_export)
-        self.classifier = Classifier(in_channels=self.fpn_num_filters[self.compound_coef], num_anchors=num_anchors,
-                                     num_classes=num_classes,
-                                     num_layers=self.box_class_repeats[self.compound_coef],
-                                     pyramid_levels=self.pyramid_levels[self.compound_coef], onnx_export = onnx_export)
-
-        self.anchors = Anchors(anchor_scale=self.anchor_scale[compound_coef],
-                               pyramid_levels=(torch.arange(self.pyramid_levels[self.compound_coef]) + 3).tolist(),
-                               **kwargs)
-
         self.backbone_net = EfficientNet(self.backbone_compound_coef[compound_coef])
         self.backbone_net.model.set_swish(not onnx_export)
 
+        self.swish = MemoryEfficientSwish()
+        self.upsample3 = nn.Upsample(scale_factor = 4, mode = 'nearest')
+        self.upsample2 = nn.Upsample(scale_factor = 2, mode = 'nearest')
+        self.weights_cat = nn.Parameter(torch.ones(3, dtype=torch.float32), requires_grad=True)
+        self.weights_relu = nn.ReLU()
+        self.first_conv = SeparableConvBlock(224,192,True)
+        self.deconv1 = nn.ConvTranspose2d(
+            in_channels=192,
+            out_channels=192,
+            kernel_size=4,
+            stride=2,
+            padding=1,
+            bias=False)
+        self.gn1 = nn.GroupNorm(self.num_groups, 192)
+        self.final_conv1 = nn.Conv2d(
+            in_channels = 192,
+            out_channels = self.cfg.EFFICIENTTRACK.NUM_JOINTS,
+            kernel_size = 3,
+            padding=1,
+            bias = False)
+        self.final_conv2 = nn.Conv2d(
+            in_channels = 192,
+            out_channels = self.cfg.EFFICIENTTRACK.NUM_JOINTS,
+            kernel_size = 3,
+            padding=1,
+            bias = False)
 
     def forward(self, inputs):
-        max_size = inputs.shape[-1]
-
         p3, p4, p5 = self.backbone_net(inputs)
 
         features = (p3, p4, p5)
         features = self.bifpn(features)
+        x3 = self.upsample3(features[2])
+        x2 = self.upsample2(features[1])
 
-        regression = self.regressor(features)
-        classification = self.classifier(features)
-        anchors = self.anchors(inputs, inputs.dtype)
-        return regression, classification, anchors
+        weight = self.weights_relu(self.weights_cat)
+        weight = weight / (torch.sum(weight, dim=0) + 0.0001)
+        x1 = weight[0]*features[0]+weight[1]*x2+weight[2]*x3
+        res1 = self.first_conv(x1)
+        res2 = self.deconv1(res1)
+        res2 = self.gn1(res2)
+        res2 = self.swish(res2)
 
+        res1 = self.final_conv1(res1)
+        res2 = self.final_conv2(res2)
 
-
-def nms(dets, thresh):
-    return nms_torch(dets[:, :4], dets[:, 4], thresh)
+        return [res1, res2]
 
 
 
@@ -168,7 +177,8 @@ class SeparableConvBlock(nn.Module):
         regular swish implementation will be used
     :type onnx_export: bool, optional
     """
-    def __init__(self, in_channels, out_channels=None, norm=True, activation=False, onnx_export=False):
+    def __init__(self, in_channels, out_channels = None, norm = True,
+                 activation = False, onnx_export = False):
         super(SeparableConvBlock, self).__init__()
         self.num_groups = 8
         if out_channels is None:
@@ -183,11 +193,11 @@ class SeparableConvBlock(nn.Module):
             bias = False,
             padding = 1)
         self.pointwise_conv = nn.Conv2d(
-        in_channels = in_channels,
-        out_channels = out_channels,
-        kernel_size = 1,
-        stride = 1,
-        padding = 0)
+            in_channels = in_channels,
+            out_channels = out_channels,
+            kernel_size = 1,
+            stride = 1,
+            padding = 0)
 
         self.norm = norm
         if self.norm:
@@ -200,12 +210,14 @@ class SeparableConvBlock(nn.Module):
     def forward(self, x):
         x = self.depthwise_conv(x)
         x = self.pointwise_conv(x)
+
         if self.norm:
             x = self.gn(x)
+
         if self.activation:
             x = self.swish(x)
-        return x
 
+        return x
 
 
 class BiFPN(nn.Module):
@@ -240,9 +252,9 @@ class BiFPN(nn.Module):
         # Conv layers
         self.conv6_up = SeparableConvBlock(num_channels, onnx_export=onnx_export)
         self.conv5_up = SeparableConvBlock(num_channels, onnx_export=onnx_export)
-        self.conv4_up = SeparableConvBlock(num_channels, onnx_export=onnx_export)
+        self.conv4_up = RegularConvBlock(num_channels, onnx_export=onnx_export)
         self.conv3_up = RegularConvBlock(num_channels, onnx_export=onnx_export)
-        self.conv4_down = SeparableConvBlock(num_channels, onnx_export=onnx_export)
+        self.conv4_down = RegularConvBlock(num_channels, onnx_export=onnx_export)
         self.conv5_down = SeparableConvBlock(num_channels, onnx_export=onnx_export)
         self.conv6_down = SeparableConvBlock(num_channels, onnx_export=onnx_export)
         self.conv7_down = SeparableConvBlock(num_channels, onnx_export=onnx_export)
@@ -480,100 +492,6 @@ class BiFPN(nn.Module):
             return p3_out, p4_out, p5_out, p6_out, p7_out
 
 
-class Regressor(nn.Module):
-    """
-    Regression head of EfficientDet.
-
-    :param in_channels: Number of input channels
-    :type in_channels: int
-    :param num_anchors: Number of anchors used per position
-    :type num_anchors: int
-    :param num_layers: Number of Convolutional Layers
-    :type num_layers: int
-    :param pyramid_levels: Number of levels of BiFPN (Each layer gets processed seperately,
-        but the weights are shared)
-    :type pyramid_levels: int, optional
-    :param onnx_export: Select if model will be exported to onnx format. If True
-        regular swish implementation will be used
-    :type onnx_export: bool, optional
-    """
-    def __init__(self, in_channels, num_anchors, num_layers, pyramid_levels=5, onnx_export=False):
-        super(Regressor, self).__init__()
-        self.num_groups = 8
-        self.num_layers = num_layers
-        self.conv_list = nn.ModuleList(
-            [SeparableConvBlock(in_channels, in_channels, norm=False, activation=False) for i in range(num_layers)])
-        self.bn_list = nn.ModuleList(
-            [nn.ModuleList([nn.GroupNorm(self.num_groups, in_channels) for i in range(num_layers)]) for j in
-             range(pyramid_levels)])
-        self.header = SeparableConvBlock(in_channels, num_anchors * 4, norm=False, activation=False)
-        self.swish = MemoryEfficientSwish() if not onnx_export else Swish()
-
-    def forward(self, inputs):
-        feats = []
-        for feat, bn_list in zip(inputs, self.bn_list):
-            for i, bn, conv in zip(range(self.num_layers), bn_list, self.conv_list):
-                feat = conv(feat)
-                feat = bn(feat)
-                feat = self.swish(feat)
-            feat = self.header(feat)
-            feat = feat.permute(0, 2, 3, 1)
-            feat = feat.contiguous().view(feat.shape[0], -1, 4)
-            feats.append(feat)
-        feats = torch.cat(feats, dim=1)
-
-        return feats
-
-
-class Classifier(nn.Module):
-    """
-    Classification head of EfficientDet.
-
-    :param in_channels: Number of input channels
-    :type in_channels: int
-    :param num_anchors: Number of anchors used per position
-    :type num_anchors: int
-    :param num_layers: Number of Convolutional Layers
-    :type num_layers: int
-    :param pyramid_levels: Number of levels of BiFPN (Each layer gets processed seperately,
-        but the weights are shared)
-    :type pyramid_levels: int, optional
-    :param onnx_export: Select if model will be exported to onnx format. If True
-        regular swish implementation will be used
-    :type onnx_export: bool, optional
-    """
-    def __init__(self, in_channels, num_anchors, num_classes, num_layers, pyramid_levels=5, onnx_export=False):
-        super(Classifier, self).__init__()
-        self.num_groups = 8
-        self.num_anchors = num_anchors
-        self.num_classes = num_classes
-        self.num_layers = num_layers
-        self.conv_list = nn.ModuleList(
-            [SeparableConvBlock(in_channels, in_channels, norm=False, activation=False) for i in range(num_layers)])
-        self.bn_list = nn.ModuleList(
-            [nn.ModuleList([nn.GroupNorm(self.num_groups, in_channels) for i in range(num_layers)]) for j in
-             range(pyramid_levels)])
-        self.header = SeparableConvBlock(in_channels, num_anchors * num_classes, norm=False, activation=False)
-        self.swish = MemoryEfficientSwish() if not onnx_export else Swish()
-
-    def forward(self, inputs):
-        feats = []
-        for feat, bn_list in zip(inputs, self.bn_list):
-            for i, bn, conv in zip(range(self.num_layers), bn_list, self.conv_list):
-                feat = conv(feat)
-                feat = bn(feat)
-                feat = self.swish(feat)
-            feat = self.header(feat)
-            feat = feat.permute(0, 2, 3, 1)
-            feat = feat.contiguous().view(feat.shape[0], feat.shape[1], feat.shape[2], self.num_anchors,
-                                          self.num_classes)
-            feat = feat.contiguous().view(feat.shape[0], -1, self.num_classes)
-            feats.append(feat)
-        feats = torch.cat(feats, dim=1)
-        feats = feats.sigmoid()
-
-        return feats
-
 
 class EfficientNet(nn.Module):
     """
@@ -596,26 +514,29 @@ class EfficientNet(nn.Module):
         self.model = model
 
         self.save_idxs = []
-        ignore_first_two = 0
+        ignore_first = True
         last_idx = 0
         for idx, block in enumerate(self.model._blocks):
-            if ignore_first_two < 2 and block._depthwise_conv.stride == (2,2):
-                ignore_first_two += 1
+            if ignore_first and block._depthwise_conv.stride == (2,2):
+                ignore_first = False
                 self.save_idxs.append(False)
             else:
                 self.save_idxs.append(block._depthwise_conv.stride == (2,2))
+                if block._depthwise_conv.stride == (2,2):
+                    last_idx = idx-1
+        self.model._blocks = self.model._blocks[:last_idx+1]
 
     def forward(self, x):
         x = self.model._conv_stem(x)
         x = self.model._gn0(x)
         x = self.model._swish(x)
         feature_maps = []
-
         for idx, block in enumerate(self.model._blocks):
             drop_connect_rate = self.model._global_params.drop_connect_rate
             if drop_connect_rate:
                 drop_connect_rate *= float(idx) / len(self.model._blocks)
             x = block(x, drop_connect_rate=drop_connect_rate)
-            if idx == len(self.model._blocks) - 1 or self.save_idxs[idx+1]:
+
+            if self.save_idxs[idx+1]:
                 feature_maps.append(x)
         return feature_maps

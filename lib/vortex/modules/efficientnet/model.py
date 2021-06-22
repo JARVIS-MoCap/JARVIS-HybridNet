@@ -28,7 +28,7 @@ class MBConvBlock(nn.Module):
         super().__init__()
         self.padding = {1:{1:0,2:0}, 3:{1:1, 2:1}, 5:{1:2,2:2}}
         self._block_args = block_args
-        self.group_size = 8
+        self.num_groups = 8
         self.has_se = (self._block_args.se_ratio is not None) and (0 < self._block_args.se_ratio <= 1)
         self.id_skip = block_args.id_skip  # skip connection and drop connect
 
@@ -37,7 +37,7 @@ class MBConvBlock(nn.Module):
         oup = self._block_args.input_filters * self._block_args.expand_ratio  # number of output channels
         if self._block_args.expand_ratio != 1:
             self._expand_conv = nn.Conv2d(in_channels=inp, out_channels=oup, kernel_size=1, bias=False)
-            self._gn0 = nn.GroupNorm(self.group_size, oup)
+            self._gn0 = nn.GroupNorm(self.num_groups, oup)
 
         # Depthwise convolution phase
         k = self._block_args.kernel_size
@@ -45,7 +45,7 @@ class MBConvBlock(nn.Module):
         self._depthwise_conv = nn.Conv2d(
             in_channels=oup, out_channels=oup, groups=oup,  # groups makes it depthwise
             kernel_size=k, stride=s, bias=False, padding = self.padding[k][s])
-        self._gn1 = nn.GroupNorm(self.group_size, oup)
+        self._gn1 = nn.GroupNorm(self.num_groups, oup)
 
         # Squeeze and Excitation layer, if desired
         if self.has_se:
@@ -56,7 +56,7 @@ class MBConvBlock(nn.Module):
         # Output phase
         final_oup = self._block_args.output_filters
         self._project_conv = nn.Conv2d(in_channels=oup, out_channels=final_oup, kernel_size=1, bias=False)
-        self._gn2 = nn.GroupNorm(self.group_size, final_oup)
+        self._gn2 = nn.GroupNorm(self.num_groups, final_oup)
         self._swish = MemoryEfficientSwish()
 
     def forward(self, inputs, drop_connect_rate=None):
@@ -110,13 +110,13 @@ class EfficientNet(nn.Module):
         assert len(blocks_args) > 0, 'block args must be greater than 0'
         self._global_params = global_params
         self._blocks_args = blocks_args
-        self.group_size = 8
+        self.num_groups = 8
 
         # Stem
         in_channels = 3  # rgb
         out_channels = round_filters(32, self._global_params)  # number of output channels
         self._conv_stem = nn.Conv2d(in_channels, out_channels, kernel_size=3, stride=2, bias=False, padding = 1)
-        self._gn0 = nn.GroupNorm(self.group_size, out_channels)
+        self._gn0 = nn.GroupNorm(self.num_groups, out_channels)
 
         # Build blocks
         self._blocks = nn.ModuleList([])
@@ -140,7 +140,7 @@ class EfficientNet(nn.Module):
         in_channels = block_args.output_filters  # output of final block
         out_channels = round_filters(1280, self._global_params)
         self._conv_head = nn.Conv2d(in_channels, out_channels, kernel_size=1, bias=False)
-        self._gn1 = nn.GroupNorm(self.group_size, out_channels)
+        self._gn1 = nn.GroupNorm(self.num_groups, out_channels)
 
         # Final linear layer
         self._avg_pooling = nn.AdaptiveAvgPool2d(1)

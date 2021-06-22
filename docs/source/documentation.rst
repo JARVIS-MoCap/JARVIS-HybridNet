@@ -7,4 +7,5 @@ Code Reference
     :maxdepth: 2
 
     vortex
+    dataset
     logger
