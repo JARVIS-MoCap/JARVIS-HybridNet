@@ -317,7 +317,7 @@ class HeatmapGenerator():
 
 if __name__ == "__main__":
     from config import cfg
-    training_set = CocoDataset(cfg = cfg, set='val', mode='cropping')
+    training_set = VortexDataset(cfg = cfg, set='train', mode='keypoints')
     print (len(training_set.image_ids))
     for i in range(0,1000,12):
         training_set.visualize_sample(i)

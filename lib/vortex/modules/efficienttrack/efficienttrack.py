@@ -142,8 +142,9 @@ class EfficientTrack:
             progress_bar = tqdm(training_generator)
             for iter, data in enumerate(progress_bar):
                 if iter < step - last_epoch * num_iter_per_epoch:
-                    progress_bar.update()
-                    continue
+                    #progress_bar.update()
+                    #continue
+                    pass
                 #try:
                 imgs = data[0]
                 heatmaps = data[1]
@@ -169,7 +170,6 @@ class EfficientTrack:
                 scaler.update()
 
                 self.lossMeter.update(loss.item())
-
                 progress_bar.set_description(
                     'Epoch: {}/{}. Iteration: {}/{}. Loss: {:.5f}'.format(
                         epoch, num_epochs, iter + 1, num_iter_per_epoch, self.lossMeter.read()))
@@ -210,28 +210,27 @@ class EfficientTrack:
                         if loss == 0 or not torch.isfinite(loss):
                             continue
 
-                        avg_loss_val += loss.detach().cpu()
+                    avg_loss_val += loss.detach().cpu()
 
-                        preds, maxvals = darkpose.get_final_preds(heatmaps[1].clamp(0,255).detach().cpu().numpy(), None)
-                        masked = np.ma.masked_where(maxvals.reshape(self.cfg.EFFICIENTTRACK.BATCH_SIZE,self.cfg.EFFICIENTTRACK.NUM_JOINTS) < 0, np.linalg.norm((preds+0.5)*2-keypoints, axis = 2))
-                        avg_acc_val += np.mean(masked)
+                    preds, maxvals = darkpose.get_final_preds(outputs[1].clamp(0,255).detach().cpu().numpy(), None)
+                    masked = np.ma.masked_where(maxvals.reshape(self.cfg.EFFICIENTTRACK.BATCH_SIZE,self.cfg.EFFICIENTTRACK.NUM_JOINTS) < 10, np.linalg.norm((preds+0.5)*2-keypoints, axis = 2))
+                    avg_acc_val += np.mean(masked)
 
                 print(
                     'Val. Epoch: {}/{}. Loss: {:1.5f}. Acc: {:1.3f}'.format(
                         epoch, num_epochs, avg_loss_val/len(val_generator), avg_acc_val/len(val_generator)))
 
-                self.logger.update_val_loss(avg_loss_val)
+                self.logger.update_val_loss(avg_loss_val/len(val_generator))
 
-                if loss + self.cfg.EFFICIENTTRACK.EARLY_STOPPING_MIN_DELTA < best_loss:
+                if loss + self.cfg.EFFICIENTTRACK.EARLY_STOPPING_MIN_DELTA < best_loss  and self.cfg.EFFICIENTTRACK.USE_EARLY_STOPPING:
                     best_loss = loss
                     best_epoch = epoch
-
                     self.save_checkpoint(f'EfficientTrack-d{self.cfg.EFFICIENTTRACK.COMPOUND_COEF}_{epoch}_{step}.pth')
 
                 self.model.train()
 
                 # Early stopping
-                if epoch - best_epoch > self.cfg.EFFICIENTTRACK.EARLY_STOPPING_PATIENCE > 0:
+                if epoch - best_epoch > self.cfg.EFFICIENTTRACK.EARLY_STOPPING_PATIENCE > 0 and self.cfg.EFFICIENTTRACK.USE_EARLY_STOPPING:
                     print('[Info] Stop training at epoch {}. The lowest loss achieved is {}'.format(epoch, best_loss))
                     break
 
