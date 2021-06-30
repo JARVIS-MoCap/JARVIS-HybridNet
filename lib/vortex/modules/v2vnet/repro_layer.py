@@ -20,8 +20,8 @@ class ReprojectionLayer(nn.Module):
         if lookup_path == None:
             self.register_buffer('reproLookup', torch.from_numpy(self.__create_lookup()))
         else:
-            #self.reproLookup = torch.from_numpy(np.load('lookup.npy').astype('int16')).permute(3,0,1,2,4)
-            self.register_buffer('reproLookup', torch.from_numpy(np.load(lookup_path).astype('int16')).permute(3,0,1,2,4))
+            self.reproLookup = torch.from_numpy(np.load(lookup_path).astype('int16')).permute(3,0,1,2,4)
+            #self.register_buffer('reproLookup', torch.from_numpy(np.load(lookup_path).astype('int16')).permute(3,0,1,2,4))
 
         self.register_buffer('offset', torch.tensor([self.cfg.VORTEX.GRID_DIM_X[0], self.cfg.VORTEX.GRID_DIM_Y[0], self.cfg.VORTEX.GRID_DIM_Z[0]]))
         self.register_buffer('grid_spacing', torch.tensor(self.cfg.VORTEX.GRID_SPACING))
