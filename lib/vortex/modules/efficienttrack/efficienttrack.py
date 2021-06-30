@@ -135,17 +135,8 @@ class EfficientTrack:
 
         #try:
         for epoch in range(num_epochs):
-            last_epoch = step // num_iter_per_epoch
-            if epoch < last_epoch:
-                continue
-
             progress_bar = tqdm(training_generator)
             for iter, data in enumerate(progress_bar):
-                if iter < step - last_epoch * num_iter_per_epoch:
-                    #progress_bar.update()
-                    #continue
-                    pass
-                #try:
                 imgs = data[0]
                 heatmaps = data[1]
 
@@ -184,7 +175,6 @@ class EfficientTrack:
             if epoch % self.cfg.EFFICIENTTRACK.CHECKPOINT_SAVE_INTERVAL == 0 and epoch > 0:
                 self.save_checkpoint(f'EfficientTrack-d{self.cfg.EFFICIENTTRACK.COMPOUND_COEF}_{epoch}_{step}.pth')
                 print('checkpoint...')
-
             if epoch % self.cfg.EFFICIENTTRACK.VAL_INTERVAL == 0:
                 self.model.eval()
                 avg_loss_val = 0
@@ -198,8 +188,9 @@ class EfficientTrack:
                             imgs = imgs.cuda()
                             heatmaps = list(map(lambda x: x.cuda(non_blocking=True), heatmaps))
 
-                        outputs = self.model(imgs)
-                        heatmaps_losses, _, _ = self.criterion(outputs, heatmaps,[[],[]])
+                        with torch.cuda.amp.autocast():
+                            outputs = self.model(imgs)
+                            heatmaps_losses, _, _ = self.criterion(outputs, heatmaps,[[],[]])
 
                     loss = 0
                     for idx in range(2):
