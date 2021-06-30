@@ -6,20 +6,15 @@ Vortex 3D dataset loader.
 
 import os,sys,inspect
 import numpy as np
-import yaml
-import cv2
 import itertools
-import time
-from mpl_toolkits import mplot3d
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
+import time
 
 import torch
-from torch.utils.data import Dataset, DataLoader
-from pycocotools.coco import COCO
+from torch.utils.data import Dataset
 from torchvision import transforms
 import imgaug.augmenters as iaa
-from imgaug.augmentables import Keypoint, KeypointsOnImage, BoundingBox, BoundingBoxesOnImage
 
 current_dir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
 parent_dir = os.path.dirname(os.path.dirname(current_dir))
@@ -29,6 +24,15 @@ from lib.dataset.datasetBase import VortexBaseDataset
 from lib.vortex.utils import ReprojectionTool
 
 class VortexDataset3D(VortexBaseDataset):
+    """
+    Dataset Class to load 3D datasets in the VoRTEx dataset format, inherits from
+    VortexBaseDataset class. See HERE for more details.
+
+    :param cfg: handle of the global configuration
+    :param set: specifies wether to load training ('train') or validation ('val') split.
+                Augmentation will only be applied to training split.
+    :type set: string
+    """
     def __init__(self, cfg, set='train'):
         super().__init__(cfg, set)
         self.augpipe = iaa.Sequential([
@@ -47,7 +51,7 @@ class VortexDataset3D(VortexBaseDataset):
         for set in self.coco.dataset['framesets']:
             if len(self.coco.dataset['framesets'][set]) == self.num_cameras:
                 self.image_ids.append(self.coco.dataset['framesets'][set][0])
-                keypoints3D_cam = np.zeros((cfg.VORTEX.NUM_JOINTS, 3))
+                keypoints3D_cam = np.zeros((cfg.EFFICIENTTRACK.NUM_JOINTS, 3))
                 image_info = self.coco.loadImgs(self.image_ids[-1])[0]
                 frameset_ids = self.coco.dataset['framesets'][image_info['file_name'].split('/')[-1]]
                 keypoints_l = []
@@ -55,7 +59,7 @@ class VortexDataset3D(VortexBaseDataset):
                     _, keypoints = self._load_annotations(img_id, is_id = True)
                     keypoints = keypoints.reshape([-1, 3])
                     keypoints_l.append(keypoints)
-                for i in range(cfg.VORTEX.NUM_JOINTS):
+                for i in range(cfg.EFFICIENTTRACK.NUM_JOINTS):
                     points2D = np.zeros((self.num_cameras,2))
                     for cam in range(self.num_cameras):
                         points2D[cam] = keypoints_l[cam][i][:2]
@@ -64,26 +68,23 @@ class VortexDataset3D(VortexBaseDataset):
 
         self.transform = transforms.Compose([Normalizer(mean=cfg.DATASET.MEAN, std=cfg.DATASET.STD)])
 
-    def __len__(self):
-        return len(self.image_ids)
 
     def __getitem__(self, idx):
         grid_spacing = self.cfg.VORTEX.GRID_SPACING
         grid_size = self.cfg.VORTEX.ROI_CUBE_SIZE
-        start = time.time()
         image_info = self.coco.loadImgs(self.image_ids[idx])[0]
         frameset_ids = self.coco.dataset['framesets'][image_info['file_name'].split('/')[-1]]
         #print (image_info['file_name'])
 
-        img_l = np.zeros((len(frameset_ids), 320,320,3))
+        img_l = np.zeros((len(frameset_ids), self.cfg.EFFICIENTTRACK.IMG_SIZE,self.cfg.EFFICIENTTRACK.IMG_SIZE,3))
         centerHM = np.zeros((len(frameset_ids), 2))
         bbox_hw = int(self.cfg.EFFICIENTTRACK.BOUNDING_BOX_SIZE/2)
         for frame_idx,img_id in enumerate(frameset_ids):
             img = self._load_image(img_id, is_id = True)
             img_shape = (img.shape[:-1])
             bboxs, _ = self._load_annotations(img_id, is_id = True)
-            center_y = int((bboxs[0][1]+int(bboxs[0][3]))/2)
-            center_x = int((bboxs[0][0]+int(bboxs[0][2]))/2)
+            center_y = int((bboxs[0,1]+int(bboxs[0,3]))/2)
+            center_x = int((bboxs[0,0]+int(bboxs[0,2]))/2)
             if self.set_name == 'train':
                 translation_factors = np.random.uniform(-1.,1.,2)
                 center_x += int(translation_factors[0]*bbox_hw*0.3)
@@ -96,30 +97,36 @@ class VortexDataset3D(VortexBaseDataset):
                 img = self.augpipe(image=img)
             img_l[frame_idx] = img
 
+
         keypoints3D = self.keypoints3D[idx]
         x,y,z=zip(*keypoints3D)
-        center3D = np.array([int((max(x)+min(x))/grid_spacing/2)*grid_spacing, int((max(y)+min(y))/grid_spacing/2)*grid_spacing, int((max(z)+min(z))/grid_spacing/2)*grid_spacing])
+        center3D = np.array([int((max(x)+min(x))/grid_spacing/2)*grid_spacing,
+                             int((max(y)+min(y))/grid_spacing/2)*grid_spacing,
+                             int((max(z)+min(z))/grid_spacing/2)*grid_spacing])
 
         if self.set_name == 'train':
-            translation_margins = np.array([grid_spacing-(max(x)-min(x)), grid_spacing-(max(y)-min(y)), grid_spacing-(max(z)-min(z))])
+            translation_margins = np.array([grid_spacing-(max(x)-min(x)),
+                                            grid_spacing-(max(y)-min(y)),
+                                            grid_spacing-(max(z)-min(z))])
             translation_factors = np.random.uniform(-0.4,0.4,3)
             center3D += np.array((translation_margins*translation_factors)/grid_spacing/2., dtype = int) *2
 
         keypoints3D_crop = (keypoints3D+float(grid_size/2.)-center3D)/grid_spacing/2.
 
         heatmap_size = int(grid_size/grid_spacing/2.)
-        heatmap3D = np.zeros((23, heatmap_size,heatmap_size,heatmap_size))
-        xx,yy,zz = np.meshgrid(np.arange(heatmap_size), np.arange(heatmap_size), np.arange(heatmap_size))
+        heatmap3D = np.zeros((self.cfg.EFFICIENTTRACK.NUM_JOINTS, heatmap_size,heatmap_size,heatmap_size))
+
+        grid = np.array(np.meshgrid(np.arange(heatmap_size), np.arange(heatmap_size), np.arange(heatmap_size))).transpose(1,2,3,0)
+
         for i in range(self.cfg.EFFICIENTTRACK.NUM_JOINTS):
-            heatmap3D[i,xx,yy,zz] = 255.*np.exp(-0.5*(np.power((keypoints3D_crop[i][0]-xx)/(1.7),2)+np.power((keypoints3D_crop[i][1]-yy)/(1.7),2)+np.power((keypoints3D_crop[i][2]-zz)/(1.7),2)))
+            dist = (keypoints3D_crop[i]-grid)
+            heatmap3D[i] = 255.*np.exp(-0.5*(np.sum(dist*dist/(1.7**2), axis = 3)))
 
         sample = [img_l, keypoints3D, centerHM, center3D, heatmap3D]
+        return self.transform(sample)
 
-        if self.transform:
-            sample = self.transform(sample)
-        #print (time.time()-start)
-
-        return sample
+    def __len__(self):
+        return len(self.image_ids)
 
 
     def visualize_sample(self, idx):
@@ -161,9 +168,9 @@ class VortexDataset3D(VortexBaseDataset):
             points3D_hm.append(np.array(mean)/norm)
 
         c = ['r', 'r','r','r','b','b','b','b','g','g','g','g', 'orange', 'orange','orange','orange', 'y','y','y','y','grey', 'grey','grey']
-        for i, point in enumerate(points3D_hm):
+        #for i, point in enumerate(points3D_hm):
             #axes.scatter(point[0], point[1], point[2], color = c[i])
-            print ("HM:", i, points3D_hm[i])
+            #print ("HM:", i, points3D_hm[i])
 
         #axes.scatter(xx*self.cfg.VORTEX.GRID_SPACING+center3D[0]-100,yy*self.cfg.VORTEX.GRID_SPACING+center3D[1]-100,zz*self.cfg.VORTEX.GRID_SPACING+center3D[2]-100)
         self.reproTool.renderPoints(sample[4], axes = axes, show_cameras = False)
@@ -193,10 +200,10 @@ class Normalizer(object):
 
 if __name__ == "__main__":
     from config import cfg
-    cfg.DATASET.DATASET_DIR = '/home/trackingsetup/Documents/Vortex/datasets/timo3D'
     idx = 0
     training_set = VortexDataset3D(cfg = cfg, set='train')
-    training_set.visualize_sample(0)
+    training_set.__getitem__(0)
+    #training_set.visualize_sample(0)
     val_frame_numbers = []
     print (len(training_set.image_ids))
     for i in range(len(training_set.image_ids)):

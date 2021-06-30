@@ -1,26 +1,20 @@
 """
-dataset.py
+dataset2D.py
 ========
-Vortex dataset loader.
+Vortex 2D dataset loader.
 """
 
-
 import os,sys,inspect
-import torch
 import numpy as np
 import cv2
+import matplotlib.pyplot as plt
+import time
 
+import torch
+from torch.utils.data import Dataset
+from torchvision import transforms
 import imgaug.augmenters as iaa
 from imgaug.augmentables import Keypoint, KeypointsOnImage, BoundingBox, BoundingBoxesOnImage
-
-
-from torch.utils.data import Dataset, DataLoader
-from pycocotools.coco import COCO
-from torchvision import transforms
-
-from stl import mesh
-from mpl_toolkits import mplot3d
-import matplotlib.pyplot as plt
 
 current_dir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
 parent_dir = os.path.dirname(os.path.dirname(current_dir))
@@ -31,7 +25,8 @@ from lib.dataset.datasetBase import VortexBaseDataset
 
 class VortexDataset(VortexBaseDataset):
     """
-    Dataset Class to load datasets in the VoRTEx dataset format. See HERE for more details.
+    Dataset Class to load 2D datasets in the VoRTEx dataset format, inherits from
+    VortexBaseDataset class. See HERE for more details.
 
     :param cfg: handle of the global configuration
     :param set: specifies wether to load training ('train') or validation ('val') split.
@@ -39,6 +34,7 @@ class VortexDataset(VortexBaseDataset):
     :type set: string
     :param mode: specifies wether bounding box annotations ('cropping') or keypoint
                  annotations ('keypoints') will be loaded.
+    :type mode: string
     """
     def __init__(self, cfg, set='train', mode = 'cropping'):
         super().__init__(cfg, set)
@@ -54,7 +50,6 @@ class VortexDataset(VortexBaseDataset):
 
     def _build_augpipe(self):
         augmentors = []
-
         if self.mode == 'cropping':
             width, height = self.coco.dataset['info']['width'], self.coco.dataset['info']['height']
             scale = self.cfg.EFFICIENTDET.IMG_SIZE / max(height, width)
@@ -87,10 +82,6 @@ class VortexDataset(VortexBaseDataset):
 
         self.augpipe = iaa.Sequential(augmentors, random_order = False)
 
-    def __len__(self):
-        return len(self.image_ids)
-
-
     def __getitem__(self, idx):
         if self.mode == 'cropping':
             img = self._load_image(idx)
@@ -107,8 +98,8 @@ class VortexDataset(VortexBaseDataset):
             img = self._load_image(idx)
             bboxs, keypoints = self._load_annotations(idx)
             bbox_hw = int(self.cfg.EFFICIENTTRACK.BOUNDING_BOX_SIZE/2)
-            center_y = min(max(bbox_hw, int((bboxs[0][1]+int(bboxs[0][3]))/2)), 1024-bbox_hw)
-            center_x = min(max(bbox_hw, int((bboxs[0][0]+int(bboxs[0][2]))/2)), 1280-bbox_hw)
+            center_y = min(max(bbox_hw, int((bboxs[0][1]+int(bboxs[0][3]))/2)), img.shape[0]-bbox_hw)
+            center_x = min(max(bbox_hw, int((bboxs[0][0]+int(bboxs[0][2]))/2)), img.shape[1]-bbox_hw)
             img = img[center_y-bbox_hw:center_y+bbox_hw, center_x-bbox_hw:center_x+bbox_hw, :]
             for i in range(0, keypoints.shape[1],3):
                 keypoints[0][i] += -center_x+bbox_hw
@@ -130,9 +121,11 @@ class VortexDataset(VortexBaseDataset):
                 target_list.append(target_t.astype(np.float32))
             sample = [img, target_list, keypoints]
 
-        if self.transform:
-            sample = self.transform(sample)
-        return sample
+
+        return self.transform(sample)
+
+    def __len__(self):
+        return len(self.image_ids)
 
 
     def visualize_sample(self, idx):

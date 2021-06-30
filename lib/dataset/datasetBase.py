@@ -1,7 +1,7 @@
 """
-dataset.py
+datasetBase.py
 ========
-Vortex dataset loader.
+Vortex dataset loader base class.
 """
 
 
@@ -10,17 +10,8 @@ import torch
 import numpy as np
 import cv2
 
-import imgaug.augmenters as iaa
-from imgaug.augmentables import Keypoint, KeypointsOnImage, BoundingBox, BoundingBoxesOnImage
-
-
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import Dataset
 from pycocotools.coco import COCO
-from torchvision import transforms
-
-from stl import mesh
-from mpl_toolkits import mplot3d
-import matplotlib.pyplot as plt
 
 current_dir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
 parent_dir = os.path.dirname(current_dir)

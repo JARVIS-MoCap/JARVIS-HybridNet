@@ -15,7 +15,7 @@ _C.USE_MIXED_PRECISION = True
 
 #Dataset Configurations
 _C.DATASET = CN()
-_C.DATASET.DATASET_DIR = '/home/trackingsetup/Documents/CombinedDataset'
+_C.DATASET.DATASET_DIR = '/home/timo/Desktop/VoRTEx/datasets/Combined_Dataset'
 _C.DATASET.TRAIN_SET = 'train'
 _C.DATASET.VAL_SET = 'val'
 _C.DATASET.MEAN = [0.485, 0.456, 0.406]
@@ -126,7 +126,6 @@ _C.VORTEX.VAL_INTERVAL = 1
 _C.VORTEX.USE_EARLY_STOPPING = False
 _C.VORTEX.EARLY_STOPPING_MIN_DELTA = 0.002
 _C.VORTEX.EARLY_STOPPING_PATIENCE = 5
-_C.VORTEX.NUM_JOINTS = 23
 
 
 

@@ -40,8 +40,7 @@ class VortexBackbone(nn.Module):
         self.register_buffer('num_cameras', torch.tensor(num_cameras))
 
         self.effTrack = EfficientTrackBackbone(self.cfg, compound_coef=self.cfg.EFFICIENTTRACK.COMPOUND_COEF)
-        #self.HRNet.load_state_dict(torch.load('/home/lambda/Documents/TrackingDMDS/CombiNet/model_savefiles/handPose/hrnet_250_0.pth'))
-        self.effTrack.load_state_dict(torch.load('/home/trackingsetup/Documents/Vortex/projects/handPose/efficienttrack/models/Combined_Run1/EfficientTrack-d3_140_297933.pth'))
+        #self.effTrack.load_state_dict(torch.load('/home/trackingsetup/Documents/Vortex/projects/handPose/efficienttrack/models/Combined_Run1/EfficientTrack-d3_140_297933.pth'))
         self.effTrack.requires_grad_(False)
 
         self.reproLayer = ReprojectionLayer(cfg, intrinsic_paths, extrinsic_paths, lookup_path)
