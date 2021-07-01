@@ -24,59 +24,68 @@ import lib.vortex.modules.efficienttrack.darkpose as darkpose
 from lib.vortex.utils import ReprojectionTool
 from lib.vortex.modules.v2vnet.model import V2VNet
 
+#        self.starter, self.ender = torch.cuda.Event(enable_timing=True), torch.cuda.Event(enable_timing=True)
+#        self.starter.record()
+#        self.ender.record()
 
-grid_spacing = 2
-grid_n = 104
-grid_size_x = [-500,500]
-grid_size_y = [-400,400]
-grid_size_z = [100,1100]
-num_cameras = 12
 
 class VortexBackbone(nn.Module):
-    def __init__(self, cfg, intrinsic_paths, extrinsic_paths, lookup_path = None):
+    def __init__(self, cfg, intrinsic_paths, extrinsic_paths, img_size, lookup_path = None):
         super(VortexBackbone, self).__init__()
         self.cfg = cfg
         self.root_dir = cfg.DATASET.DATASET_DIR
-        self.register_buffer('num_cameras', torch.tensor(num_cameras))
+        self.register_buffer('grid_size', torch.tensor(cfg.VORTEX.ROI_CUBE_SIZE))
+        self.register_buffer('grid_spacing', torch.tensor(cfg.VORTEX.GRID_SPACING))
+        self.register_buffer('img_size', torch.tensor(img_size))
 
         self.effTrack = EfficientTrackBackbone(self.cfg, compound_coef=self.cfg.EFFICIENTTRACK.COMPOUND_COEF)
         #self.effTrack.load_state_dict(torch.load('/home/trackingsetup/Documents/Vortex/projects/handPose/efficienttrack/models/Combined_Run1/EfficientTrack-d3_140_297933.pth'))
         self.effTrack.requires_grad_(False)
 
         self.reproLayer = ReprojectionLayer(cfg, intrinsic_paths, extrinsic_paths, lookup_path)
-        self.v2vNet = V2VNet(23,23)
+        self.v2vNet = V2VNet(cfg.EFFICIENTTRACK.NUM_JOINTS, cfg.EFFICIENTTRACK.NUM_JOINTS)
         self.softplus = nn.Softplus()
-        self.xx,self.yy,self.zz = torch.meshgrid(torch.arange(int(grid_n/2)).cuda(), torch.arange(int(grid_n/2)).cuda(), torch.arange(int(grid_n/2)).cuda())
+        self.xx,self.yy,self.zz = torch.meshgrid(torch.arange(int(self.grid_size/self.grid_spacing/2)).cuda(),
+                                                 torch.arange(int(self.grid_size/self.grid_spacing/2)).cuda(),
+                                                 torch.arange(int(self.grid_size/self.grid_spacing/2)).cuda())
+        self.last_time = 0
+        #self.starter, self.ender = torch.cuda.Event(enable_timing=True), torch.cuda.Event(enable_timing=True)
 
 
 
     def forward(self, imgs, centerHM, center3D):
-            heatmaps_padded = torch.cuda.FloatTensor(imgs.shape[0], self.num_cameras, 23, 512, 640)
-            heatmaps_padded.fill_(0)
+        batch_size = imgs.shape[0]
+        heatmaps_batch =  self.effTrack(imgs.reshape(-1,imgs.shape[2], imgs.shape[3], imgs.shape[4]))[1]
+        heatmaps_batch = heatmaps_batch.reshape(batch_size, -1, heatmaps_batch.shape[1], heatmaps_batch.shape[2], heatmaps_batch.shape[3])
 
-            batch_size = imgs.shape[0]
-            heatmaps_batch =  self.effTrack(imgs.reshape(-1,imgs.shape[2], imgs.shape[3], imgs.shape[4]))[1]
-            heatmaps_batch = heatmaps_batch.reshape(batch_size, -1, heatmaps_batch.shape[1], heatmaps_batch.shape[2], heatmaps_batch.shape[3])
-            for i in range(imgs.shape[1]):
-                heatmaps = heatmaps_batch[:,i]
-                for batch, heatmap in enumerate(heatmaps):
-                    heatmaps_padded[batch,i] = F.pad(input=heatmap, pad=(((centerHM[batch,i,0]/2)-heatmap.shape[-1]/2).int(), 640-((centerHM[batch,i,0]/2)+heatmap.shape[-1]/2).int(),
-                                           ((centerHM[batch,i,1]/2)-heatmap.shape[-1]/2).int(), 512-((centerHM[batch,i,1]/2)+heatmap.shape[-1]/2).int()), mode='constant', value=0)
+        heatmaps_padded = torch.cuda.FloatTensor(imgs.shape[0], imgs.shape[1], heatmaps_batch.shape[2], self.img_size[1], self.img_size[0])
+        heatmaps_padded.fill_(0)
+        for i in range(imgs.shape[1]):
+            heatmaps = heatmaps_batch[:,i]
+            for batch, heatmap in enumerate(heatmaps):
+                heatmaps_padded[batch,i] = F.pad(input=heatmap,
+                                                 pad=(((centerHM[batch,i,0]/2)-heatmap.shape[-1]/2).int(),
+                                                      self.img_size[0]-((centerHM[batch,i,0]/2)+heatmap.shape[-1]/2).int(),
+                                                      ((centerHM[batch,i,1]/2)-heatmap.shape[-1]/2).int(),
+                                                      self.img_size[1]-((centerHM[batch,i,1]/2)+heatmap.shape[-1]/2).int()),
+                                                 mode='constant', value=0)
 
-            heatmaps3D = self.reproLayer(heatmaps_padded, center3D)
-            heatmap_final = self.v2vNet(((heatmaps3D/255.)))
-            heatmap_final = self.softplus(heatmap_final)
+        heatmaps3D = self.reproLayer(heatmaps_padded, center3D)
+        heatmap_final = self.v2vNet(((heatmaps3D/255.)))
+        heatmap_final = self.softplus(heatmap_final)
 
-            norm = torch.sum(heatmap_final, dim = [2,3,4])
-            x = torch.mul(heatmap_final, self.xx)
-            x = torch.sum(x, dim = [2,3,4])/norm
-            y = torch.mul(heatmap_final, self.yy)
-            y = torch.sum(y, dim = [2,3,4])/norm
-            z = torch.mul(heatmap_final, self.zz)
-            z = torch.sum(z, dim = [2,3,4])/norm
-            points3D = torch.stack([x,y,z], dim = 2)
-            points3D = (points3D*grid_spacing*2-grid_n+center3D)
-            return heatmap_final, heatmaps_padded, points3D
+        norm = torch.sum(heatmap_final, dim = [2,3,4])
+        x = torch.mul(heatmap_final, self.xx)
+        x = torch.sum(x, dim = [2,3,4])/norm
+        y = torch.mul(heatmap_final, self.yy)
+        y = torch.sum(y, dim = [2,3,4])/norm
+        z = torch.mul(heatmap_final, self.zz)
+        z = torch.sum(z, dim = [2,3,4])/norm
+        points3D = torch.stack([x,y,z], dim = 2)
+        points3D = (points3D*self.grid_spacing*2-self.grid_size/self.grid_spacing+center3D)
+        torch.cuda.synchronize()
+        self.last_time = self.reproLayer.starter.elapsed_time(self.reproLayer.ender)
+        return heatmap_final, heatmaps_padded, points3D
 
 
 if __name__ == "__main__":
@@ -84,11 +93,10 @@ if __name__ == "__main__":
 
     import time
     training_set = VortexDataset3D(cfg = cfg, set='val')
-    vortex = VortexBackbone(cfg, training_set.coco.dataset['calibration']['intrinsics'], training_set.coco.dataset['calibration']['extrinsics']).cuda()
+    vortex = VortexBackbone(cfg, training_set.coco.dataset['calibration']['intrinsics'], training_set.coco.dataset['calibration']['extrinsics'], [640,512], '/home/timo/Desktop/VoRTEx/lib/vortex/lookup.npy').cuda()
 
 
-    vortex.load_state_dict(torch.load('/home/trackingsetup/Documents/Vortex/lib/vortex/models_test_3/voxelnet_0_0.pth'), strict = False)
-    #voxelNet.HRNet.load_state_dict(torch.load('/home/lambda/Documents/TrackingDMDS/CombiNet/core/voxelnet/model_savefiles_timo/handPose/hr_net_voxelnet_0_0.pth'))
+    #vortex.load_state_dict(torch.load('/home/trackingsetup/Documents/Vortex/lib/vortex/models_test_3/voxelnet_0_0.pth'), strict = False)
     vortex.requires_grad_(False)
     vortex.eval()
     vortex = vortex.cuda()
@@ -110,16 +118,18 @@ if __name__ == "__main__":
         imgs_p = torch.unsqueeze(imgs.permute(0,3,1,2).float(),0)
         centerHM = torch.cuda.IntTensor(sample[2])
         center3D = torch.cuda.FloatTensor(sample[3])
-        print (center3D.shape)
+        #print (center3D.shape)
         #input = (imgs_p,torch.unsqueeze(centerHM,0),  torch.unsqueeze(center3D,0))
         #import onnx
 
         #torch.onnx.export(voxelNet, input, 'test.onnx', input_names=['input'],
         #              output_names=['output'], export_params=True, opset_version=11, do_constant_folding = True, use_external_data_format=True)
 
+        heatmap3D, heatmaps_padded, points3D_net = vortex(imgs_p,torch.unsqueeze(centerHM,0),  torch.unsqueeze(center3D,0))
         start_time = time.time()
         heatmap3D, heatmaps_padded, points3D_net = vortex(imgs_p,torch.unsqueeze(centerHM,0),  torch.unsqueeze(center3D,0))
-        print (time.time()-start_time)
+        print (vortex.last_time)
+        print ((time.time()-start_time)*1000)
         preds, maxvals = darkpose.get_final_preds(heatmaps_padded[0].clamp(0,255).cpu().numpy(), None)
         preds *= 2
         reproTool = ReprojectionTool('T', training_set.root_dir, training_set.coco.dataset['calibration']['intrinsics'], training_set.coco.dataset['calibration']['extrinsics'])

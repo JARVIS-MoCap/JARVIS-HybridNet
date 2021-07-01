@@ -145,9 +145,9 @@ class EfficientTrack:
                     heatmaps = list(map(lambda x: x.cuda(non_blocking=True), heatmaps))
 
                 self.optimizer.zero_grad()
-                with torch.cuda.amp.autocast():
-                    outputs = self.model(imgs)
-                    heatmaps_losses, _, _ = self.criterion(outputs, heatmaps,[[],[]])
+                #with torch.cuda.amp.autocast():
+                outputs = self.model(imgs)
+                heatmaps_losses, _, _ = self.criterion(outputs, heatmaps,[[],[]])
 
                 loss = 0
                 for idx in range(2):
@@ -188,18 +188,18 @@ class EfficientTrack:
                             imgs = imgs.cuda()
                             heatmaps = list(map(lambda x: x.cuda(non_blocking=True), heatmaps))
 
-                        with torch.cuda.amp.autocast():
-                            outputs = self.model(imgs)
-                            heatmaps_losses, _, _ = self.criterion(outputs, heatmaps,[[],[]])
+                        #with torch.cuda.amp.autocast():
+                        outputs = self.model(imgs)
+                        heatmaps_losses, _, _ = self.criterion(outputs, heatmaps,[[],[]])
 
-                    loss = 0
-                    for idx in range(2):
-                        if heatmaps_losses[idx] is not None:
-                            heatmaps_loss = heatmaps_losses[idx].mean(dim=0)
-                            loss = loss + heatmaps_loss
+                        loss = 0
+                        for idx in range(2):
+                            if heatmaps_losses[idx] is not None:
+                                heatmaps_loss = heatmaps_losses[idx].mean(dim=0)
+                                loss = loss + heatmaps_loss
 
-                        if loss == 0 or not torch.isfinite(loss):
-                            continue
+                                #if loss == 0 or not torch.isfinite(loss):
+                                #    continue
 
                     avg_loss_val += loss.detach().cpu()
 

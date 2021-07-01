@@ -28,9 +28,14 @@ class ReprojectionLayer(nn.Module):
         self.register_buffer('boxsize', torch.tensor(self.cfg.VORTEX.ROI_CUBE_SIZE))
         self.register_buffer('grid_size', torch.tensor(self.cfg.VORTEX.ROI_CUBE_SIZE/self.cfg.VORTEX.GRID_SPACING).int())
         self.register_buffer('num_cameras',  torch.tensor(self.reproTool.num_cameras))
-        self.register_buffer('boxsize_half',  torch.tensor(self.boxsize/2/self.grid_spacing).int())
+        self.register_buffer('grid_size',  torch.tensor(self.boxsize/self.grid_spacing).int())
+        self.register_buffer('grid_size_half',  torch.tensor(self.boxsize/self.grid_spacing/2).int())
 
-        self.ii,self.xx,self.yy,self.zz = torch.meshgrid(torch.arange(self.num_cameras).cuda(), torch.arange(self.boxsize_half*2).cuda(), torch.arange(self.boxsize_half*2).cuda(), torch.arange(self.boxsize_half*2).cuda())
+        self.ii,self.xx,self.yy,self.zz = torch.meshgrid(torch.arange(self.num_cameras).cuda(),
+                                                         torch.arange(self.grid_size).cuda(),
+                                                         torch.arange(self.grid_size).cuda(),
+                                                         torch.arange(self.grid_size).cuda())
+        self.starter, self.ender = torch.cuda.Event(enable_timing=True), torch.cuda.Event(enable_timing=True)
 
     def __create_lookup(self):
         x = np.arange(self.cfg.VORTEX.GRID_DIM_X[0], self.cfg.VORTEX.GRID_DIM_X[1], self.cfg.VORTEX.GRID_SPACING)
@@ -56,15 +61,27 @@ class ReprojectionLayer(nn.Module):
 
     def __get_heatmap_value(self, lookup, heatmaps):
         lookup = lookup.cuda().long()
-        outs = torch.mean(heatmaps[:,self.ii,lookup[self.ii,self.xx,self.yy,self.zz,1], lookup[self.ii,self.xx,self.yy,self.zz,0]], dim = 1)
+        heatmaps = heatmaps.flatten(2)
+        self.starter.record()
+        #print (heatmaps.flatten(2).shape)
+        #print (lookup.shape)
+        outs = torch.mean(heatmaps[:,self.ii,lookup[self.ii,self.xx,self.yy,self.zz]], dim = 1)
+        #print (outs.shape)
+        self.ender.record()
+
         return outs
 
     def forward(self, heatmaps, center):
         center_indices = ((center-self.offset)/self.grid_spacing).int()
         heatmaps3D = torch.cuda.FloatTensor(heatmaps.shape[0], 23, self.grid_size, self.grid_size, self.grid_size)
         for batch in range(heatmaps.shape[0]):
-            lookup_subset = self.reproLookup[:,center_indices[batch][0]-self.boxsize_half:center_indices[batch][0]+self.boxsize_half,
-                                             center_indices[batch][1]-self.boxsize_half:center_indices[batch][1]+self.boxsize_half,
-                                             center_indices[batch][2]-self.boxsize_half:center_indices[batch][2]+self.boxsize_half]
-            heatmaps3D[batch] = self.__get_heatmap_value(lookup_subset,torch.transpose(heatmaps[batch], 0,1))
+            lookup_subset = self.reproLookup[:,center_indices[batch][0]-self.grid_size_half:center_indices[batch][0]+self.grid_size_half,
+                                             center_indices[batch][1]-self.grid_size_half:center_indices[batch][1]+self.grid_size_half,
+                                             center_indices[batch][2]-self.grid_size_half:center_indices[batch][2]+self.grid_size_half]
+            lookup_subset2 = torch.cuda.FloatTensor(12, 104,104,104)
+            print (lookup_subset.shape)
+            for i in range(12):
+                print (i)
+                lookup_subset2[i] = lookup_subset[i,:,:,:,1]*512+lookup_subset[i,:,:,:,0]
+            heatmaps3D[batch] = self.__get_heatmap_value(lookup_subset2,torch.transpose(heatmaps[batch], 0,1))
         return heatmaps3D

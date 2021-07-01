@@ -88,6 +88,7 @@ class EfficientTrackBackbone(nn.Module):
             padding=1,
             bias = False)
 
+
     def forward(self, inputs):
         p3, p4, p5 = self.backbone_net(inputs)
 
@@ -106,6 +107,7 @@ class EfficientTrackBackbone(nn.Module):
 
         res1 = self.final_conv1(res1)
         res2 = self.final_conv2(res2)
+
 
         return [res1, res2]
 
@@ -245,14 +247,19 @@ class BiFPN(nn.Module):
     def __init__(self, num_channels, conv_channels, first_time=False, epsilon=1e-4, onnx_export=False, attention=True,
                  use_p8=False):
         super(BiFPN, self).__init__()
-        self.num_groups = 8
-        self.epsilon = epsilon
+        #self.num_groups = 8
+        #self.epsilon = torch.tensor(epsilon)
+        #self.first_time = first_time
+        self.register_buffer('epsilon', torch.tensor(epsilon))
+        self.register_buffer('num_groups', torch.tensor(8))
+        self.register_buffer('first_time', torch.tensor(first_time))
+
         self.use_p8 = use_p8
 
         # Conv layers
         self.conv6_up = SeparableConvBlock(num_channels, onnx_export=onnx_export)
         self.conv5_up = SeparableConvBlock(num_channels, onnx_export=onnx_export)
-        self.conv4_up = RegularConvBlock(num_channels, onnx_export=onnx_export)
+        self.conv4_up = RegularConvBlock(num_channels, onnx_export=onnx_export)     #CHECK IF AND WHEN THIS ACTUALLY MAKES IT FASTERT
         self.conv3_up = RegularConvBlock(num_channels, onnx_export=onnx_export)
         self.conv4_down = RegularConvBlock(num_channels, onnx_export=onnx_export)
         self.conv5_down = SeparableConvBlock(num_channels, onnx_export=onnx_export)
@@ -278,7 +285,6 @@ class BiFPN(nn.Module):
 
         self.swish = MemoryEfficientSwish() if not onnx_export else Swish()
 
-        self.first_time = first_time
         if self.first_time:
             self.p5_down_channel = nn.Sequential(
                 nn.Conv2d(conv_channels[2], num_channels, 1),
@@ -343,6 +349,7 @@ class BiFPN(nn.Module):
         return outs
 
     def _forward_fast_attention(self, inputs):
+        #print ('Eps', self.epsilon.get_device())
         if self.first_time:
             p3, p4, p5 = inputs
 
