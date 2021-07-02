@@ -24,8 +24,9 @@ class MBConvBlock(nn.Module):
 
     :param block_args: Parameters for creating specific block (e.g. number of filters)
     """
-    def __init__(self, block_args):
+    def __init__(self, block_args, block_idx):
         super().__init__()
+        self.block_idx = block_idx
         self.padding = {1:{1:0,2:0}, 3:{1:1, 2:1}, 5:{1:2,2:2}}
         self._block_args = block_args
         self.num_groups = 8
@@ -42,9 +43,16 @@ class MBConvBlock(nn.Module):
         # Depthwise convolution phase
         k = self._block_args.kernel_size
         s = self._block_args.stride
-        self._depthwise_conv = nn.Conv2d(
-            in_channels=oup, out_channels=oup, groups=oup,  # groups makes it depthwise
-            kernel_size=k, stride=s, bias=False, padding = self.padding[k][s])
+        if self.block_idx < 4:
+            self._depthwise_conv =  nn.Conv2d(in_channels=inp, out_channels=oup, kernel_size=k, stride = s, bias=False, padding = self.padding[k][s])
+
+        else:
+            if self._block_args.expand_ratio != 1:
+                self._expand_conv = nn.Conv2d(in_channels=inp, out_channels=oup, kernel_size=1, bias=False)
+                self._gn0 = nn.GroupNorm(self.num_groups, oup)
+            self._depthwise_conv = nn.Conv2d(
+                in_channels=oup, out_channels=oup, groups=oup,  # groups makes it depthwise
+                kernel_size=k, stride=s, bias=False, padding = self.padding[k][s])
         self._gn1 = nn.GroupNorm(self.num_groups, oup)
 
         # Squeeze and Excitation layer, if desired
@@ -62,14 +70,18 @@ class MBConvBlock(nn.Module):
     def forward(self, inputs, drop_connect_rate=None):
         # Expansion and Depthwise Convolution
         x = inputs
-        if self._block_args.expand_ratio != 1:
-            x = self._expand_conv(inputs)
-            x = self._gn0(x)
-            x = self._swish(x)
+        if self.block_idx < 4:
+            x = self._depthwise_conv(x)
+        else:
+            if self._block_args.expand_ratio != 1:
+                x = self._expand_conv(inputs)
+                #x = self._gn0(x)
+                #x = self._swish(x)
+            x = self._depthwise_conv(x)
 
-        x = self._depthwise_conv(x)
         x = self._gn1(x)
         x = self._swish(x)
+
 
         # Squeeze and Excitation
         if self.has_se:
@@ -120,7 +132,7 @@ class EfficientNet(nn.Module):
 
         # Build blocks
         self._blocks = nn.ModuleList([])
-        for block_args in self._blocks_args:
+        for idx,block_args in enumerate(self._blocks_args):
 
             # Update block input and output filters based on depth multiplier.
             block_args = block_args._replace(
@@ -130,11 +142,11 @@ class EfficientNet(nn.Module):
             )
 
             # The first block needs to take care of stride and filter size increase.
-            self._blocks.append(MBConvBlock(block_args))
+            self._blocks.append(MBConvBlock(block_args, idx))
             if block_args.num_repeat > 1:
                 block_args = block_args._replace(input_filters=block_args.output_filters, stride=1)
             for _ in range(block_args.num_repeat - 1):
-                self._blocks.append(MBConvBlock(block_args))
+                self._blocks.append(MBConvBlock(block_args, idx))
 
         # Head
         in_channels = block_args.output_filters  # output of final block

@@ -145,9 +145,9 @@ class EfficientTrack:
                     heatmaps = list(map(lambda x: x.cuda(non_blocking=True), heatmaps))
 
                 self.optimizer.zero_grad()
-                #with torch.cuda.amp.autocast():
-                outputs = self.model(imgs)
-                heatmaps_losses, _, _ = self.criterion(outputs, heatmaps,[[],[]])
+                with torch.cuda.amp.autocast():
+                    outputs = self.model(imgs)
+                    heatmaps_losses, _, _ = self.criterion(outputs, heatmaps,[[],[]])
 
                 loss = 0
                 for idx in range(2):

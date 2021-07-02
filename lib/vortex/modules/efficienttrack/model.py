@@ -64,7 +64,7 @@ class EfficientTrackBackbone(nn.Module):
         self.swish = MemoryEfficientSwish()
         self.upsample3 = nn.Upsample(scale_factor = 4, mode = 'nearest')
         self.upsample2 = nn.Upsample(scale_factor = 2, mode = 'nearest')
-        self.weights_cat = nn.Parameter(torch.ones(3, dtype=torch.float32), requires_grad=True)
+        self.weights_cat = nn.Parameter(torch.ones(3), requires_grad=True)
         self.weights_relu = nn.ReLU()
         self.first_conv = SeparableConvBlock(224,192,True)
         self.deconv1 = nn.ConvTranspose2d(
@@ -212,7 +212,6 @@ class SeparableConvBlock(nn.Module):
     def forward(self, x):
         x = self.depthwise_conv(x)
         x = self.pointwise_conv(x)
-
         if self.norm:
             x = self.gn(x)
 
@@ -259,9 +258,9 @@ class BiFPN(nn.Module):
         # Conv layers
         self.conv6_up = SeparableConvBlock(num_channels, onnx_export=onnx_export)
         self.conv5_up = SeparableConvBlock(num_channels, onnx_export=onnx_export)
-        self.conv4_up = RegularConvBlock(num_channels, onnx_export=onnx_export)     #CHECK IF AND WHEN THIS ACTUALLY MAKES IT FASTERT
-        self.conv3_up = RegularConvBlock(num_channels, onnx_export=onnx_export)
-        self.conv4_down = RegularConvBlock(num_channels, onnx_export=onnx_export)
+        self.conv4_up = SeparableConvBlock(num_channels, onnx_export=onnx_export)     #CHECK IF AND WHEN THIS ACTUALLY MAKES IT FASTERT
+        self.conv3_up = SeparableConvBlock(num_channels, onnx_export=onnx_export)
+        self.conv4_down = SeparableConvBlock(num_channels, onnx_export=onnx_export)
         self.conv5_down = SeparableConvBlock(num_channels, onnx_export=onnx_export)
         self.conv6_down = SeparableConvBlock(num_channels, onnx_export=onnx_export)
         self.conv7_down = SeparableConvBlock(num_channels, onnx_export=onnx_export)
@@ -321,21 +320,21 @@ class BiFPN(nn.Module):
             )
 
         # Weight
-        self.p6_w1 = nn.Parameter(torch.ones(2, dtype=torch.float32), requires_grad=True)
+        self.p6_w1 = nn.Parameter(torch.ones(2), requires_grad=True)
         self.p6_w1_relu = nn.ReLU()
-        self.p5_w1 = nn.Parameter(torch.ones(2, dtype=torch.float32), requires_grad=True)
+        self.p5_w1 = nn.Parameter(torch.ones(2), requires_grad=True)
         self.p5_w1_relu = nn.ReLU()
-        self.p4_w1 = nn.Parameter(torch.ones(2, dtype=torch.float32), requires_grad=True)
+        self.p4_w1 = nn.Parameter(torch.ones(2), requires_grad=True)
         self.p4_w1_relu = nn.ReLU()
-        self.p3_w1 = nn.Parameter(torch.ones(2, dtype=torch.float32), requires_grad=True)
+        self.p3_w1 = nn.Parameter(torch.ones(2), requires_grad=True)
         self.p3_w1_relu = nn.ReLU()
-        self.p4_w2 = nn.Parameter(torch.ones(3, dtype=torch.float32), requires_grad=True)
+        self.p4_w2 = nn.Parameter(torch.ones(3), requires_grad=True)
         self.p4_w2_relu = nn.ReLU()
-        self.p5_w2 = nn.Parameter(torch.ones(3, dtype=torch.float32), requires_grad=True)
+        self.p5_w2 = nn.Parameter(torch.ones(3), requires_grad=True)
         self.p5_w2_relu = nn.ReLU()
-        self.p6_w2 = nn.Parameter(torch.ones(3, dtype=torch.float32), requires_grad=True)
+        self.p6_w2 = nn.Parameter(torch.ones(3), requires_grad=True)
         self.p6_w2_relu = nn.ReLU()
-        self.p7_w2 = nn.Parameter(torch.ones(2, dtype=torch.float32), requires_grad=True)
+        self.p7_w2 = nn.Parameter(torch.ones(2), requires_grad=True)
         self.p7_w2_relu = nn.ReLU()
 
         self.attention = attention
@@ -377,6 +376,7 @@ class BiFPN(nn.Module):
         weight = p5_w1 / (torch.sum(p5_w1, dim=0) + self.epsilon)
         # Connections for P5_0 and P6_1 to P5_1 respectively
         p5_up = self.conv5_up(self.swish(weight[0] * p5_in + weight[1] * self.p5_upsample(p6_up)))
+
 
         # Weights for P4_0 and P5_1 to P4_1
         p4_w1 = self.p4_w1_relu(self.p4_w1)
