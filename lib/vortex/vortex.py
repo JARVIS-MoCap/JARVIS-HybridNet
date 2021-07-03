@@ -39,7 +39,7 @@ class Vortex:
     def __init__(self, mode, cfg, calibPaths,lookupPath = None,weights = None):
         self.mode = mode
         self.cfg = cfg
-        self.model = VortexBackbone(cfg, calibPaths[0], calibPaths[1], lookupPath)
+        self.model = VortexBackbone(cfg, calibPaths[0], calibPaths[1], [640, 512],lookupPath)
 
         if mode  == 'train':
             self.model_savepath = os.path.join(self.cfg.PROJECTS_ROOT_PATH, self.cfg.PROJECT_NAME, 'vortex' , 'models', self.cfg.EXPERIMENT_NAME)
@@ -136,11 +136,11 @@ class Vortex:
                     heatmap3D = heatmap3D.cuda()
 
                 self.optimizer.zero_grad()
-                #with torch.cuda.amp.autocast():
-                outputs = self.model(imgs, centerHM, center3D)
-                loss = self.criterion(outputs[0], heatmap3D)
-                loss = loss.mean()
-                acc = torch.mean(torch.sqrt(torch.sum((keypoints-outputs[2])**2, dim = 2)))
+                with torch.cuda.amp.autocast():
+                    outputs = self.model(imgs, centerHM, center3D)
+                    loss = self.criterion(outputs[0], heatmap3D)
+                    loss = loss.mean()
+                    acc = torch.mean(torch.sqrt(torch.sum((keypoints-outputs[2])**2, dim = 2)))
 
                 loss.backward()
                 self.optimizer.step()
@@ -187,12 +187,11 @@ class Vortex:
                             center3D = center3D.cuda()
                             heatmap3D = heatmap3D.cuda()
 
-                        #with torch.cuda.amp.autocast():
-                        loss = 0
-                        outputs = self.model(imgs, centerHM, center3D)
-                        loss = self.criterion(outputs[0], heatmap3D)
-                        loss = loss.mean()
-                        acc = torch.mean(torch.sqrt(torch.sum((keypoints-outputs[2])**2, dim = 2)))
+                        with torch.cuda.amp.autocast():
+                            outputs = self.model(imgs, centerHM, center3D)
+                            loss = self.criterion(outputs[0], heatmap3D)
+                            loss = loss.mean()
+                            acc = torch.mean(torch.sqrt(torch.sum((keypoints-outputs[2])**2, dim = 2)))
 
                         #losses.append(loss)
                         avg_val_loss += loss.detach()

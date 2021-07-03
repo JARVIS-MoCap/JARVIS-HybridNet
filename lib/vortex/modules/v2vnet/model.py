@@ -1,5 +1,6 @@
 import torch.nn as nn
 import torch.nn.functional as F
+import torch
 
 
 class Basic3DBlock(nn.Module):
@@ -83,6 +84,7 @@ class EncoderDecorder(nn.Module):
         self.skip_res1 = Res3DBlock(32, 32)
         self.skip_res2 = Res3DBlock(64, 64)
 
+
     def forward(self, x):
         skip_x1 = self.skip_res1(x)
         x = self.encoder_pool1(x)
@@ -110,10 +112,10 @@ class V2VNet(nn.Module):
         super(V2VNet, self).__init__()
 
         self.front_layers = nn.Sequential(
-            Basic3DBlock(input_channels, 32, 7),
+            Basic3DBlock(input_channels, 32, 3),
             Pool3DBlock(2), #Swap pool and res blocks here?????????
-            #Res3DBlock(32, 32),
             Res3DBlock(32, 32)
+            #Res3DBlock(32, 32),
         )
 
         self.encoder_decoder = EncoderDecorder()
@@ -127,6 +129,7 @@ class V2VNet(nn.Module):
         self.output_layer = nn.Conv3d(32, output_channels, kernel_size=1, stride=1, padding=0)
 
         self._initialize_weights()
+
 
     def forward(self, x):
         x = self.front_layers(x)

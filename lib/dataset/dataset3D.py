@@ -77,7 +77,7 @@ class VortexDataset3D(VortexBaseDataset):
         #print (image_info['file_name'])
 
         img_l = np.zeros((len(frameset_ids), self.cfg.EFFICIENTTRACK.IMG_SIZE,self.cfg.EFFICIENTTRACK.IMG_SIZE,3))
-        centerHM = np.zeros((len(frameset_ids), 2))
+        centerHM = np.zeros((len(frameset_ids), 2), dtype = int)
         bbox_hw = int(self.cfg.EFFICIENTTRACK.BOUNDING_BOX_SIZE/2)
         for frame_idx,img_id in enumerate(frameset_ids):
             img = self._load_image(img_id, is_id = True)
@@ -100,30 +100,35 @@ class VortexDataset3D(VortexBaseDataset):
 
         keypoints3D = self.keypoints3D[idx]
         x,y,z=zip(*keypoints3D)
-        center3D = np.array([int((max(x)+min(x))/grid_spacing/2)*grid_spacing,
-                             int((max(y)+min(y))/grid_spacing/2)*grid_spacing,
-                             int((max(z)+min(z))/grid_spacing/2)*grid_spacing])
+        center3D = np.array([int((max(x)+min(x))/float(grid_spacing)/2.)*grid_spacing,
+                             int((max(y)+min(y))/float(grid_spacing)/2.)*grid_spacing,
+                             int((max(z)+min(z))/float(grid_spacing)/2.)*grid_spacing])
 
         if self.set_name == 'train':
-            translation_margins = np.array([grid_spacing-(max(x)-min(x)),
-                                            grid_spacing-(max(y)-min(y)),
-                                            grid_spacing-(max(z)-min(z))])
+            translation_margins = np.array([grid_size-(max(x)-min(x)),
+                                            grid_size-(max(y)-min(y)),
+                                            grid_size-(max(z)-min(z))])
             translation_factors = np.random.uniform(-0.4,0.4,3)
-            center3D += np.array((translation_margins*translation_factors)/grid_spacing/2., dtype = int) *2
+            center3D += np.array((translation_margins*translation_factors)/float(grid_spacing)/2., dtype = int) *2
 
-        keypoints3D_crop = (keypoints3D+float(grid_size/2.)-center3D)/grid_spacing/2.
+        keypoints3D_crop = (keypoints3D+float(grid_size/2.)-center3D)/float(grid_spacing)/2.
 
         heatmap_size = int(grid_size/grid_spacing/2.)
         heatmap3D = np.zeros((self.cfg.EFFICIENTTRACK.NUM_JOINTS, heatmap_size,heatmap_size,heatmap_size))
 
-        grid = np.array(np.meshgrid(np.arange(heatmap_size), np.arange(heatmap_size), np.arange(heatmap_size))).transpose(1,2,3,0)
+        #grid = np.array(np.meshgrid(np.arange(heatmap_size), np.arange(heatmap_size), np.arange(heatmap_size))).transpose(1,2,3,0)
 
+        #for i in range(self.cfg.EFFICIENTTRACK.NUM_JOINTS):
+        #    dist = (keypoints3D_crop[i]-grid)
+        #    heatmap3D[i] = 255.*np.exp(-0.5*(np.sum(dist*dist/(1.7**2), axis = 3)))
+
+        xx,yy,zz = np.meshgrid(np.arange(heatmap_size), np.arange(heatmap_size), np.arange(heatmap_size))
         for i in range(self.cfg.EFFICIENTTRACK.NUM_JOINTS):
-            dist = (keypoints3D_crop[i]-grid)
-            heatmap3D[i] = 255.*np.exp(-0.5*(np.sum(dist*dist/(1.7**2), axis = 3)))
+            heatmap3D[i,xx,yy,zz] = 255.*np.exp(-0.5*(np.power((keypoints3D_crop[i][0]-xx)/(1.7),2)+np.power((keypoints3D_crop[i][1]-yy)/(1.7),2)+np.power((keypoints3D_crop[i][2]-zz)/(1.7),2)))
 
         sample = [img_l, keypoints3D, centerHM, center3D, heatmap3D]
         return self.transform(sample)
+
 
     def __len__(self):
         return len(self.image_ids)
@@ -201,8 +206,11 @@ class Normalizer(object):
 if __name__ == "__main__":
     from config import cfg
     idx = 0
-    training_set = VortexDataset3D(cfg = cfg, set='train')
-    training_set.__getitem__(0)
+    training_set = VortexDataset3D(cfg = cfg, set='val')
+    sample1 = training_set.__getitem__(0)
+    sample2 = training_set.__getitem2__(0)
+    print (sample1[3])
+    print (sample2[3])
     #training_set.visualize_sample(0)
     val_frame_numbers = []
     print (len(training_set.image_ids))

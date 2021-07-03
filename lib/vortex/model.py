@@ -39,8 +39,10 @@ class VortexBackbone(nn.Module):
         self.register_buffer('img_size', torch.tensor(img_size))
 
         self.effTrack = EfficientTrackBackbone(self.cfg, compound_coef=self.cfg.EFFICIENTTRACK.COMPOUND_COEF)
-        #self.effTrack.load_state_dict(torch.load('/home/trackingsetup/Documents/Vortex/projects/handPose/efficienttrack/models/Combined_Run1/EfficientTrack-d3_140_297933.pth'))
+        self.effTrack.load_state_dict(torch.load('/home/trackingsetup/Documents/Vortex/projects/handPose_test/efficienttrack/models/Colleen_d2_Run2/EfficientTrack-d3_80_171153.pth'), strict = True)
         self.effTrack.requires_grad_(False)
+        #self.effTrack.backbone_net.requires_grad_(False)
+
 
         self.reproLayer = ReprojectionLayer(cfg, intrinsic_paths, extrinsic_paths, lookup_path)
         self.v2vNet = V2VNet(cfg.EFFICIENTTRACK.NUM_JOINTS, cfg.EFFICIENTTRACK.NUM_JOINTS)
@@ -49,7 +51,7 @@ class VortexBackbone(nn.Module):
                                                  torch.arange(int(self.grid_size/self.grid_spacing/2)).cuda(),
                                                  torch.arange(int(self.grid_size/self.grid_spacing/2)).cuda())
         self.last_time = 0
-        #self.starter, self.ender = torch.cuda.Event(enable_timing=True), torch.cuda.Event(enable_timing=True)
+        self.starter, self.ender = torch.cuda.Event(enable_timing=True), torch.cuda.Event(enable_timing=True)
 
 
 
@@ -58,7 +60,7 @@ class VortexBackbone(nn.Module):
         heatmaps_batch =  self.effTrack(imgs.reshape(-1,imgs.shape[2], imgs.shape[3], imgs.shape[4]))[1]
         heatmaps_batch = heatmaps_batch.reshape(batch_size, -1, heatmaps_batch.shape[1], heatmaps_batch.shape[2], heatmaps_batch.shape[3])
 
-        heatmaps_padded = torch.cuda.FloatTensor(imgs.shape[0], imgs.shape[1], heatmaps_batch.shape[2], self.img_size[1], self.img_size[0])
+        heatmaps_padded = torch.cuda.HalfTensor(imgs.shape[0], imgs.shape[1], heatmaps_batch.shape[2], self.img_size[1], self.img_size[0])
         heatmaps_padded.fill_(0)
         for i in range(imgs.shape[1]):
             heatmaps = heatmaps_batch[:,i]
@@ -83,8 +85,8 @@ class VortexBackbone(nn.Module):
         z = torch.sum(z, dim = [2,3,4])/norm
         points3D = torch.stack([x,y,z], dim = 2)
         points3D = (points3D*self.grid_spacing*2-self.grid_size/self.grid_spacing+center3D)
-        torch.cuda.synchronize()
-        self.last_time = self.reproLayer.starter.elapsed_time(self.reproLayer.ender)
+        #torch.cuda.synchronize()
+        #self.last_time = self.v2vNet.starter.elapsed_time(self.v2vNet.ender)
         return heatmap_final, heatmaps_padded, points3D
 
 
@@ -93,10 +95,10 @@ if __name__ == "__main__":
 
     import time
     training_set = VortexDataset3D(cfg = cfg, set='val')
-    vortex = VortexBackbone(cfg, training_set.coco.dataset['calibration']['intrinsics'], training_set.coco.dataset['calibration']['extrinsics'], [640,512], '/home/timo/Desktop/VoRTEx/lib/vortex/lookup.npy').cuda()
+    vortex = VortexBackbone(cfg, training_set.coco.dataset['calibration']['intrinsics'], training_set.coco.dataset['calibration']['extrinsics'], [640,512], '/home/trackingsetup/Documents/Vortex/lib/vortex/lookup.npy').cuda()
 
 
-    #vortex.load_state_dict(torch.load('/home/trackingsetup/Documents/Vortex/lib/vortex/models_test_3/voxelnet_0_0.pth'), strict = False)
+    vortex.load_state_dict(torch.load('/home/trackingsetup/Documents/Vortex/projects/handPose_test/vortex/models/Colleen_d3_v2v_ks3_2/Vortex-d_5.pth'), strict = False)
     vortex.requires_grad_(False)
     vortex.eval()
     vortex = vortex.cuda()
@@ -125,9 +127,10 @@ if __name__ == "__main__":
         #torch.onnx.export(voxelNet, input, 'test.onnx', input_names=['input'],
         #              output_names=['output'], export_params=True, opset_version=11, do_constant_folding = True, use_external_data_format=True)
 
-        heatmap3D, heatmaps_padded, points3D_net = vortex(imgs_p,torch.unsqueeze(centerHM,0),  torch.unsqueeze(center3D,0))
-        start_time = time.time()
-        heatmap3D, heatmaps_padded, points3D_net = vortex(imgs_p,torch.unsqueeze(centerHM,0),  torch.unsqueeze(center3D,0))
+        with torch.cuda.amp.autocast():
+            heatmap3D, heatmaps_padded, points3D_net = vortex(imgs_p,torch.unsqueeze(centerHM,0),  torch.unsqueeze(center3D,0))
+            start_time = time.time()
+            heatmap3D, heatmaps_padded, points3D_net = vortex(imgs_p,torch.unsqueeze(centerHM,0),  torch.unsqueeze(center3D,0))
         print (vortex.last_time)
         print ((time.time()-start_time)*1000)
         preds, maxvals = darkpose.get_final_preds(heatmaps_padded[0].clamp(0,255).cpu().numpy(), None)

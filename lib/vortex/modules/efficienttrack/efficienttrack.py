@@ -87,7 +87,7 @@ class EfficientTrack:
                 self.last_step = 0
 
             try:
-                ret = self.model.load_state_dict(torch.load(weights_path), strict=False)
+                ret = self.model.load_state_dict(torch.load(weights_path), strict=True)
             except RuntimeError as e:
                 print(f'[Warning] Ignoring {e}')
                 print(
@@ -188,9 +188,9 @@ class EfficientTrack:
                             imgs = imgs.cuda()
                             heatmaps = list(map(lambda x: x.cuda(non_blocking=True), heatmaps))
 
-                        #with torch.cuda.amp.autocast():
-                        outputs = self.model(imgs)
-                        heatmaps_losses, _, _ = self.criterion(outputs, heatmaps,[[],[]])
+                        with torch.cuda.amp.autocast():
+                            outputs = self.model(imgs)
+                            heatmaps_losses, _, _ = self.criterion(outputs, heatmaps,[[],[]])
 
                         loss = 0
                         for idx in range(2):
