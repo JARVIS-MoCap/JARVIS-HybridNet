@@ -23,15 +23,17 @@ class VortexBaseDataset(Dataset):
     Dataset Class to load datasets in the VoRTEx dataset format. See HERE for more details.
 
     :param cfg: handle of the global configuration
+    :param dataset_name: name of the dataset to be loaded
+    :type dataset_name: string
     :param set: specifies wether to load training ('train') or validation ('val') split.
                 Augmentation will only be applied to training split.
     :type set: string
     :param mode: specifies wether bounding box annotations ('cropping') or keypoint
                  annotations ('keypoints') will be loaded.
     """
-    def __init__(self, cfg, set='train'):
+    def __init__(self, cfg, dataset_name,set='train'):
         self.cfg = cfg
-        self.root_dir = cfg.DATASET.DATASET_DIR
+        self.root_dir = os.path.join(cfg.DATASET.DATASET_ROOT_DIR, dataset_name)
         self.set_name = set
         self.coco = COCO(os.path.join(self.root_dir, 'annotations', 'instances_' + self.set_name + '.json'))
         self.num_keypoints = []

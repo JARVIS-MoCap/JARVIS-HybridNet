@@ -23,7 +23,7 @@ sys.path.insert(0, parent_dir)
 from lib.dataset.datasetBase import VortexBaseDataset
 
 
-class VortexDataset(VortexBaseDataset):
+class VortexDataset2D(VortexBaseDataset):
     """
     Dataset Class to load 2D datasets in the VoRTEx dataset format, inherits from
     VortexBaseDataset class. See HERE for more details.
@@ -37,15 +37,30 @@ class VortexDataset(VortexBaseDataset):
     :type mode: string
     """
     def __init__(self, cfg, set='train', mode = 'cropping'):
-        super().__init__(cfg, set)
+        dataset_name = cfg.DATASET.DATASET_2D
+        super().__init__(cfg, dataset_name,set)
         self.mode = mode
+        assert cfg.EFFICIENTTRACK.BOUNDING_BOX_SIZE % 64 == 0, "Bounding Box size has to be divisible by 64!"
         self.heatmap_generator = [
             HeatmapGenerator(
-                cfg.EFFICIENTTRACK.BOUNDING_BOX_SIZE, output_size, cfg.EFFICIENTTRACK.NUM_JOINTS)  \
+                cfg.EFFICIENTTRACK.BOUNDING_BOX_SIZE, output_size, self.num_keypoints[0])  \
                     for output_size in [int(cfg.EFFICIENTTRACK.BOUNDING_BOX_SIZE/4), int(cfg.EFFICIENTTRACK.BOUNDING_BOX_SIZE/2)]
         ]
         self._build_augpipe()
         self.transform = transforms.Compose([Normalizer(mean=cfg.DATASET.MEAN, std=cfg.DATASET.STD, mode=mode)])
+
+
+    def get_dataset_config(self):
+        bboxs = []
+        for id in self.image_ids:
+            bbox, _ = self._load_annotations(id)
+            bboxs.append(bbox)
+        bboxs = np.array(bboxs)
+        x_sizes = bboxs[:,0,2]-bboxs[:,0,0]
+        y_sizes = bboxs[:,0,3]-bboxs[:,0,1]
+        bbox_min_size = np.max([np.max(x_sizes), np.max(y_sizes)])
+        final_bbox_suggestion = int(np.ceil((bbox_min_size*1.02)/64)*64)
+        return final_bbox_suggestion
 
 
     def _build_augpipe(self):
@@ -54,11 +69,11 @@ class VortexDataset(VortexBaseDataset):
             width, height = self.coco.dataset['info']['width'], self.coco.dataset['info']['height']
             scale = self.cfg.EFFICIENTDET.IMG_SIZE / max(height, width)
             cfg = self.cfg.EFFICIENTDET.AUGMENTATION
+            augmentors.append(iaa.Resize(scale,  interpolation='linear'))
+
         elif self.mode == 'keypoints':
-            scale = self.cfg.EFFICIENTTRACK.IMG_SIZE / self.cfg.EFFICIENTTRACK.BOUNDING_BOX_SIZE
             cfg = self.cfg.EFFICIENTTRACK.AUGMENTATION
 
-        augmentors.append(iaa.Resize(scale,  interpolation='linear'))
         if cfg.COLOR_MANIPULATION.ENABLED:
             cman = cfg.COLOR_MANIPULATION
             augmentors.append(iaa.Sometimes(cman.GAUSSIAN_BLUR.PROBABILITY,
@@ -102,18 +117,18 @@ class VortexDataset(VortexBaseDataset):
             center_x = min(max(bbox_hw, int((bboxs[0][0]+int(bboxs[0][2]))/2)), img.shape[1]-bbox_hw)
             img = img[center_y-bbox_hw:center_y+bbox_hw, center_x-bbox_hw:center_x+bbox_hw, :]
             for i in range(0, keypoints.shape[1],3):
-                keypoints[0][i] += -center_x+bbox_hw
-                keypoints[0][i+1] += -center_y+bbox_hw
+                keypoints[0,i] += -center_x+bbox_hw
+                keypoints[0,i+1] += -center_y+bbox_hw
             if self.set_name == 'train':
                 keypoints_iaa = KeypointsOnImage([Keypoint(x=keypoints[0][i], y=keypoints[0][i+1]) for i in range(0,len(keypoints[0]),3)],
                                                  shape=(self.cfg.EFFICIENTTRACK.BOUNDING_BOX_SIZE,self.cfg.EFFICIENTTRACK.BOUNDING_BOX_SIZE,3))
                 img, keypoints_aug = self.augpipe(image=img, keypoints = keypoints_iaa)
                 for i,point in enumerate(keypoints_aug.keypoints):
-                    keypoints[0][i*3] = point.x
-                    keypoints[0][i*3+1] = point.y
+                    keypoints[0,i*3] = point.x
+                    keypoints[0,i*3+1] = point.y
 
-            joints = np.zeros((1,self.cfg.EFFICIENTTRACK.NUM_JOINTS, 3))
-            joints[0, :self.cfg.EFFICIENTTRACK.NUM_JOINTS, :3] = np.array(keypoints[0]).reshape([-1, 3])
+            joints = np.zeros((1,self.num_keypoints[0], 3))
+            joints[0, :self.num_keypoints[0], :3] = np.array(keypoints[0]).reshape([-1, 3])
             joints_list = [joints.copy() for _ in range(2)]
             target_list = list()
             for scale_id in range(2):
@@ -239,7 +254,7 @@ class HeatmapGenerator():
 
 if __name__ == "__main__":
     from config import cfg
-    training_set = VortexDataset(cfg = cfg, set='train', mode='keypoints')
+    training_set = VortexDataset2D(cfg = cfg, set='train', mode='keypoints')
     print (len(training_set.image_ids))
     for i in range(0,1000,12):
         training_set.visualize_sample(i)

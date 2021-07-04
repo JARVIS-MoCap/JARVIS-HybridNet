@@ -22,6 +22,7 @@ sys.path.insert(0, parent_dir)
 
 from lib.dataset.datasetBase import VortexBaseDataset
 from lib.vortex.utils import ReprojectionTool
+from lib.dataset.utils import SetupVisualizer
 
 class VortexDataset3D(VortexBaseDataset):
     """
@@ -34,7 +35,8 @@ class VortexDataset3D(VortexBaseDataset):
     :type set: string
     """
     def __init__(self, cfg, set='train'):
-        super().__init__(cfg, set)
+        dataset_name = cfg.DATASET.DATASET_3D
+        super().__init__(cfg, dataset_name, set)
         self.augpipe = iaa.Sequential([
             iaa.Sometimes(0.3, iaa.GaussianBlur(sigma=(0, 0.5))),
             iaa.Sometimes(0.5, iaa.LinearContrast((0.7, 1))),
@@ -67,6 +69,49 @@ class VortexDataset3D(VortexBaseDataset):
                 self.keypoints3D.append(keypoints3D_cam)
 
         self.transform = transforms.Compose([Normalizer(mean=cfg.DATASET.MEAN, std=cfg.DATASET.STD)])
+        #self.get_dataset_config(self.keypoints3D)
+
+
+    def get_dataset_config(self):
+        keypoints3D = np.array(self.keypoints3D)
+        x_range = [np.min(keypoints3D[:,:,0]), np.max(keypoints3D[:,:,0])]
+        y_range = [np.min(keypoints3D[:,:,1]), np.max(keypoints3D[:,:,1])]
+        z_range = [np.min(keypoints3D[:,:,2]), np.max(keypoints3D[:,:,2])]
+        tracking_area = np.array([x_range, y_range, z_range])
+        x_cube_size_min = np.max(np.max(keypoints3D[:,:,0], axis = 1)-np.min(keypoints3D[:,:,0],axis = 1))
+        y_cube_size_min = np.max(np.max(keypoints3D[:,:,1], axis = 1)-np.min(keypoints3D[:,:,1],axis = 1))
+        z_cube_size_min = np.max(np.max(keypoints3D[:,:,2], axis = 1)-np.min(keypoints3D[:,:,2],axis = 1))
+        min_cube_size = np.max([x_cube_size_min,y_cube_size_min,z_cube_size_min])
+        final_bbox_suggestion = int(np.ceil((min_cube_size*1.1)/8)*8)
+        resolution_suggestion = int(np.floor((final_bbox_suggestion/100.)))
+
+        x_grid_size = x_range[1]-x_range[0]
+        y_grid_size = y_range[1]-y_range[0]
+        z_grid_size = z_range[1]-z_range[0]
+        margin = 0.4    #this should be replaced by something dependent on final_bbox_suggestion
+        grid_x_suggestion = [int(np.ceil((x_range[0]-x_grid_size*margin)/resolution_suggestion)*resolution_suggestion),
+                             int(np.ceil((x_range[1]+x_grid_size*margin)/resolution_suggestion)*resolution_suggestion)]
+        grid_y_suggestion = [int(np.ceil((y_range[0]-y_grid_size*margin)/resolution_suggestion)*resolution_suggestion),
+                             int(np.ceil((y_range[1]+y_grid_size*margin)/resolution_suggestion)*resolution_suggestion)]
+        grid_z_suggestion = [int(np.ceil((z_range[0]-z_grid_size*margin)/resolution_suggestion)*resolution_suggestion),
+                             int(np.ceil((z_range[1]+z_grid_size*margin)/resolution_suggestion)*resolution_suggestion)]
+
+        suggested_parameters = {
+            'bbox': final_bbox_suggestion,
+            'resolution': resolution_suggestion,
+            'grid_x': grid_x_suggestion,
+            'grid_y': grid_y_suggestion,
+            'grid_z': grid_z_suggestion,
+        }
+        return suggested_parameters
+
+        figure = plt.figure()
+        axes = figure.gca(projection='3d')
+        visualizer = SetupVisualizer('T', self.root_dir, self.coco.dataset['calibration']['intrinsics'], self.coco.dataset['calibration']['extrinsics'])
+        visualizer.plot_cameras(axes)
+        visualizer.plot_tracking_area(tracking_area, axes)
+        visualizer.plot_datapoints(self.keypoints3D[0], axes)
+        #plt.show()
 
 
     def __getitem__(self, idx):
@@ -76,7 +121,7 @@ class VortexDataset3D(VortexBaseDataset):
         frameset_ids = self.coco.dataset['framesets'][image_info['file_name'].split('/')[-1]]
         #print (image_info['file_name'])
 
-        img_l = np.zeros((len(frameset_ids), self.cfg.EFFICIENTTRACK.IMG_SIZE,self.cfg.EFFICIENTTRACK.IMG_SIZE,3))
+        img_l = np.zeros((len(frameset_ids), self.cfg.EFFICIENTTRACK.BOUNDING_BOX_SIZE,self.cfg.EFFICIENTTRACK.BOUNDING_BOX_SIZE,3))
         centerHM = np.zeros((len(frameset_ids), 2), dtype = int)
         bbox_hw = int(self.cfg.EFFICIENTTRACK.BOUNDING_BOX_SIZE/2)
         for frame_idx,img_id in enumerate(frameset_ids):
@@ -206,11 +251,8 @@ class Normalizer(object):
 if __name__ == "__main__":
     from config import cfg
     idx = 0
-    training_set = VortexDataset3D(cfg = cfg, set='val')
+    training_set = VortexDataset3D(cfg = cfg, set='train')
     sample1 = training_set.__getitem__(0)
-    sample2 = training_set.__getitem2__(0)
-    print (sample1[3])
-    print (sample2[3])
     #training_set.visualize_sample(0)
     val_frame_numbers = []
     print (len(training_set.image_ids))

@@ -1,11 +1,10 @@
-import os
+import os,sys,inspect
 from yacs.config import CfgNode as CN
-
 
 #General Configurations
 _C = CN()
 _C.PROJECTS_ROOT_PATH = 'projects'
-_C.PROJECT_NAME = 'handPose_test'
+_C.PROJECT_NAME = 'handPose_test2'
 _C.EXPERIMENT_NAME = "Colleen_d3_weight_test"
 _C.NUM_GPUS = 1
 _C.GPU_IDS = None
@@ -15,7 +14,9 @@ _C.USE_MIXED_PRECISION = True
 
 #Dataset Configurations
 _C.DATASET = CN()
-_C.DATASET.DATASET_DIR = '/home/trackingsetup/Documents/CombinedDataset/DatasetColleen'
+_C.DATASET.DATASET_ROOT_DIR = 'datasets'
+_C.DATASET.DATASET_2D = None
+_C.DATASET.DATASET_3D = None
 _C.DATASET.TRAIN_SET = 'train'
 _C.DATASET.VAL_SET = 'val'
 _C.DATASET.MEAN = [0.485, 0.456, 0.406]
@@ -71,7 +72,6 @@ _C.EFFICIENTDET.AUGMENTATION.AFFINE_TRANSFORM.SCALE_RANGE = [0.8, 1.25]
 _C.EFFICIENTTRACK = CN()
 _C.EFFICIENTTRACK.COMPOUND_COEF = 3
 _C.EFFICIENTTRACK.NUM_JOINTS = 23
-_C.EFFICIENTTRACK.IMG_SIZE = 320
 _C.EFFICIENTTRACK.BOUNDING_BOX_SIZE = 320
 _C.EFFICIENTTRACK.BATCH_SIZE = 4
 _C.EFFICIENTTRACK.OPTIMIZER = 'adamw'
@@ -112,11 +112,11 @@ _C.EFFICIENTTRACK.AUGMENTATION.AFFINE_TRANSFORM.SCALE_RANGE = [0.8, 1.25]
 
 #VORTEX3D 3D Tracking Network Configuration
 _C.VORTEX = CN()
-_C.VORTEX.GRID_SPACING = 2
-_C.VORTEX.GRID_DIM_X = [-500,500]
-_C.VORTEX.GRID_DIM_Y = [-400,400]
-_C.VORTEX.GRID_DIM_Z = [100,1100]
-_C.VORTEX.ROI_CUBE_SIZE = 208
+_C.VORTEX.ROI_CUBE_SIZE = None
+_C.VORTEX.GRID_SPACING = None
+_C.VORTEX.GRID_DIM_X = None
+_C.VORTEX.GRID_DIM_Y = None
+_C.VORTEX.GRID_DIM_Z = None
 
 _C.VORTEX.BATCH_SIZE = 1
 _C.VORTEX.OPTIMIZER = 'adamw'
@@ -126,46 +126,3 @@ _C.VORTEX.VAL_INTERVAL = 1
 _C.VORTEX.USE_EARLY_STOPPING = False
 _C.VORTEX.EARLY_STOPPING_MIN_DELTA = 0.002
 _C.VORTEX.EARLY_STOPPING_PATIENCE = 5
-
-
-
-
-def update_config(cfg, cfg_filename):
-    cfg.defrost()
-    cfg.merge_from_file(cfg_filename)
-
-    if not isinstance(cfg.LOSS.WITH_HEATMAPS_LOSS, (list, tuple)):
-        cfg.LOSS.WITH_HEATMAPS_LOSS = (cfg.LOSS.WITH_HEATMAPS_LOSS)
-
-    if not isinstance(cfg.LOSS.HEATMAPS_LOSS_FACTOR, (list, tuple)):
-        cfg.LOSS.HEATMAPS_LOSS_FACTOR = (cfg.LOSS.HEATMAPS_LOSS_FACTOR)
-
-    if not isinstance(cfg.LOSS.WITH_AE_LOSS, (list, tuple)):
-        cfg.LOSS.WITH_AE_LOSS = (cfg.LOSS.WITH_AE_LOSS)
-
-    if not isinstance(cfg.LOSS.PUSH_LOSS_FACTOR, (list, tuple)):
-        cfg.LOSS.PUSH_LOSS_FACTOR = (cfg.LOSS.PUSH_LOSS_FACTOR)
-
-    if not isinstance(cfg.LOSS.PULL_LOSS_FACTOR, (list, tuple)):
-        cfg.LOSS.PULL_LOSS_FACTOR = (cfg.LOSS.PULL_LOSS_FACTOR)
-
-    cfg.freeze()
-
-
-def check_config(cfg):
-    assert cfg.LOSS.NUM_STAGES == len(cfg.LOSS.WITH_HEATMAPS_LOSS), \
-        'LOSS.NUM_SCALE should be the same as the length of LOSS.WITH_HEATMAPS_LOSS'
-    assert cfg.LOSS.NUM_STAGES == len(cfg.LOSS.HEATMAPS_LOSS_FACTOR), \
-        'LOSS.NUM_SCALE should be the same as the length of LOSS.HEATMAPS_LOSS_FACTOR'
-    assert cfg.LOSS.NUM_STAGES == len(cfg.LOSS.WITH_AE_LOSS), \
-        'LOSS.NUM_SCALE should be the same as the length of LOSS.WITH_AE_LOSS'
-    assert cfg.LOSS.NUM_STAGES == len(cfg.LOSS.PUSH_LOSS_FACTOR), \
-        'LOSS.NUM_SCALE should be the same as the length of LOSS.PUSH_LOSS_FACTOR'
-    assert cfg.LOSS.NUM_STAGES == len(cfg.LOSS.PULL_LOSS_FACTOR), \
-        'LOSS.NUM_SCALE should be the same as the length of LOSS.PULL_LOSS_FACTOR'
-
-
-if __name__ == '__main__':
-    import sys
-    with open(sys.argv[1], 'w') as f:
-        print(_C, file=f)

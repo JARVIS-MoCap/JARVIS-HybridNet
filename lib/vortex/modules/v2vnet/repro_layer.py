@@ -14,21 +14,20 @@ class ReprojectionLayer(nn.Module):
     def __init__(self, cfg, intrinsic_paths, extrinsic_paths, lookup_path = None):
         super(ReprojectionLayer, self).__init__()
         self.cfg = cfg
-        self.root_dir = cfg.DATASET.DATASET_DIR
-        self.reproTool = ReprojectionTool('T', self.root_dir, intrinsic_paths, extrinsic_paths)
-        self.weights_repro = nn.Parameter(torch.ones(12), requires_grad=True)
-        self.weights_relu = nn.ReLU()
+        dataset_dir = os.path.join(cfg.DATASET.DATASET_ROOT_DIR, cfg.DATASET.DATASET_3D)
+        self.reproTool = ReprojectionTool('T', dataset_dir, intrinsic_paths, extrinsic_paths)
 
         if lookup_path == None:
             self.register_buffer('reproLookup', torch.from_numpy(self.__create_lookup()))
         else:
-            self.reproLookup = torch.from_numpy(np.load(lookup_path).astype('int32')).permute(3,0,1,2,4)
+            self.reproLookup = torch.from_numpy(np.load(lookup_path).astype('int32')).permute(3,0,1,2).int()
+            #self.reproLookup = self.reproLookup/2
             #self.register_buffer('reproLookup', torch.from_numpy(np.load(lookup_path).astype('int16')).permute(3,0,1,2,4))
             #self.register_buffer('reproLookup2', torch.IntTensor(self.reproLookup.shape[0], self.reproLookup.shape[1], self.reproLookup.shape[2], self.reproLookup.shape[3]))
-            self.reproLookup2 = torch.IntTensor(self.reproLookup.shape[0], self.reproLookup.shape[1], self.reproLookup.shape[2], self.reproLookup.shape[3])
+            #self.reproLookup2 = torch.IntTensor(self.reproLookup.shape[0], self.reproLookup.shape[1], self.reproLookup.shape[2], self.reproLookup.shape[3])
             #print (self.reproLookup.shape)
-            for i in range(12):
-                self.reproLookup2[i] = self.reproLookup[i,:,:,:,1]*640+self.reproLookup[i,:,:,:,0]
+            #for i in range(12):
+            #    self.reproLookup2[i] = self.reproLookup[i,:,:,:,1]*640+self.reproLookup[i,:,:,:,0]
                 #print (torch.max(self.reproLookup2[i,:,:,:]))
 
         self.register_buffer('offset', torch.tensor([self.cfg.VORTEX.GRID_DIM_X[0], self.cfg.VORTEX.GRID_DIM_Y[0], self.cfg.VORTEX.GRID_DIM_Z[0]]))
@@ -50,37 +49,36 @@ class ReprojectionLayer(nn.Module):
         x = np.arange(self.cfg.VORTEX.GRID_DIM_X[0], self.cfg.VORTEX.GRID_DIM_X[1], self.cfg.VORTEX.GRID_SPACING)
         y = np.arange(self.cfg.VORTEX.GRID_DIM_Y[0], self.cfg.VORTEX.GRID_DIM_Y[1], self.cfg.VORTEX.GRID_SPACING)
         z = np.arange(self.cfg.VORTEX.GRID_DIM_Z[0], self.cfg.VORTEX.GRID_DIM_Z[1], self.cfg.VORTEX.GRID_SPACING)
-        reproLookup = np.zeros((len(x),len(y),len(z), self.reproTool.num_cameras, 2))
+        reproLookup = np.zeros((len(x),len(y),len(z), self.reproTool.num_cameras), dtype = np.int32)
 
         def par_test(i):
-            lookup = np.zeros((len(y),len(z), self.reproTool.num_cameras, 2))
+            lookup = np.zeros((len(y),len(z), self.reproTool.num_cameras), dtype = np.int32)
             print (i)
             for j in range(len(y)):
                 for k in range(len(z)):
-                    lookup[j,k] = self.reproTool.reprojectPoint([x[i],y[j],z[k]])
+                    point = self.reproTool.reprojectPoint([x[i],y[j],z[k]])
+                    lookup[j,k] = (point[:,1]/2).astype(np.int32)*640+(point[:,0]/2).astype(np.int32)
             return i, lookup
 
-        result = Parallel(n_jobs=24)(delayed(par_test)(i) for i in range(len(x)))
+        result = Parallel(n_jobs=12)(delayed(par_test)(i) for i in range(len(x)))
         for element in result:
-            reproLookup[element[0]] = element[1]/2
+            reproLookup[element[0]] = element[1]
         np.save('lookup.npy', reproLookup)
-        reproLookup = torch.from_numpy(reproLookup)
         return reproLookup
 
 
     def __get_heatmap_value(self, lookup, heatmaps):
-        weight = self.weights_relu(self.weights_repro)
-        weight = weight / (torch.sum(weight, dim=0) + 0.0001)
         lookup = lookup.cuda().long()
         heatmaps = heatmaps.flatten(2)
-        outs = torch.sum(heatmaps[:,self.ii,lookup[self.ii,self.xx,self.yy,self.zz]]*weight[self.ii], dim = 1)
+        outs = torch.mean(heatmaps[:,self.ii,lookup[self.ii,self.xx,self.yy,self.zz]], dim = 1)
+        print (torch.max(outs))
         return outs
 
     def forward(self, heatmaps, center):
         center_indices = ((center-self.offset)/self.grid_spacing).int()
-        heatmaps3D = torch.cuda.HalfTensor(heatmaps.shape[0], 23, self.grid_size, self.grid_size, self.grid_size)
+        heatmaps3D = torch.cuda.FloatTensor(heatmaps.shape[0], 23, self.grid_size, self.grid_size, self.grid_size)
         for batch in range(heatmaps.shape[0]):
-            lookup_subset = self.reproLookup2[:,center_indices[batch][0]-self.grid_size_half:center_indices[batch][0]+self.grid_size_half,
+            lookup_subset = self.reproLookup[:,center_indices[batch][0]-self.grid_size_half:center_indices[batch][0]+self.grid_size_half,
                                              center_indices[batch][1]-self.grid_size_half:center_indices[batch][1]+self.grid_size_half,
                                              center_indices[batch][2]-self.grid_size_half:center_indices[batch][2]+self.grid_size_half]
             heatmaps3D[batch] = self.__get_heatmap_value(lookup_subset,torch.transpose(heatmaps[batch], 0,1))

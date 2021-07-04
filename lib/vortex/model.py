@@ -33,13 +33,13 @@ class VortexBackbone(nn.Module):
     def __init__(self, cfg, intrinsic_paths, extrinsic_paths, img_size, lookup_path = None):
         super(VortexBackbone, self).__init__()
         self.cfg = cfg
-        self.root_dir = cfg.DATASET.DATASET_DIR
+        self.root_dir = cfg.DATASET.DATASET_ROOT_DIR
         self.register_buffer('grid_size', torch.tensor(cfg.VORTEX.ROI_CUBE_SIZE))
         self.register_buffer('grid_spacing', torch.tensor(cfg.VORTEX.GRID_SPACING))
         self.register_buffer('img_size', torch.tensor(img_size))
 
         self.effTrack = EfficientTrackBackbone(self.cfg, compound_coef=self.cfg.EFFICIENTTRACK.COMPOUND_COEF)
-        self.effTrack.load_state_dict(torch.load('/home/trackingsetup/Documents/Vortex/projects/handPose_test/efficienttrack/models/Colleen_d2_Run2/EfficientTrack-d3_80_171153.pth'), strict = True)
+        #self.effTrack.load_state_dict(torch.load('/home/trackingsetup/Documents/Vortex/projects/handPose_test/efficienttrack/models/Colleen_d2_Run2/EfficientTrack-d3_80_171153.pth'), strict = True)
         self.effTrack.requires_grad_(False)
         #self.effTrack.backbone_net.requires_grad_(False)
 
@@ -60,7 +60,7 @@ class VortexBackbone(nn.Module):
         heatmaps_batch =  self.effTrack(imgs.reshape(-1,imgs.shape[2], imgs.shape[3], imgs.shape[4]))[1]
         heatmaps_batch = heatmaps_batch.reshape(batch_size, -1, heatmaps_batch.shape[1], heatmaps_batch.shape[2], heatmaps_batch.shape[3])
 
-        heatmaps_padded = torch.cuda.HalfTensor(imgs.shape[0], imgs.shape[1], heatmaps_batch.shape[2], self.img_size[1], self.img_size[0])
+        heatmaps_padded = torch.cuda.FloatTensor(imgs.shape[0], imgs.shape[1], heatmaps_batch.shape[2], self.img_size[1], self.img_size[0])
         heatmaps_padded.fill_(0)
         for i in range(imgs.shape[1]):
             heatmaps = heatmaps_batch[:,i]
@@ -92,13 +92,14 @@ class VortexBackbone(nn.Module):
 
 if __name__ == "__main__":
     from config import cfg
+    cfg.merge_from_file('/home/timo/Desktop/VoRTEx/projects/Test/config.yaml')
 
     import time
     training_set = VortexDataset3D(cfg = cfg, set='val')
-    vortex = VortexBackbone(cfg, training_set.coco.dataset['calibration']['intrinsics'], training_set.coco.dataset['calibration']['extrinsics'], [640,512], '/home/trackingsetup/Documents/Vortex/lib/vortex/lookup.npy').cuda()
+    vortex = VortexBackbone(cfg, training_set.coco.dataset['calibration']['intrinsics'], training_set.coco.dataset['calibration']['extrinsics'], [640,512], '/home/timo/Desktop/VoRTEx/lookup.npy').cuda()
 
 
-    vortex.load_state_dict(torch.load('/home/trackingsetup/Documents/Vortex/projects/handPose_test/vortex/models/Colleen_d3_v2v_ks3_2/Vortex-d_5.pth'), strict = False)
+    #vortex.load_state_dict(torch.load('/home/trackingsetup/Documents/Vortex/projects/handPose_test/vortex/models/Colleen_d3_v2v_ks3_2/Vortex-d_5.pth'), strict = False)
     vortex.requires_grad_(False)
     vortex.eval()
     vortex = vortex.cuda()
@@ -262,7 +263,7 @@ if __name__ == "__main__":
         if (np.mean(np.array(errors_3dHM)) > 30):
             plt.show()
         else:
-            plt.close()
+            plt.show()
 
         tot_errors_hm3d.append(np.mean(np.array(errors_3dHM)))
         tot_errors_class.append(np.mean(np.array(errors_Std)))

@@ -23,7 +23,6 @@ from lib.logger.logger import NetLogger, AverageMeter
 import lib.vortex.modules.efficienttrack.darkpose as darkpose
 
 
-
 class EfficientTrack:
     """
     EfficientTrack convenience class, enables easy training and inference with
@@ -39,19 +38,16 @@ class EfficientTrack:
     def __init__(self, mode, cfg, weights = None):
         self.mode = mode
         self.cfg = cfg
-        self.model = EfficientTrackBackbone(cfg, compound_coef=self.cfg.EFFICIENTTRACK.COMPOUND_COEF)
+        self.model = EfficientTrackBackbone(self.cfg, compound_coef=self.cfg.EFFICIENTTRACK.COMPOUND_COEF)
 
         if mode  == 'train':
-            self.model_savepath = os.path.join(self.cfg.PROJECTS_ROOT_PATH, self.cfg.PROJECT_NAME, 'efficienttrack' , 'models', self.cfg.EXPERIMENT_NAME)
-            self.log_path = os.path.join(self.cfg.PROJECTS_ROOT_PATH, self.cfg.PROJECT_NAME, 'efficienttrack', 'logs', self.cfg.EXPERIMENT_NAME)
-            self.logger = NetLogger(self.log_path)
+            self.logger = NetLogger(os.path.join(self.cfg.logPaths['efficienttrack'], 'Run_Test'))
             self.lossMeter = AverageMeter()
-            os.makedirs(self.log_path, exist_ok=True)
-            os.makedirs(self.model_savepath, exist_ok=True)
+            self.model_savepath = os.path.join(self.cfg.savePaths['efficienttrack'], 'Run_Test')
 
             self.load_weights(weights)
 
-            self.criterion = MultiLossFactory(cfg)
+            self.criterion = MultiLossFactory(self.cfg)
 
             if self.cfg.NUM_GPUS > 0:
                 self.model = self.model.cuda()
@@ -145,9 +141,9 @@ class EfficientTrack:
                     heatmaps = list(map(lambda x: x.cuda(non_blocking=True), heatmaps))
 
                 self.optimizer.zero_grad()
-                with torch.cuda.amp.autocast():
-                    outputs = self.model(imgs)
-                    heatmaps_losses, _, _ = self.criterion(outputs, heatmaps,[[],[]])
+                #with torch.cuda.amp.autocast():
+                outputs = self.model(imgs)
+                heatmaps_losses, _, _ = self.criterion(outputs, heatmaps,[[],[]])
 
                 loss = 0
                 for idx in range(2):
@@ -188,9 +184,9 @@ class EfficientTrack:
                             imgs = imgs.cuda()
                             heatmaps = list(map(lambda x: x.cuda(non_blocking=True), heatmaps))
 
-                        with torch.cuda.amp.autocast():
-                            outputs = self.model(imgs)
-                            heatmaps_losses, _, _ = self.criterion(outputs, heatmaps,[[],[]])
+                        #with torch.cuda.amp.autocast():
+                        outputs = self.model(imgs)
+                        heatmaps_losses, _, _ = self.criterion(outputs, heatmaps,[[],[]])
 
                         loss = 0
                         for idx in range(2):

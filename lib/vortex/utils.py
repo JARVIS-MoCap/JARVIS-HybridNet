@@ -116,7 +116,7 @@ class Camera:
         self.name = name
         self.primary = primary
         if self.primary:
-            self.position = np.array([0.,0.,0.])
+            self.position = np.array([0.,0.,0.]).reshape(3,1)
             self.rotationMatrix = np.eye(3)
         else:
             self.position = self.get_mat_from_file(extrinsics, 'T')
