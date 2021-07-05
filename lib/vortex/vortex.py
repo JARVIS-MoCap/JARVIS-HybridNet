@@ -36,15 +36,19 @@ class Vortex:
     :param weights: Path to parameter savefile to be loaded
     :type weights: string, optional
     """
-    def __init__(self, mode, cfg, calibPaths,lookupPath = None,weights = None):
+    def __init__(self, mode, cfg, calibPaths,weights = None, efficienttrack_weights = None):
         self.mode = mode
         self.cfg = cfg
-        self.model = VortexBackbone(cfg, calibPaths[0], calibPaths[1], [640, 512],lookupPath)
+        self.model = VortexBackbone(cfg, calibPaths[0], calibPaths[1], efficienttrack_weights)
 
         if mode  == 'train':
             #Maybe move this to a function in cfg??
             self.logger = NetLogger(os.path.join(self.cfg.logPaths['vortex'], 'Run_Test'))
             self.lossMeter = AverageMeter()
+            self.accuracyMeter = AverageMeter()
+            self.valLossMeter = AverageMeter()
+            self.valAccuracyMeter = AverageMeter()
+
             self.model_savepath = os.path.join(self.cfg.savePaths['vortex'], 'Run_Test')
 
             self.load_weights(weights)
@@ -112,14 +116,12 @@ class Vortex:
         best_loss = 1e5
         best_epoch = 0
         self.model.train()
-        num_iter_per_epoch = len(training_generator)
-        #scaler = torch.cuda.amp.GradScaler()
+        if (self.cfg.USE_MIXED_PRECISION):
+            scaler = torch.cuda.amp.GradScaler()
 
         for epoch in range(num_epochs):
             progress_bar = tqdm(training_generator)
-            avg_loss = 0
-            avg_acc = 0
-            for iter, data in enumerate(progress_bar):
+            for data in progress_bar:
                 imgs = data[0].permute(0,1,4,2,3).float()
                 keypoints = data[1]
                 centerHM = data[2]
@@ -134,33 +136,38 @@ class Vortex:
                     heatmap3D = heatmap3D.cuda()
 
                 self.optimizer.zero_grad()
-                #with torch.cuda.amp.autocast():
-                outputs = self.model(imgs, centerHM, center3D)
-                loss = self.criterion(outputs[0], heatmap3D)
-                loss = loss.mean()
-                acc = torch.mean(torch.sqrt(torch.sum((keypoints-outputs[2])**2, dim = 2)))
+                if (self.cfg.USE_MIXED_PRECISION):
+                    with torch.cuda.amp.autocast():
+                        outputs = self.model(imgs, centerHM, center3D)
+                        loss = self.criterion(outputs[0], heatmap3D)
+                        loss = loss.mean()
+                        acc = torch.mean(torch.sqrt(torch.sum((keypoints-outputs[2])**2, dim = 2)))
+                    scaler.scale(loss).backward()
+                    scaler.step(self.optimizer)
+                    scaler.update()
 
-                loss.backward()
-                self.optimizer.step()
+                else:
+                    outputs = self.model(imgs, centerHM, center3D)
+                    loss = self.criterion(outputs[0], heatmap3D)
+                    loss = loss.mean()
+                    acc = torch.mean(torch.sqrt(torch.sum((keypoints-outputs[2])**2, dim = 2)))
 
-                avg_loss += loss.detach()
-                avg_acc += acc.detach()
-
-                #scaler.scale(loss).backward()
-                #scaler.step(self.optimizer)
-                #scaler.update()
+                    loss.backward()
+                    self.optimizer.step()
 
                 self.lossMeter.update(loss.item())
+                self.accuracyMeter.update(acc.item())
 
                 progress_bar.set_description(
                     'Epoch: {}/{}. Loss: {:.4f}. Acc: {:.2f}'.format(
-                        epoch, num_epochs, avg_loss/(iter+1), avg_acc/(iter+1)))
+                        epoch, num_epochs, self.lossMeter.read(), self.accuracyMeter.read()))
 
 
             self.logger.update_train_loss(self.lossMeter.read())
             self.scheduler.step(self.lossMeter.read())
 
             self.lossMeter.reset()
+            self.accuracyMeter.reset()
 
             if epoch % self.cfg.VORTEX.CHECKPOINT_SAVE_INTERVAL == 0 and epoch > 0:
                 self.save_checkpoint(f'Vortex-d_{epoch}.pth')
@@ -170,7 +177,7 @@ class Vortex:
                 self.model.eval()
                 avg_val_loss = 0
                 avg_val_acc = 0
-                for iter, data in enumerate(val_generator):
+                for data in val_generator:
                     with torch.no_grad():
                         imgs = data[0].permute(0,1,4,2,3).float()
                         keypoints = data[1]
@@ -185,22 +192,29 @@ class Vortex:
                             center3D = center3D.cuda()
                             heatmap3D = heatmap3D.cuda()
 
-                        #with torch.cuda.amp.autocast():
-                        outputs = self.model(imgs, centerHM, center3D)
-                        loss = self.criterion(outputs[0], heatmap3D)
-                        loss = loss.mean()
-                        acc = torch.mean(torch.sqrt(torch.sum((keypoints-outputs[2])**2, dim = 2)))
+                        if (self.cfg.USE_MIXED_PRECISION):
+                            with torch.cuda.amp.autocast():
+                                outputs = self.model(imgs, centerHM, center3D)
+                                loss = self.criterion(outputs[0], heatmap3D)
+                                loss = loss.mean()
+                                acc = torch.mean(torch.sqrt(torch.sum((keypoints-outputs[2])**2, dim = 2)))
+                        else:
+                            outputs = self.model(imgs, centerHM, center3D)
+                            loss = self.criterion(outputs[0], heatmap3D)
+                            loss = loss.mean()
+                            acc = torch.mean(torch.sqrt(torch.sum((keypoints-outputs[2])**2, dim = 2)))
 
-                        #losses.append(loss)
-                        avg_val_loss += loss.detach()
-                        avg_val_acc += acc.detach()
+                        self.valLossMeter.update(loss.item())
+                        self.valAccuracyMeter.update(acc.item())
 
             print(
                 'Val. Epoch: {}/{}. Loss: {:.3f}. Acc: {:.2f}'.format(
-                    epoch, num_epochs, avg_val_loss/len(val_generator),  avg_val_acc/len(val_generator)))
+                    epoch, num_epochs, self.valLossMeter.read(),  self.valAccuracyMeter.read()))
 
 
             self.logger.update_val_loss(avg_val_loss/len(val_generator))
+            self.valLossMeter.reset()
+            self.valAccuracyMeter.reset()
 
             if loss + self.cfg.VORTEX.EARLY_STOPPING_MIN_DELTA < best_loss  and self.cfg.VORTEX.USE_EARLY_STOPPING:
                 best_loss = loss
@@ -214,11 +228,13 @@ class Vortex:
                 print('[Info] Stop training at epoch {}. The lowest loss achieved is {}'.format(epoch, best_loss))
                 break
 
+
     def save_checkpoint(self, name):
         if isinstance(self.model, utils.CustomDataParallel):
             torch.save(self.module.model.state_dict(), os.path.join(self.model_savepath, name))
         else:
             torch.save(self.model.state_dict(), os.path.join(self.model_savepath, name))
+
 
     def export_to_onnx(self, savefile_name, input_size = 256, export_params = True, opset_version = 9):
         input = torch.zeros(1,3,input_size,input_size).cuda()

@@ -40,21 +40,28 @@ class CustomDataParallel(nn.DataParallel):
 class ReprojectionTool:
     def __init__(self, primary_camera, root_dir, intrinsics, extrinsics):
         self.cameras = {}
+        found_primary = False
         for camera in intrinsics:
             if camera == primary_camera:
                 self.cameras[camera] = Camera(camera, True, os.path.join(root_dir, intrinsics[camera]), None)
+                found_primary = True
             else:
                 self.cameras[camera] = Camera(camera, False, os.path.join(root_dir, intrinsics[camera]), os.path.join(root_dir, extrinsics[camera]))
+        assert found_primary, 'Primary camera name does not match any of the given cameras'
+
         self.camera_list = [self.cameras[cam] for cam in self.cameras]
         self.num_cameras = len(self.camera_list)
+        resolutions = [self.cameras[cam].resolution for cam in self.cameras]
+        assert resolutions[:-1] == resolutions[1:], 'All cameras need to record at the same resolution'
+        self.resolution = resolutions[0]
 
     def reprojectPoint(self,point3D):
         pointsRepro = np.zeros((self.num_cameras, 2))
         for i,cam in enumerate(self.camera_list):
             pointRepro = cam.cameraMatrix.dot(np.concatenate((point3D, np.array([1]))))
             pointRepro = (pointRepro/pointRepro[-1])[:2]
-            pointRepro[0] = max(0, min(pointRepro[0],1279))
-            pointRepro[1] = max(0, min(pointRepro[1],1023))
+            pointRepro[0] = max(0, min(pointRepro[0],cam.resolution[0]-1))
+            pointRepro[1] = max(0, min(pointRepro[1],cam.resolution[1]-1))
             pointsRepro[i] = pointRepro
         return pointsRepro
 
@@ -73,48 +80,12 @@ class ReprojectionTool:
         X = X[0:3]
         return X
 
-    def renderPoints(self, points, show_cameras = True, axes = None):
-        # Create a new plot
-        if axes == None:
-            figure = plt.figure()
-            axes = figure.gca(projection='3d')
-
-        if show_cameras:
-            for cam in self.cameras:
-                camera_mesh = mesh.Mesh.from_file('/home/lambda/Documents/TrackingDMDS/CombiNet/Sony RX1Rii_3dless_com_simplified.stl')
-                camera_mesh.points = camera_mesh.points*0.7
-                rotMat = np.eye(3)
-                rotMat[0,0] = -1
-                rotMat[1,1] = 1
-                rotMat[2,2] = -1
-                camera_mesh.rotate_using_matrix(rotMat)
-                camera_mesh.translate(-self.cameras[cam].position)
-                camera_mesh.rotate_using_matrix(np.transpose(self.cameras[cam].rotationMatrix))
-                if self.cameras[cam].primary:
-                    axes.add_collection3d(mplot3d.art3d.Poly3DCollection(camera_mesh.vectors, color='r'))
-                else:
-                    axes.add_collection3d(mplot3d.art3d.Poly3DCollection(camera_mesh.vectors, color='b'))
-
-        c = ['r', 'r','r','r','b','b','b','b','g','g','g','g', 'orange', 'orange','orange','orange', 'y','y','y','y','grey', 'grey','grey']
-        for i, point in enumerate(points):
-            #axes.scatter(point[0], point[1], point[2], color = c[i])
-            print ("Classic:", i, point)
-
-        axes.set_xlim3d(-600, 600)
-        axes.set_ylim3d(600, -600)
-        axes.set_zlim3d(1200, 0)
-        axes.set_xlabel('X Label')
-        axes.set_ylabel('Y Label')
-        axes.set_zlabel('Z Label')
-        plt.subplots_adjust(left=0., right=1., top=1., bottom=0.)
-
-        if axes == None:
-            plt.show()
 
 class Camera:
     def __init__(self, name, primary, intrinsics, extrinsics = None):
         self.name = name
         self.primary = primary
+        self.resolution = [1280,1024] #TODO: Include this in intrinsics file
         if self.primary:
             self.position = np.array([0.,0.,0.]).reshape(3,1)
             self.rotationMatrix = np.eye(3)

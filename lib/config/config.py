@@ -4,8 +4,7 @@ from yacs.config import CfgNode as CN
 #General Configurations
 _C = CN()
 _C.PROJECTS_ROOT_PATH = 'projects'
-_C.PROJECT_NAME = 'handPose_test2'
-_C.EXPERIMENT_NAME = "Colleen_d3_weight_test"
+_C.PROJECT_NAME = None
 _C.NUM_GPUS = 1
 _C.GPU_IDS = None
 _C.DATALOADER_NUM_WORKERS = 2

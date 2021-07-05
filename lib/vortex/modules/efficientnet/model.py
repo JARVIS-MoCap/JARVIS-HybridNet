@@ -2,7 +2,6 @@
 model.py
 ========
 EfficientŃet torch module.
-
 """
 
 import torch

@@ -72,48 +72,6 @@ class VortexDataset3D(VortexBaseDataset):
         #self.get_dataset_config(self.keypoints3D)
 
 
-    def get_dataset_config(self):
-        keypoints3D = np.array(self.keypoints3D)
-        x_range = [np.min(keypoints3D[:,:,0]), np.max(keypoints3D[:,:,0])]
-        y_range = [np.min(keypoints3D[:,:,1]), np.max(keypoints3D[:,:,1])]
-        z_range = [np.min(keypoints3D[:,:,2]), np.max(keypoints3D[:,:,2])]
-        tracking_area = np.array([x_range, y_range, z_range])
-        x_cube_size_min = np.max(np.max(keypoints3D[:,:,0], axis = 1)-np.min(keypoints3D[:,:,0],axis = 1))
-        y_cube_size_min = np.max(np.max(keypoints3D[:,:,1], axis = 1)-np.min(keypoints3D[:,:,1],axis = 1))
-        z_cube_size_min = np.max(np.max(keypoints3D[:,:,2], axis = 1)-np.min(keypoints3D[:,:,2],axis = 1))
-        min_cube_size = np.max([x_cube_size_min,y_cube_size_min,z_cube_size_min])
-        final_bbox_suggestion = int(np.ceil((min_cube_size*1.1)/8)*8)
-        resolution_suggestion = int(np.floor((final_bbox_suggestion/100.)))
-
-        x_grid_size = x_range[1]-x_range[0]
-        y_grid_size = y_range[1]-y_range[0]
-        z_grid_size = z_range[1]-z_range[0]
-        margin = 0.4    #this should be replaced by something dependent on final_bbox_suggestion
-        grid_x_suggestion = [int(np.ceil((x_range[0]-x_grid_size*margin)/resolution_suggestion)*resolution_suggestion),
-                             int(np.ceil((x_range[1]+x_grid_size*margin)/resolution_suggestion)*resolution_suggestion)]
-        grid_y_suggestion = [int(np.ceil((y_range[0]-y_grid_size*margin)/resolution_suggestion)*resolution_suggestion),
-                             int(np.ceil((y_range[1]+y_grid_size*margin)/resolution_suggestion)*resolution_suggestion)]
-        grid_z_suggestion = [int(np.ceil((z_range[0]-z_grid_size*margin)/resolution_suggestion)*resolution_suggestion),
-                             int(np.ceil((z_range[1]+z_grid_size*margin)/resolution_suggestion)*resolution_suggestion)]
-
-        suggested_parameters = {
-            'bbox': final_bbox_suggestion,
-            'resolution': resolution_suggestion,
-            'grid_x': grid_x_suggestion,
-            'grid_y': grid_y_suggestion,
-            'grid_z': grid_z_suggestion,
-        }
-        return suggested_parameters
-
-        figure = plt.figure()
-        axes = figure.gca(projection='3d')
-        visualizer = SetupVisualizer('T', self.root_dir, self.coco.dataset['calibration']['intrinsics'], self.coco.dataset['calibration']['extrinsics'])
-        visualizer.plot_cameras(axes)
-        visualizer.plot_tracking_area(tracking_area, axes)
-        visualizer.plot_datapoints(self.keypoints3D[0], axes)
-        #plt.show()
-
-
     def __getitem__(self, idx):
         grid_spacing = self.cfg.VORTEX.GRID_SPACING
         grid_size = self.cfg.VORTEX.ROI_CUBE_SIZE
@@ -177,6 +135,47 @@ class VortexDataset3D(VortexBaseDataset):
 
     def __len__(self):
         return len(self.image_ids)
+
+    def get_dataset_config(self):
+        keypoints3D = np.array(self.keypoints3D)
+        x_range = [np.min(keypoints3D[:,:,0]), np.max(keypoints3D[:,:,0])]
+        y_range = [np.min(keypoints3D[:,:,1]), np.max(keypoints3D[:,:,1])]
+        z_range = [np.min(keypoints3D[:,:,2]), np.max(keypoints3D[:,:,2])]
+        tracking_area = np.array([x_range, y_range, z_range])
+        x_cube_size_min = np.max(np.max(keypoints3D[:,:,0], axis = 1)-np.min(keypoints3D[:,:,0],axis = 1))
+        y_cube_size_min = np.max(np.max(keypoints3D[:,:,1], axis = 1)-np.min(keypoints3D[:,:,1],axis = 1))
+        z_cube_size_min = np.max(np.max(keypoints3D[:,:,2], axis = 1)-np.min(keypoints3D[:,:,2],axis = 1))
+        min_cube_size = np.max([x_cube_size_min,y_cube_size_min,z_cube_size_min])
+        final_bbox_suggestion = int(np.ceil((min_cube_size*1.1)/8)*8)
+        resolution_suggestion = int(np.floor((final_bbox_suggestion/100.)))
+
+        x_grid_size = x_range[1]-x_range[0]
+        y_grid_size = y_range[1]-y_range[0]
+        z_grid_size = z_range[1]-z_range[0]
+        margin = 0.4    #this should be replaced by something dependent on final_bbox_suggestion
+        grid_x_suggestion = [int(np.ceil((x_range[0]-x_grid_size*margin)/resolution_suggestion)*resolution_suggestion),
+                             int(np.ceil((x_range[1]+x_grid_size*margin)/resolution_suggestion)*resolution_suggestion)]
+        grid_y_suggestion = [int(np.ceil((y_range[0]-y_grid_size*margin)/resolution_suggestion)*resolution_suggestion),
+                             int(np.ceil((y_range[1]+y_grid_size*margin)/resolution_suggestion)*resolution_suggestion)]
+        grid_z_suggestion = [int(np.ceil((z_range[0]-z_grid_size*margin)/resolution_suggestion)*resolution_suggestion),
+                             int(np.ceil((z_range[1]+z_grid_size*margin)/resolution_suggestion)*resolution_suggestion)]
+
+        suggested_parameters = {
+            'bbox': final_bbox_suggestion,
+            'resolution': resolution_suggestion,
+            'grid_x': grid_x_suggestion,
+            'grid_y': grid_y_suggestion,
+            'grid_z': grid_z_suggestion,
+        }
+        return suggested_parameters
+
+        figure = plt.figure()
+        axes = figure.gca(projection='3d')
+        visualizer = SetupVisualizer('T', self.root_dir, self.coco.dataset['calibration']['intrinsics'], self.coco.dataset['calibration']['extrinsics'])
+        visualizer.plot_cameras(axes)
+        visualizer.plot_tracking_area(tracking_area, axes)
+        visualizer.plot_datapoints(self.keypoints3D[0], axes)
+        #plt.show()
 
 
     def visualize_sample(self, idx):

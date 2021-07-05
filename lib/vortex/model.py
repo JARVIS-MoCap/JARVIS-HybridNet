@@ -1,3 +1,9 @@
+"""
+model.py
+========
+Vortex torch module.
+"""
+
 import os,sys,inspect
 import numpy as np
 import torch
@@ -30,21 +36,23 @@ from lib.vortex.modules.v2vnet.model import V2VNet
 
 
 class VortexBackbone(nn.Module):
-    def __init__(self, cfg, intrinsic_paths, extrinsic_paths, img_size, lookup_path = None):
+    def __init__(self, cfg, intrinsic_paths, extrinsic_paths, efficienttrack_weights = None):
         super(VortexBackbone, self).__init__()
         self.cfg = cfg
         self.root_dir = cfg.DATASET.DATASET_ROOT_DIR
         self.register_buffer('grid_size', torch.tensor(cfg.VORTEX.ROI_CUBE_SIZE))
         self.register_buffer('grid_spacing', torch.tensor(cfg.VORTEX.GRID_SPACING))
-        self.register_buffer('img_size', torch.tensor(img_size))
 
         self.effTrack = EfficientTrackBackbone(self.cfg, compound_coef=self.cfg.EFFICIENTTRACK.COMPOUND_COEF)
-        #self.effTrack.load_state_dict(torch.load('/home/trackingsetup/Documents/Vortex/projects/handPose_test/efficienttrack/models/Colleen_d2_Run2/EfficientTrack-d3_80_171153.pth'), strict = True)
+        if efficienttrack_weights != None:
+            self.effTrack.load_state_dict(torch.load(efficienttrack_weights), strict = True)
         self.effTrack.requires_grad_(False)
         #self.effTrack.backbone_net.requires_grad_(False)
 
 
-        self.reproLayer = ReprojectionLayer(cfg, intrinsic_paths, extrinsic_paths, lookup_path)
+        self.reproLayer = ReprojectionLayer(cfg, intrinsic_paths, extrinsic_paths)#
+        img_size = self.reproLayer.reproTool.resolution
+        self.register_buffer('heatmap_size', (torch.tensor([int(img_size[0]/2), int(img_size[1]/2)])))
         self.v2vNet = V2VNet(cfg.EFFICIENTTRACK.NUM_JOINTS, cfg.EFFICIENTTRACK.NUM_JOINTS)
         self.softplus = nn.Softplus()
         self.xx,self.yy,self.zz = torch.meshgrid(torch.arange(int(self.grid_size/self.grid_spacing/2)).cuda(),
@@ -54,22 +62,21 @@ class VortexBackbone(nn.Module):
         self.starter, self.ender = torch.cuda.Event(enable_timing=True), torch.cuda.Event(enable_timing=True)
 
 
-
     def forward(self, imgs, centerHM, center3D):
         batch_size = imgs.shape[0]
         heatmaps_batch =  self.effTrack(imgs.reshape(-1,imgs.shape[2], imgs.shape[3], imgs.shape[4]))[1]
         heatmaps_batch = heatmaps_batch.reshape(batch_size, -1, heatmaps_batch.shape[1], heatmaps_batch.shape[2], heatmaps_batch.shape[3])
 
-        heatmaps_padded = torch.cuda.FloatTensor(imgs.shape[0], imgs.shape[1], heatmaps_batch.shape[2], self.img_size[1], self.img_size[0])
+        heatmaps_padded = torch.cuda.FloatTensor(imgs.shape[0], imgs.shape[1], heatmaps_batch.shape[2], self.heatmap_size[1], self.heatmap_size[0])
         heatmaps_padded.fill_(0)
         for i in range(imgs.shape[1]):
             heatmaps = heatmaps_batch[:,i]
             for batch, heatmap in enumerate(heatmaps):
                 heatmaps_padded[batch,i] = F.pad(input=heatmap,
                                                  pad=(((centerHM[batch,i,0]/2)-heatmap.shape[-1]/2).int(),
-                                                      self.img_size[0]-((centerHM[batch,i,0]/2)+heatmap.shape[-1]/2).int(),
+                                                      self.heatmap_size[0]-((centerHM[batch,i,0]/2)+heatmap.shape[-1]/2).int(),
                                                       ((centerHM[batch,i,1]/2)-heatmap.shape[-1]/2).int(),
-                                                      self.img_size[1]-((centerHM[batch,i,1]/2)+heatmap.shape[-1]/2).int()),
+                                                      self.heatmap_size[1]-((centerHM[batch,i,1]/2)+heatmap.shape[-1]/2).int()),
                                                  mode='constant', value=0)
 
         heatmaps3D = self.reproLayer(heatmaps_padded, center3D)
@@ -90,13 +97,14 @@ class VortexBackbone(nn.Module):
         return heatmap_final, heatmaps_padded, points3D
 
 
+
 if __name__ == "__main__":
     from config import cfg
     cfg.merge_from_file('/home/timo/Desktop/VoRTEx/projects/Test/config.yaml')
 
     import time
     training_set = VortexDataset3D(cfg = cfg, set='val')
-    vortex = VortexBackbone(cfg, training_set.coco.dataset['calibration']['intrinsics'], training_set.coco.dataset['calibration']['extrinsics'], [640,512], '/home/timo/Desktop/VoRTEx/lookup.npy').cuda()
+    vortex = VortexBackbone(cfg, training_set.coco.dataset['calibration']['intrinsics'], training_set.coco.dataset['calibration']['extrinsics']).cuda()
 
 
     #vortex.load_state_dict(torch.load('/home/trackingsetup/Documents/Vortex/projects/handPose_test/vortex/models/Colleen_d3_v2v_ks3_2/Vortex-d_5.pth'), strict = False)
@@ -144,19 +152,6 @@ if __name__ == "__main__":
             points3D_rec.append(point)
 
 
-        #img = (v[2][0].numpy()*training_set.cfg.DATASET.STD+training_set.cfg.DATASET.MEAN)
-        #img = cv2.cvtColor(img.astype(np.float32), cv2.COLOR_RGB2BGR)
-        #colored_heatmap = cv2.applyColorMap(heatmaps_padded[0,0].cpu().byte().numpy(), cv2.COLORMAP_JET)
-        #img = cv2.resize(img*255, (heatmaps_padded[0,0].shape[1], heatmaps_padded[0,0].shape[0])).astype(np.uint8)
-        #img = cv2.addWeighted(img,1.0,colored_heatmap,0.4,0)
-        #number_of_lines= 23
-        #cm_subsection = np.linspace(0.0, 1.0, number_of_lines)
-        #colors = [(cm.jet(x)[0]*255,cm.jet(x)[1]*255,cm.jet(x)[2]*255) for x in cm_subsection ]
-        #for i, (x, y) in enumerate(preds[0]):
-        #    img = cv2.circle(img, (int(np.round(x/2)), int(np.round(y/2))), 3, colors[22-i], 4)
-
-        #cv2.imshow('', img)
-        #cv2.waitKey(0)
         heatmap3D = heatmap3D.cpu().numpy()[0]
         center3D = center3D.cpu().numpy()
         if center3D[2] > 1000:
@@ -169,23 +164,6 @@ if __name__ == "__main__":
 
         points3D_hm = []
 
-        #xx,yy,zz = torch.meshgrid(torch.arange(40), torch.arange(40), torch.arange(40))
-
-        #xx,yy,zz = torch.meshgrid(torch.arange(52*2), torch.arange(52*2), torch.arange(52*2))
-        #for i,heatmap in enumerate(heatmap3D):
-        #    heatmap = torch.from_numpy(heatmap)
-        #    heatmap[heatmap < 50 ] = 0
-        #    norm = torch.sum(heatmap)
-        #    x = torch.mul(heatmap, (xx))
-        #    x = torch.sum(x)/norm
-        #    y = torch.mul(heatmap, (yy))
-        #    y = torch.sum(y)/norm
-        #    z = torch.mul(heatmap, (zz))
-        #    z = torch.sum(z)/norm
-        #    points3D_hm.append([x*2.+center3D[0]-104.,y*2.+center3D[1]-104.,z*2.+center3D[2]-104.])
-
-
-
         colors = [(0,0,1,max(0,3./2*c-0.5)) for c in np.linspace(0,1,100)]
         cmapblue = mcolors.LinearSegmentedColormap.from_list('mycmap', colors, N=100)
         xx,yy,zz = np.meshgrid(np.arange(40), np.arange(40), np.arange(40), indexing='ij')
@@ -193,12 +171,8 @@ if __name__ == "__main__":
 
         c = ['r', 'r','r','r','b','b','b','b','g','g','g','g', 'orange', 'orange','orange','orange', 'y','y','y','y','purple', 'purple','purple']
         line_idxs = [[0,1], [1,2], [2,3], [4,5], [5,6], [6,7], [8,9], [9,10], [10,11], [12,13], [13,14], [14,15], [16,17], [17,18], [18,19], [3,7], [7,11], [11,15], [3,21], [7,21],[11,22], [15,22],[21,22], [18,15], [19,22]]
-        #for i, point in enumerate(points3D_hm):
-        #    print ("HM:", i, points3D_hm[i])
-        #    axes.scatter(point[0], point[1], point[2], color = c[i])
-        #for line in line_idxs:
-        #    axes.plot([points3D_hm[line[0]][0], points3D_hm[line[1]][0]], [points3D_hm[line[0]][1], points3D_hm[line[1]][1]], [points3D_hm[line[0]][2], points3D_hm[line[1]][2]], c = 'gray')
-        #if item == 0:
+
+
         points3D_net = points3D_net[0].cpu().detach().numpy()
         for i, point in enumerate(points3D_net):
             #print ("HM:", i, points3D_hm[i])
@@ -263,7 +237,7 @@ if __name__ == "__main__":
         if (np.mean(np.array(errors_3dHM)) > 30):
             plt.show()
         else:
-            plt.show()
+            plt.close()
 
         tot_errors_hm3d.append(np.mean(np.array(errors_3dHM)))
         tot_errors_class.append(np.mean(np.array(errors_Std)))
