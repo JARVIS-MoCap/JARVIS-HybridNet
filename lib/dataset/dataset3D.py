@@ -1,6 +1,6 @@
 """
 dataset3D.py
-========
+============
 Vortex 3D dataset loader.
 """
 
@@ -129,6 +129,7 @@ class VortexDataset3D(VortexBaseDataset):
         for i in range(self.cfg.EFFICIENTTRACK.NUM_JOINTS):
             heatmap3D[i,xx,yy,zz] = 255.*np.exp(-0.5*(np.power((keypoints3D_crop[i][0]-xx)/(1.7),2)+np.power((keypoints3D_crop[i][1]-yy)/(1.7),2)+np.power((keypoints3D_crop[i][2]-zz)/(1.7),2)))
 
+        print (center3D)
         sample = [img_l, keypoints3D, centerHM, center3D, heatmap3D]
         return self.transform(sample)
 
@@ -136,7 +137,15 @@ class VortexDataset3D(VortexBaseDataset):
     def __len__(self):
         return len(self.image_ids)
 
-    def get_dataset_config(self):
+    def get_dataset_config(self, show_visualization = False):
+        """
+        Get the recommended configuration for the 3D Dataset. Recommendations are
+        computed by analyzing the trainingset, if it is not representative of the data
+        you plan to analyze, parameters like the overall tracking volume might have to be adjusted.
+
+        :param show_visualization: Show a 3D plot visualizing the camera configuration and tracking volume
+        :type show_visualization: string
+        """
         keypoints3D = np.array(self.keypoints3D)
         x_range = [np.min(keypoints3D[:,:,0]), np.max(keypoints3D[:,:,0])]
         y_range = [np.min(keypoints3D[:,:,1]), np.max(keypoints3D[:,:,1])]
@@ -169,13 +178,14 @@ class VortexDataset3D(VortexBaseDataset):
         }
         return suggested_parameters
 
-        figure = plt.figure()
-        axes = figure.gca(projection='3d')
-        visualizer = SetupVisualizer('T', self.root_dir, self.coco.dataset['calibration']['intrinsics'], self.coco.dataset['calibration']['extrinsics'])
-        visualizer.plot_cameras(axes)
-        visualizer.plot_tracking_area(tracking_area, axes)
-        visualizer.plot_datapoints(self.keypoints3D[0], axes)
-        #plt.show()
+        if show_visualization:
+            figure = plt.figure()
+            axes = figure.gca(projection='3d')
+            visualizer = SetupVisualizer('T', self.root_dir, self.coco.dataset['calibration']['intrinsics'], self.coco.dataset['calibration']['extrinsics'])
+            visualizer.plot_cameras(axes)
+            visualizer.plot_tracking_area(tracking_area, axes)
+            visualizer.plot_datapoints(self.keypoints3D[0], axes)
+            plt.show()
 
 
     def visualize_sample(self, idx):
@@ -248,7 +258,13 @@ class Normalizer(object):
 
 
 if __name__ == "__main__":
-    from config import cfg
+    from lib.config.project_manager import ProjectManager
+
+    project = ProjectManager()
+    project.load('Test_Crop')
+
+
+    cfg = project.get_cfg()
     idx = 0
     training_set = VortexDataset3D(cfg = cfg, set='train')
     sample1 = training_set.__getitem__(0)

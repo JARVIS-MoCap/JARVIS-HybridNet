@@ -1,6 +1,6 @@
 """
 efficienttrack.py
-===============
+=================
 EfficientTrack convenience class, can be used to train and troublshoot the
 EfficientTrack module.
 """

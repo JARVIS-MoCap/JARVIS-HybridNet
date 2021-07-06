@@ -15,7 +15,6 @@ class ReprojectionLayer(nn.Module):
         super(ReprojectionLayer, self).__init__()
         self.cfg = cfg
         lookup_path = os.path.join(cfg.PROJECTS_ROOT_PATH, cfg.PROJECT_NAME, 'lookup.npy')
-        print (lookup_path)
         dataset_dir = os.path.join(cfg.DATASET.DATASET_ROOT_DIR, cfg.DATASET.DATASET_3D)
         self.reproTool = ReprojectionTool('T', dataset_dir, intrinsic_paths, extrinsic_paths)
 
@@ -23,7 +22,6 @@ class ReprojectionLayer(nn.Module):
             self.register_buffer('reproLookup', torch.from_numpy(self._create_lookup(lookup_path)).permute(3,0,1,2))
         else:
             self.reproLookup = torch.from_numpy(np.load(lookup_path).astype('int32')).permute(3,0,1,2).int()
-
         self.register_buffer('offset', torch.tensor([self.cfg.VORTEX.GRID_DIM_X[0], self.cfg.VORTEX.GRID_DIM_Y[0], self.cfg.VORTEX.GRID_DIM_Z[0]]))
         self.register_buffer('grid_spacing', torch.tensor(self.cfg.VORTEX.GRID_SPACING))
 

@@ -78,7 +78,6 @@ class VortexBackbone(nn.Module):
                                                       ((centerHM[batch,i,1]/2)-heatmap.shape[-1]/2).int(),
                                                       self.heatmap_size[1]-((centerHM[batch,i,1]/2)+heatmap.shape[-1]/2).int()),
                                                  mode='constant', value=0)
-
         heatmaps3D = self.reproLayer(heatmaps_padded, center3D)
         heatmap_final = self.v2vNet(((heatmaps3D/255.)))
         heatmap_final = self.softplus(heatmap_final)

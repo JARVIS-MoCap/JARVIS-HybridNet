@@ -85,7 +85,9 @@ class Vortex:
 
     def load_weights(self, weights_path = None):
         if weights_path is not None:
-            self.model.load_state_dict(torch.load(weights_path), strict=False)
+            state_dict = torch.load(weights_path)
+            del state_dict['reproLayer.offset']
+            self.model.load_state_dict(state_dict, strict=False)
             print(f'[Info] loaded weights: {os.path.basename(weights_path)}')
         else:
             print('[Info] initializing weights...')

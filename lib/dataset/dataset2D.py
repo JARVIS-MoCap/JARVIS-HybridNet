@@ -1,6 +1,6 @@
 """
 dataset2D.py
-========
+============
 Vortex 2D dataset loader.
 """
 
@@ -50,19 +50,6 @@ class VortexDataset2D(VortexBaseDataset):
         self.transform = transforms.Compose([Normalizer(mean=cfg.DATASET.MEAN, std=cfg.DATASET.STD, mode=mode)])
 
 
-    def get_dataset_config(self):
-        bboxs = []
-        for id in self.image_ids:
-            bbox, _ = self._load_annotations(id)
-            bboxs.append(bbox)
-        bboxs = np.array(bboxs)
-        x_sizes = bboxs[:,0,2]-bboxs[:,0,0]
-        y_sizes = bboxs[:,0,3]-bboxs[:,0,1]
-        bbox_min_size = np.max([np.max(x_sizes), np.max(y_sizes)])
-        final_bbox_suggestion = int(np.ceil((bbox_min_size*1.02)/64)*64)
-        return final_bbox_suggestion
-
-
     def _build_augpipe(self):
         augmentors = []
         if self.mode == 'cropping':
@@ -98,6 +85,7 @@ class VortexDataset2D(VortexBaseDataset):
             augmentors.append(iaa.PadToFixedSize(self.cfg.EFFICIENTDET.IMG_SIZE,self.cfg.EFFICIENTDET.IMG_SIZE))
 
         self.augpipe = iaa.Sequential(augmentors, random_order = False)
+
 
     def __getitem__(self, idx):
         if self.mode == 'cropping':
@@ -137,13 +125,29 @@ class VortexDataset2D(VortexBaseDataset):
                 target_t = self.heatmap_generator[scale_id](joints_list[scale_id])
                 target_list.append(target_t.astype(np.float32))
             sample = [img, target_list, keypoints]
-
-
         return self.transform(sample)
 
     def __len__(self):
         return len(self.image_ids)
 
+
+    def get_dataset_config(self):
+        """
+        Get the recommended configuration for the 2D Dataset. Recommendations are
+        computed by analyzing the trainingset, if it is not representative of the data
+        you plan to analyze, the parameters might need to be adjusted manually
+        """
+        bboxs = []
+        for id in self.image_ids:
+            bbox, _ = self._load_annotations(id)
+            bboxs.append(bbox)
+        bboxs = np.array(bboxs)
+        x_sizes = bboxs[:,0,2]-bboxs[:,0,0]
+        y_sizes = bboxs[:,0,3]-bboxs[:,0,1]
+        bbox_min_size = np.max([np.max(x_sizes), np.max(y_sizes)])
+        final_bbox_suggestion = int(np.ceil((bbox_min_size*1.02)/64)*64)
+        return final_bbox_suggestion
+        
 
     def visualize_sample(self, idx):
         sample = self.__getitem__(idx)
@@ -170,24 +174,6 @@ class VortexDataset2D(VortexBaseDataset):
                             (0, 0, 255), 1)
             cv2.imshow('frame', img)
             cv2.waitKey(0)
-
-
-
-def collater_bbox(data):
-    imgs = [s[0] for s in data]
-    annots = [s[1] for s in data]
-    imgs = torch.from_numpy(np.stack(imgs, axis=0))
-    max_num_annots = max(annot.shape[0] for annot in annots)
-    if max_num_annots > 0:
-        annot_padded = torch.ones((len(annots), max_num_annots, 5)) * -1
-        for idx, annot in enumerate(annots):
-            if annot.shape[0] > 0:
-                annot_padded[idx, :annot.shape[0], :] = annot
-    else:
-        annot_padded = torch.ones((len(annots), 1, 5)) * -1
-    imgs = imgs.permute(0, 3, 1, 2)
-    return [imgs, annot_padded]
-
 
 class Normalizer(object):
     def __init__(self, mean, std, mode = 'cropping'):

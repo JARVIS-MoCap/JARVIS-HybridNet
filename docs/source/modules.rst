@@ -8,3 +8,4 @@ Modules
 
     efficientnet
     efficientdet
+    efficienttrack

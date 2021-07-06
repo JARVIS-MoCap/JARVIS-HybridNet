@@ -1,6 +1,6 @@
 """
 datasetBase.py
-========
+==============
 Vortex dataset loader base class.
 """
 
@@ -28,8 +28,6 @@ class VortexBaseDataset(Dataset):
     :param set: specifies wether to load training ('train') or validation ('val') split.
                 Augmentation will only be applied to training split.
     :type set: string
-    :param mode: specifies wether bounding box annotations ('cropping') or keypoint
-                 annotations ('keypoints') will be loaded.
     """
     def __init__(self, cfg, dataset_name,set='train'):
         self.cfg = cfg

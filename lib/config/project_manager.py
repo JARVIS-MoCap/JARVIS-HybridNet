@@ -1,8 +1,6 @@
 """
 project_manager.py
-===============
-Project Manager Class to load and setup projects and find suitable values for Network
-parameters.
+==================
 """
 
 
@@ -17,6 +15,10 @@ from lib.dataset.dataset3D import VortexDataset3D
 
 
 class ProjectManager:
+    """
+    Project Manager Class to load and setup projects and find suitable values for network
+    parameters.
+    """
     def __init__(self):
         self.cfg = None
         current_dir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
@@ -24,6 +26,12 @@ class ProjectManager:
 
 
     def load(self, project_name):
+        """
+        Load an existing project.
+
+        :param project_name: Name of the project
+        :type project_name: string
+        """
         self.cfg = cfg
         self.cfg.PROJECT_NAME = project_name
         if not (os.path.isfile(os.path.join(self.parent_dir, self.cfg.PROJECTS_ROOT_PATH, project_name, 'config.yaml'))):
@@ -43,6 +51,21 @@ class ProjectManager:
 
 
     def create_new(self, name, dataset2D_path, dataset3D_path = None):
+        """
+        Create a new project. This sets up the project directory structure and
+        initializes the config file values obtained by analyzing the training sets provided.
+
+        :param name: Name of the new project
+        :type name: string
+        :param dataset2D_path: Path to the dataset that is used to train the EffDet cropping
+                               and the EffTrack 2D tracking network. This does not have to be
+                               the same Dataset that is used for final 3D training.
+        :type dataset2D_path: string
+        :param dataset3D_path: path to the dataset that is used to train the full 3D network.
+                              If None, the config will not try to setup 3D Network parameters.
+        :type dataset3D_path: string
+
+        """
         self.cfg = cfg
         #if (os.path.isfile(os.path.join(self.cfg.PROJECTS_ROOT_PATH, name, 'config.yaml'))):
         #    print ('Project already exist, change name or delete old project.')
@@ -69,6 +92,9 @@ class ProjectManager:
 
 
     def get_cfg(self):
+        """
+        Get configuration handle for the configuration of the current project.
+        """
         if self.cfg == None:
             print ('No Project loaded yet! Call either load(...) or create_new(...).')
         return self.cfg
