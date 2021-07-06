@@ -14,6 +14,7 @@ import time
 
 import torch
 from torch import nn
+from torch.utils.data import DataLoader
 import onnx
 
 from .model import EfficientTrackBackbone
@@ -35,15 +36,20 @@ class EfficientTrack:
     :param weights: Path to parameter savefile to be loaded
     :type weights: string, optional
     """
-    def __init__(self, mode, cfg, weights = None):
+    def __init__(self, mode, cfg, weights = None, run_name = None):
         self.mode = mode
         self.cfg = cfg
         self.model = EfficientTrackBackbone(self.cfg, compound_coef=self.cfg.EFFICIENTTRACK.COMPOUND_COEF)
 
         if mode  == 'train':
-            self.logger = NetLogger(os.path.join(self.cfg.logPaths['efficienttrack'], 'Run_Test'))
+            if run_name == None:
+                run_name = "Run_" + time.strftime("%Y%m%d-%H%M%S")
+            self.model_savepath = os.path.join(self.cfg.savePaths['efficienttrack'], run_name)
+            os.makedirs(self.model_savepath, exist_ok=True)
+
+            self.logger = NetLogger(os.path.join(self.cfg.logPaths['efficienttrack'], run_name))
             self.lossMeter = AverageMeter()
-            self.model_savepath = os.path.join(self.cfg.savePaths['efficienttrack'], 'Run_Test')
+            self.accuracyMeter = AverageMeter()
 
             self.load_weights(weights)
 
@@ -77,22 +83,10 @@ class EfficientTrack:
 
     def load_weights(self, weights_path = None):
         if weights_path is not None:
-            try:
-                self.last_step = int(os.path.basename(weights_path).split('_')[-1].split('.')[0])
-            except:
-                self.last_step = 0
-
-            try:
-                ret = self.model.load_state_dict(torch.load(weights_path), strict=True)
-            except RuntimeError as e:
-                print(f'[Warning] Ignoring {e}')
-                print(
-                    '[Warning] Don\'t panic if you see this, this might be because you load a pretrained weights with different number of classes. The rest of the weights should be loaded already.')
-
-            print(f'[Info] loaded weights: {os.path.basename(weights_path)}, resuming checkpoint from step: {self.last_step}')
+            self.model.load_state_dict(torch.load(weights_path), strict=True)
+            print(f'Successfully loaded weights: {os.path.basename(weights_path)}')
         else:
-            self.last_step = 0
-            print('[Info] initializing weights...')
+            print('Initializing weights...')
             utils.init_weights(self.model)
 
 
@@ -104,36 +98,43 @@ class EfficientTrack:
                     param.requires_grad = False
 
 
-    def train(self, training_generator, val_generator, num_epochs, start_epoch = 0):
+    def train(self, training_set, validation_set, num_epochs, start_epoch = 0):
         """
         Function to train the network on a given dataset for a set number of epochs.
         Most of the training parameters can be set in the config file.
 
-        :param training_generator: training data generator (default torch data
-            generator)
+        :param training_set: training dataset
         :type training_generator: TODO
-        :param val_generator: validation data generator (default torch data
-            generator)
-        :type val_generator: TODO
+        :param val_generator: validation dataset
+        :type validation_set: TODO
         :param num_epochs: Number of epochs the network is trained for
         :type num_epochs: int
         :param start_epoch: Initial epoch for the training, set this if training
             is continued from an earlier session
         """
+        training_generator = DataLoader(training_set,
+                                        batch_size = self.cfg.EFFICIENTTRACK.BATCH_SIZE,
+                                        shuffle = True,
+                                        num_workers =  self.cfg.DATALOADER_NUM_WORKERS,
+                                        pin_memory = True)
+
+        val_generator = DataLoader(validation_set,
+                                        batch_size = self.cfg.EFFICIENTTRACK.BATCH_SIZE,
+                                        shuffle = False,
+                                        num_workers =  self.cfg.DATALOADER_NUM_WORKERS,
+                                        pin_memory = True)
+
         epoch = start_epoch
         best_loss = 1e5
         best_epoch = 0
-        step = max(0, self.last_step)
         self.model.train()
-        num_iter_per_epoch = len(training_generator)
-        scaler = torch.cuda.amp.GradScaler()
-
-
+        if self.cfg.USE_MIXED_PRECISION:
+            scaler = torch.cuda.amp.GradScaler()
         #try:
         for epoch in range(num_epochs):
             progress_bar = tqdm(training_generator)
-            for iter, data in enumerate(progress_bar):
-                imgs = data[0]
+            for data in progress_bar:
+                imgs = data[0].permute(0, 3, 1, 2).float()
                 heatmaps = data[1]
 
                 if self.cfg.NUM_GPUS == 1:
@@ -141,28 +142,35 @@ class EfficientTrack:
                     heatmaps = list(map(lambda x: x.cuda(non_blocking=True), heatmaps))
 
                 self.optimizer.zero_grad()
-                #with torch.cuda.amp.autocast():
-                outputs = self.model(imgs)
-                heatmaps_losses, _, _ = self.criterion(outputs, heatmaps,[[],[]])
-
-                loss = 0
-                for idx in range(2):
-                    if heatmaps_losses[idx] is not None:
-                        heatmaps_loss = heatmaps_losses[idx].mean(dim=0)
-                        loss = loss + heatmaps_loss
-
-                scaler.scale(loss).backward()
-                #self.optimizer.step()
-                scaler.step(self.optimizer)
-                scaler.update()
+                if self.cfg.USE_MIXED_PRECISION:
+                    with torch.cuda.amp.autocast():
+                        outputs = self.model(imgs)
+                        heatmaps_losses, _, _ = self.criterion(outputs, heatmaps,[[],[]])
+                        loss = 0
+                        for idx in range(2):
+                            if heatmaps_losses[idx] is not None:
+                                heatmaps_loss = heatmaps_losses[idx].mean(dim=0)
+                                loss = loss + heatmaps_loss
+                        scaler.scale(loss).backward()
+                        scaler.step(self.optimizer)
+                        scaler.update()
+                else:
+                    outputs = self.model(imgs)
+                    heatmaps_losses, _, _ = self.criterion(outputs, heatmaps,[[],[]])
+                    loss = 0
+                    for idx in range(2):
+                        if heatmaps_losses[idx] is not None:
+                            heatmaps_loss = heatmaps_losses[idx].mean(dim=0)
+                            loss = loss + heatmaps_loss
+                    loss.backward()
+                    self.optimizer.step()
 
                 self.lossMeter.update(loss.item())
                 progress_bar.set_description(
-                    'Epoch: {}/{}. Iteration: {}/{}. Loss: {:.5f}'.format(
-                        epoch, num_epochs, iter + 1, num_iter_per_epoch, self.lossMeter.read()))
+                    'Epoch: {}/{}. Loss: {:.5f}'.format(
+                        epoch, num_epochs, self.lossMeter.read()))
 
 
-                step += 1
             self.logger.update_train_loss(self.lossMeter.read())
             self.scheduler.step(self.lossMeter.read())
 
@@ -173,20 +181,22 @@ class EfficientTrack:
                 print('checkpoint...')
             if epoch % self.cfg.EFFICIENTTRACK.VAL_INTERVAL == 0:
                 self.model.eval()
-                avg_loss_val = 0
-                avg_acc_val = 0
-                for iter, data in enumerate(val_generator):
+                for data in val_generator:
                     with torch.no_grad():
-                        imgs = data[0]
+                        imgs = data[0].permute(0, 3, 1, 2).float()
                         heatmaps = data[1]
                         keypoints = np.array(data[2]).reshape(-1,self.cfg.EFFICIENTTRACK.NUM_JOINTS,3)[:,:,:2]
                         if self.cfg.NUM_GPUS == 1:
                             imgs = imgs.cuda()
                             heatmaps = list(map(lambda x: x.cuda(non_blocking=True), heatmaps))
 
-                        #with torch.cuda.amp.autocast():
-                        outputs = self.model(imgs)
-                        heatmaps_losses, _, _ = self.criterion(outputs, heatmaps,[[],[]])
+                        if self.cfg.USE_MIXED_PRECISION:
+                            with torch.cuda.amp.autocast():
+                                outputs = self.model(imgs)
+                                heatmaps_losses, _, _ = self.criterion(outputs, heatmaps,[[],[]])
+                        else:
+                            outputs = self.model(imgs)
+                            heatmaps_losses, _, _ = self.criterion(outputs, heatmaps,[[],[]])
 
                         loss = 0
                         for idx in range(2):
@@ -194,20 +204,20 @@ class EfficientTrack:
                                 heatmaps_loss = heatmaps_losses[idx].mean(dim=0)
                                 loss = loss + heatmaps_loss
 
-                                #if loss == 0 or not torch.isfinite(loss):
-                                #    continue
-
-                    avg_loss_val += loss.detach().cpu()
-
                     preds, maxvals = darkpose.get_final_preds(outputs[1].clamp(0,255).detach().cpu().numpy(), None)
                     masked = np.ma.masked_where(maxvals.reshape(self.cfg.EFFICIENTTRACK.BATCH_SIZE,self.cfg.EFFICIENTTRACK.NUM_JOINTS) < 10, np.linalg.norm((preds+0.5)*2-keypoints, axis = 2))
-                    avg_acc_val += np.mean(masked)
+
+                    self.lossMeter.update(loss.item())
+                    self.accuracyMeter.update(np.mean(masked))
 
                 print(
                     'Val. Epoch: {}/{}. Loss: {:1.5f}. Acc: {:1.3f}'.format(
-                        epoch, num_epochs, avg_loss_val/len(val_generator), avg_acc_val/len(val_generator)))
+                        epoch, num_epochs, self.lossMeter.read(), self.accuracyMeter.read()))
 
-                self.logger.update_val_loss(avg_loss_val/len(val_generator))
+                self.logger.update_val_loss(self.lossMeter.read())
+                self.logger.update_val_accuracy(self.accuracyMeter.read())
+                self.lossMeter.reset()
+                self.accuracyMeter.reset()
 
                 if loss + self.cfg.EFFICIENTTRACK.EARLY_STOPPING_MIN_DELTA < best_loss  and self.cfg.EFFICIENTTRACK.USE_EARLY_STOPPING:
                     best_loss = loss

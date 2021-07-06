@@ -235,7 +235,7 @@ def variance_scaling_(tensor, gain=1.):
 
 def init_weights(model):
     """
-    Initialize weightts of EfficientDet using kaiman uniform initialization and
+    Initialize weigts of EfficientDet using kaiman uniform initialization and
     variance scaling.
     """
     for name, module in model.named_modules():
@@ -308,10 +308,10 @@ def preprocess_img(ori_imgs, max_size=512, mean=(0.485, 0.456, 0.406), std=(0.22
     :return: Original images, preprocessed images and metas that can be used by
         :func:`~invert_affine`.
     """
-    normalized_imgs = [(img[..., ::-1] / 255 - mean) / std for img in ori_imgs]
     imgs_meta = [aspectaware_resize_padding(img, max_size, max_size,
-                                            means=None) for img in normalized_imgs]
+                                            means=None) for img in ori_imgs]
     framed_imgs = [img_meta[0] for img_meta in imgs_meta]
+    framed_imgs = [(img[..., ::-1].astype(np.float32) / 255 - mean) / std for img in framed_imgs]
     framed_metas = [img_meta[1:] for img_meta in imgs_meta]
 
     return ori_imgs, framed_imgs, framed_metas

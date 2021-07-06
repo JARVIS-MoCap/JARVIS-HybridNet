@@ -100,7 +100,7 @@ def variance_scaling_(tensor, gain=1.):
 
 def init_weights(model):
     """
-    Initialize weightts of EfficientDet using kaiman uniform initialization and
+    Initialize weights of EfficientTrack using kaiman uniform initialization and
     variance scaling.
     """
     for name, module in model.named_modules():

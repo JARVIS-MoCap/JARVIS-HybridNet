@@ -15,6 +15,7 @@ class ReprojectionLayer(nn.Module):
         super(ReprojectionLayer, self).__init__()
         self.cfg = cfg
         lookup_path = os.path.join(cfg.PROJECTS_ROOT_PATH, cfg.PROJECT_NAME, 'lookup.npy')
+        print (lookup_path)
         dataset_dir = os.path.join(cfg.DATASET.DATASET_ROOT_DIR, cfg.DATASET.DATASET_3D)
         self.reproTool = ReprojectionTool('T', dataset_dir, intrinsic_paths, extrinsic_paths)
 

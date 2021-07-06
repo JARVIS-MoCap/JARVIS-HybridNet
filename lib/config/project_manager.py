@@ -6,7 +6,7 @@ parameters.
 """
 
 
-import os
+import os,sys,inspect
 import ruamel.yaml
 import shutil
 from yacs.config import CfgNode as CN
@@ -19,21 +19,24 @@ from lib.dataset.dataset3D import VortexDataset3D
 class ProjectManager:
     def __init__(self):
         self.cfg = None
+        current_dir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
+        self.parent_dir = os.path.dirname(os.path.dirname(current_dir))
+
 
     def load(self, project_name):
         self.cfg = cfg
         self.cfg.PROJECT_NAME = project_name
-        if not (os.path.isfile(os.path.join(self.cfg.PROJECTS_ROOT_PATH, project_name, 'config.yaml'))):
+        if not (os.path.isfile(os.path.join(self.parent_dir, self.cfg.PROJECTS_ROOT_PATH, project_name, 'config.yaml'))):
             print ('Project does not exist, change name or create new Project by calling create_new(...).')
             self.cfg = None
             return
-        cfg.merge_from_file(os.path.join(self.cfg.PROJECTS_ROOT_PATH, project_name, 'config.yaml'))
+        cfg.merge_from_file(os.path.join(self.parent_dir, self.cfg.PROJECTS_ROOT_PATH, project_name, 'config.yaml'))
         print (self.cfg.EFFICIENTTRACK.BOUNDING_BOX_SIZE)
         self.cfg.logPaths = CN()
         self.cfg.savePaths = CN()
         for module in ['efficientdet', 'efficienttrack', 'vortex']:
-            model_savepath = os.path.join(self.cfg.PROJECTS_ROOT_PATH, project_name, module, 'models')
-            log_path = os.path.join(self.cfg.PROJECTS_ROOT_PATH, project_name, module, 'logs')
+            model_savepath = os.path.join(self.parent_dir, self.cfg.PROJECTS_ROOT_PATH, project_name, 'models', module)
+            log_path = os.path.join(self.cfg.PROJECTS_ROOT_PATH, project_name, 'logs', module)
             self.cfg.savePaths[module] = model_savepath
             self.cfg.logPaths[module] = log_path
         print ('Successfully loaded project ' + project_name + '!')
@@ -53,8 +56,8 @@ class ProjectManager:
         self.cfg.logPaths = CN()
         self.cfg.savePaths = CN()
         for module in ['efficientdet', 'efficienttrack', 'vortex']:
-            model_savepath = os.path.join(self.cfg.PROJECTS_ROOT_PATH, name, module, 'models')
-            log_path = os.path.join(self.cfg.PROJECTS_ROOT_PATH, name, module, 'logs')
+            model_savepath = os.path.join(self.cfg.PROJECTS_ROOT_PATH, name, 'models', module)
+            log_path = os.path.join(self.cfg.PROJECTS_ROOT_PATH, name, 'logs', module)
             self.cfg.savePaths[module] = model_savepath
             self.cfg.logPaths[module] = log_path
             os.makedirs(log_path, exist_ok=True)
@@ -136,4 +139,5 @@ class ProjectManager:
                 try:
                     config_dict[k] = cfg[k]
                 except:
+                    print (k,v)
                     print ('No val in cfg')

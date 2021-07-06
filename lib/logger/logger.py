@@ -72,15 +72,6 @@ class NetLogger(object):
         self.validation_acc_steps += 1
 
 
-if __name__ == "__main__":
-    logger = NetLogger('test_log', ['Total Loss', 'Class Loss'])
-    for i in range(100):
-        logger.update_train_loss([i,i])
-        logger.update_val_loss([i,i])
-        logger.update_train_accuracy(i**2)
-        logger.update_val_accuracy(i**2)
-
-
 class AverageMeter():
     """
     Simple average metering class to better monitor training parameters like loss
@@ -103,7 +94,7 @@ class AverageMeter():
     def read(self):
         """
         Read metered value.
-        
+
         :returns: Metered value or 0 if no value added to meter
         :rtype: float
         """

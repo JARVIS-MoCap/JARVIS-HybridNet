@@ -14,6 +14,7 @@ import time
 
 import torch
 from torch import nn
+from torch.utils.data import DataLoader
 import onnx
 
 from .model import EfficientDetBackbone
@@ -35,21 +36,23 @@ class EfficientDet:
     :param weights: Path to parameter savefile to be loaded
     :type weights: string, optional
     """
-    def __init__(self, mode, cfg, weights = None):
+    def __init__(self, mode, cfg, weights = None, run_name = None):
         self.mode = mode
         self.cfg = cfg
         self.model = EfficientDetBackbone(num_classes=len(self.cfg.DATASET.OBJ_LIST), compound_coef=self.cfg.EFFICIENTDET.COMPOUND_COEF,
         ratios=eval(self.cfg.EFFICIENTDET.ANCHOR_RATIOS), scales=eval(self.cfg.EFFICIENTDET.ANCHOR_SCALES))
 
         if mode  == 'train':
-            self.model_savepath = os.path.join(self.cfg.PROJECTS_ROOT_PATH, self.cfg.PROJECT_NAME, 'efficientdet' , 'models', self.cfg.EXPERIMENT_NAME)
-            self.log_path = os.path.join(self.cfg.PROJECTS_ROOT_PATH, self.cfg.PROJECT_NAME, 'efficientdet', 'logs', self.cfg.EXPERIMENT_NAME)
-            self.logger = NetLogger(self.log_path, ['Class Loss', 'Reg Loss', 'Total Loss'])
+            if run_name == None:
+                run_name = "Run_" + time.strftime("%Y%m%d-%H%M%S")
+
+            self.model_savepath = os.path.join(self.cfg.savePaths['efficientdet'], run_name)
+            os.makedirs(self.model_savepath, exist_ok=True)
+
+            self.logger = NetLogger(os.path.join(self.cfg.logPaths['efficientdet'], run_name), ['Class Loss', 'Reg Loss', 'Total Loss'])
             self.classLossMeter = AverageMeter()
             self.regLossMeter = AverageMeter()
             self.totalLossMeter = AverageMeter()
-            os.makedirs(self.log_path, exist_ok=True)
-            os.makedirs(self.model_savepath, exist_ok=True)
 
             self.load_weights(weights)
 
@@ -100,14 +103,10 @@ class EfficientDet:
             ori_imgs, framed_imgs, framed_metas = utils.preprocess(img_path, max_size=256)
         else:
             ori_imgs, framed_imgs, framed_metas = utils.preprocess_img(img, max_size=256)
-
-
         x = torch.stack([torch.from_numpy(fi).cuda() for fi in framed_imgs], 0)
         x = x.to(torch.float32).permute(0, 3, 1, 2)
         with torch.no_grad():
-            start = time.time()
             regression, classification, anchors = self.model(x)
-            print(time.time()-start)
 
             regressBoxes = utils.BBoxTransform()
             clipBoxes = utils.ClipBoxes()
@@ -155,21 +154,14 @@ class EfficientDet:
     def load_weights(self, weights_path = None):
         if weights_path is not None:
             try:
-                self.last_step = int(os.path.basename(weights_path).split('_')[-1].split('.')[0])
-            except:
-                self.last_step = 0
-
-            try:
                 ret = self.model.load_state_dict(torch.load(weights_path), strict=False)
             except RuntimeError as e:
                 print(f'[Warning] Ignoring {e}')
-                print(
-                    '[Warning] Don\'t panic if you see this, this might be because you load a pretrained weights with different number of classes. The rest of the weights should be loaded already.')
+                print('Don\'t panic if you see this, this might be because you load a pretrained weights with different number of classes. The rest of the weights should be loaded already.')
 
-            print(f'[Info] loaded weights: {os.path.basename(weights_path)}, resuming checkpoint from step: {self.last_step}')
+            print(f'Successfully loaded weights: {os.path.basename(weights_path)}')
         else:
-            self.last_step = 0
-            print('[Info] initializing weights...')
+            print('Initializing weights...')
             utils.init_weights(self.model)
 
     def freeze_backbone(self):
@@ -179,7 +171,7 @@ class EfficientDet:
                 for param in self.model.parameters():
                     param.requires_grad = False
 
-    def train(self, training_generator, val_generator, num_epochs, start_epoch = 0):
+    def train(self, training_set, validation_set, num_epochs, start_epoch = 0):
         """
         Function to train the network on a given dataset for a set number of epochs.
         Most of the training parameters can be set in the config file.
@@ -195,60 +187,66 @@ class EfficientDet:
         :param start_epoch: Initial epoch for the training, set this if training
             is continued from an earlier session
         """
+        assert self.cfg.EFFICIENTDET.IMG_SIZE % 128 == 0, "IMG_SIZE must be divisible by 128"
+
+        training_generator = DataLoader(training_set,
+                                        batch_size = self.cfg.EFFICIENTDET.BATCH_SIZE,
+                                        shuffle = True,
+                                        num_workers =  self.cfg.DATALOADER_NUM_WORKERS,
+                                        pin_memory = True)
+
+        val_generator = DataLoader(validation_set,
+                                        batch_size = self.cfg.EFFICIENTDET.BATCH_SIZE,
+                                        shuffle = False,
+                                        num_workers =  self.cfg.DATALOADER_NUM_WORKERS,
+                                        pin_memory = True)
+
         epoch = start_epoch
         best_loss = 1e5
         best_epoch = 0
-        step = max(0, self.last_step)
         self.model.train()
-        num_iter_per_epoch = len(training_generator)
-        #try:
+        if self.cfg.USE_MIXED_PRECISION:
+            scaler = torch.cuda.amp.GradScaler()
+
         for epoch in range(num_epochs):
-            last_epoch = step // num_iter_per_epoch
-            if epoch < last_epoch:
-                continue
-
             progress_bar = tqdm(training_generator)
-            for iter, data in enumerate(progress_bar):
-                if iter < step - last_epoch * num_iter_per_epoch:
-                    progress_bar.update()
-                    continue
-                #try:
-                imgs = data[0]
+            for data in progress_bar:
+                imgs = data[0].permute(0, 3, 1, 2).float()
                 annot = data[1]
-
                 if self.cfg.NUM_GPUS == 1:
-                    # if only one gpu, just send it to cuda:0
-                    # elif multiple gpus, send it to multiple gpus in CustomDataParallel, not here
                     imgs = imgs.cuda()
                     annot = annot.cuda()
 
                 self.optimizer.zero_grad()
-                regression, classification, anchors = self.model(imgs)
-                cls_loss, reg_loss = self.criterion(classification, regression, anchors, annot)
-                cls_loss = cls_loss.mean()
-                reg_loss = reg_loss.mean()
 
-                loss = cls_loss + reg_loss
-                if loss == 0 or not torch.isfinite(loss):
-                    continue
-
-                loss.backward()
-                # torch.nn.utils.clip_grad_norm_(model.parameters(), 0.1)
-                self.optimizer.step()
+                if self.cfg.USE_MIXED_PRECISION:
+                    with torch.cuda.amp.autocast():
+                        regression, classification, anchors = self.model(imgs)
+                        cls_loss, reg_loss = self.criterion(classification, regression, anchors, annot)
+                        cls_loss = cls_loss.mean()
+                        reg_loss = reg_loss.mean()
+                        loss = cls_loss + reg_loss
+                        scaler.scale(loss).backward()
+                        scaler.step(self.optimizer)
+                        scaler.update()
+                else:
+                    regression, classification, anchors = self.model(imgs)
+                    cls_loss, reg_loss = self.criterion(classification, regression, anchors, annot)
+                    cls_loss = cls_loss.mean()
+                    reg_loss = reg_loss.mean()
+                    loss = cls_loss + reg_loss
+                    loss.backward()
+                    self.optimizer.step()
 
                 self.classLossMeter.update(cls_loss.item())
                 self.regLossMeter.update(reg_loss.item())
                 self.totalLossMeter.update(loss.item())
 
                 progress_bar.set_description(
-                    'Epoch: {}/{}. Iteration: {}/{}. Cls loss: {:.5f}. Reg loss: {:.5f}. Total loss: {:.5f}'.format(
-                        epoch, num_epochs, iter + 1, num_iter_per_epoch, self.classLossMeter.read(),
+                    'Epoch: {}/{}. Cls loss: {:.5f}. Reg loss: {:.5f}. Total loss: {:.5f}'.format(
+                        epoch, num_epochs, self.classLossMeter.read(),
                         self.regLossMeter.read(), self.totalLossMeter.read()))
-                #writer.add_scalars('Loss', {'train': loss}, step)
-                #writer.add_scalars('Regression_loss', {'train': reg_loss}, step)
-                #writer.add_scalars('Classfication_loss', {'train': cls_loss}, step)
 
-                step += 1
             self.logger.update_train_loss([self.classLossMeter.read(), self.regLossMeter.read(), self.totalLossMeter.read()])
             self.scheduler.step(self.totalLossMeter.read())
 
@@ -257,58 +255,56 @@ class EfficientDet:
             self.totalLossMeter.reset()
 
             if epoch % self.cfg.EFFICIENTDET.CHECKPOINT_SAVE_INTERVAL == 0 and epoch > 0:
-                self.save_checkpoint(f'efficientdet-d{self.cfg.EFFICIENTDET.COMPOUND_COEF}_{epoch}_{step}.pth')
+                self.save_checkpoint(f'efficientdet-d{self.cfg.EFFICIENTDET.COMPOUND_COEF}_{epoch}.pth')
                 print('checkpoint...')
 
             if epoch % self.cfg.EFFICIENTDET.VAL_INTERVAL == 0:
                 self.model.eval()
-                loss_regression_ls = []
-                loss_classification_ls = []
                 for iter, data in enumerate(val_generator):
                     with torch.no_grad():
-                        imgs = data[0]
+                        imgs = data[0].permute(0, 3, 1, 2).float()
                         annot = data[1]
 
                         if self.cfg.NUM_GPUS == 1:
                             imgs = imgs.cuda()
                             annot = annot.cuda()
 
-                        regression, classification, anchors = self.model(imgs)
-                        cls_loss, reg_loss = self.criterion(classification, regression, anchors, annot)
-                        cls_loss = cls_loss.mean()
-                        reg_loss = reg_loss.mean()
+                        if self.cfg.USE_MIXED_PRECISION:
+                            with torch.cuda.amp.autocast():
+                                regression, classification, anchors = self.model(imgs)
+                                cls_loss, reg_loss = self.criterion(classification, regression, anchors, annot)
+                                cls_loss = cls_loss.mean()
+                                reg_loss = reg_loss.mean()
+                                loss = cls_loss + reg_loss
+                        else:
+                            regression, classification, anchors = self.model(imgs)
+                            cls_loss, reg_loss = self.criterion(classification, regression, anchors, annot)
+                            cls_loss = cls_loss.mean()
+                            reg_loss = reg_loss.mean()
+                            loss = cls_loss + reg_loss
 
-                        loss = cls_loss + reg_loss
-                        if loss == 0 or not torch.isfinite(loss):
-                            continue
-
-
-                        loss_classification_ls.append(cls_loss.item())
-                        loss_regression_ls.append(reg_loss.item())
-
-                cls_loss = np.mean(loss_classification_ls)
-                reg_loss = np.mean(loss_regression_ls)
-                loss = cls_loss + reg_loss
+                        self.classLossMeter.update(cls_loss.item())
+                        self.regLossMeter.update(reg_loss.item())
+                        self.totalLossMeter.update(loss.item())
 
                 print(
                     'Val. Epoch: {}/{}. Classification loss: {:1.5f}. Regression loss: {:1.5f}. Total loss: {:1.5f}'.format(
-                        epoch, num_epochs, cls_loss, reg_loss, loss))
+                        epoch, num_epochs, self.classLossMeter.read(), self.regLossMeter.read(), self.totalLossMeter.read()))
 
-                self.logger.update_val_loss([cls_loss, reg_loss, loss])
-                #writer.add_scalars('Loss', {'val': loss}, step)
-                #writer.add_scalars('Regression_loss', {'val': reg_loss}, step)
-                #writer.add_scalars('Classfication_loss', {'val': cls_loss}, step)
 
-                if loss + self.cfg.EFFICIENTDET.EARLY_STOPPING_MIN_DELTA < best_loss:
-                    best_loss = loss
+                if self.totalLossMeter.read() + self.cfg.EFFICIENTDET.EARLY_STOPPING_MIN_DELTA < best_loss:
+                    best_loss = self.totalLossMeter.read()
                     best_epoch = epoch
+                    self.save_checkpoint(f'efficientdet-d{self.cfg.EFFICIENTDET.COMPOUND_COEF}_{epoch}.pth')
 
-                    self.save_checkpoint(f'efficientdet-d{self.cfg.EFFICIENTDET.COMPOUND_COEF}_{epoch}_{step}.pth')
-
+                self.logger.update_val_loss([self.classLossMeter.read(), self.regLossMeter.read(), self.totalLossMeter.read()])
+                self.classLossMeter.reset()
+                self.regLossMeter.reset()
+                self.totalLossMeter.reset()
                 self.model.train()
 
                 # Early stopping
-                if epoch - best_epoch > self.cfg.EFFICIENTDET.EARLY_STOPPING_PATIENCE > 0:
+                if epoch - best_epoch > self.cfg.EFFICIENTDET.EARLY_STOPPING_PATIENCE > 0 and False:
                     print('[Info] Stop training at epoch {}. The lowest loss achieved is {}'.format(epoch, best_loss))
                     break
 

@@ -8,12 +8,11 @@ Vortex module.
 import os
 import numpy as np
 from tqdm.autonotebook import tqdm
-import traceback
-import cv2
 import time
 
 import torch
 from torch import nn
+from torch.utils.data import DataLoader
 import onnx
 
 from .model import VortexBackbone
@@ -36,20 +35,23 @@ class Vortex:
     :param weights: Path to parameter savefile to be loaded
     :type weights: string, optional
     """
-    def __init__(self, mode, cfg, calibPaths,weights = None, efficienttrack_weights = None):
+    def __init__(self, mode, cfg, calibPaths,weights = None, efficienttrack_weights = None, run_name = None):
         self.mode = mode
         self.cfg = cfg
         self.model = VortexBackbone(cfg, calibPaths[0], calibPaths[1], efficienttrack_weights)
 
         if mode  == 'train':
-            #Maybe move this to a function in cfg??
-            self.logger = NetLogger(os.path.join(self.cfg.logPaths['vortex'], 'Run_Test'))
+            if run_name == None:
+                run_name = "Run_" + time.strftime("%Y%m%d-%H%M%S")
+
+            self.model_savepath = os.path.join(self.cfg.savePaths['vortex'], run_name)
+            os.makedirs(self.model_savepath, exist_ok=True)
+
+            self.logger = NetLogger(os.path.join(self.cfg.logPaths['vortex'], run_name))
             self.lossMeter = AverageMeter()
             self.accuracyMeter = AverageMeter()
             self.valLossMeter = AverageMeter()
             self.valAccuracyMeter = AverageMeter()
-
-            self.model_savepath = os.path.join(self.cfg.savePaths['vortex'], 'Run_Test')
 
             self.load_weights(weights)
 
@@ -83,20 +85,14 @@ class Vortex:
 
     def load_weights(self, weights_path = None):
         if weights_path is not None:
-            try:
-                ret = self.model.load_state_dict(torch.load(weights_path), strict=False)
-            except RuntimeError as e:
-                print(f'[Warning] Ignoring {e}')
-                print(
-                    '[Warning] Don\'t panic if you see this, this might be because you load a pretrained weights with different number of classes. The rest of the weights should be loaded already.')
-
+            self.model.load_state_dict(torch.load(weights_path), strict=False)
             print(f'[Info] loaded weights: {os.path.basename(weights_path)}')
         else:
             print('[Info] initializing weights...')
             #utils.init_weights(self.model)
 
 
-    def train(self, training_generator, val_generator, num_epochs, start_epoch = 0):
+    def train(self, training_set, validation_set, num_epochs, start_epoch = 0):
         """
         Function to train the network on a given dataset for a set number of epochs.
         Most of the training parameters can be set in the config file.
@@ -112,11 +108,22 @@ class Vortex:
         :param start_epoch: Initial epoch for the training, set this if training
             is continued from an earlier session
         """
+        training_generator = DataLoader(training_set,
+                                        batch_size = self.cfg.VORTEX.BATCH_SIZE,
+                                        shuffle = True,
+                                        num_workers =  self.cfg.DATALOADER_NUM_WORKERS,
+                                        pin_memory = True)
+
+        val_generator = DataLoader(validation_set,
+                                        batch_size = self.cfg.VORTEX.BATCH_SIZE,
+                                        shuffle = False,
+                                        num_workers =  self.cfg.DATALOADER_NUM_WORKERS,
+                                        pin_memory = True)
         epoch = start_epoch
         best_loss = 1e5
         best_epoch = 0
         self.model.train()
-        if (self.cfg.USE_MIXED_PRECISION):
+        if self.cfg.USE_MIXED_PRECISION:
             scaler = torch.cuda.amp.GradScaler()
 
         for epoch in range(num_epochs):
@@ -136,7 +143,7 @@ class Vortex:
                     heatmap3D = heatmap3D.cuda()
 
                 self.optimizer.zero_grad()
-                if (self.cfg.USE_MIXED_PRECISION):
+                if self.cfg.USE_MIXED_PRECISION:
                     with torch.cuda.amp.autocast():
                         outputs = self.model(imgs, centerHM, center3D)
                         loss = self.criterion(outputs[0], heatmap3D)
@@ -164,6 +171,7 @@ class Vortex:
 
 
             self.logger.update_train_loss(self.lossMeter.read())
+            self.logger.update_train_accuracy(self.accuracyMeter.read())
             self.scheduler.step(self.lossMeter.read())
 
             self.lossMeter.reset()
@@ -192,7 +200,7 @@ class Vortex:
                             center3D = center3D.cuda()
                             heatmap3D = heatmap3D.cuda()
 
-                        if (self.cfg.USE_MIXED_PRECISION):
+                        if self.cfg.USE_MIXED_PRECISION:
                             with torch.cuda.amp.autocast():
                                 outputs = self.model(imgs, centerHM, center3D)
                                 loss = self.criterion(outputs[0], heatmap3D)
@@ -212,7 +220,8 @@ class Vortex:
                     epoch, num_epochs, self.valLossMeter.read(),  self.valAccuracyMeter.read()))
 
 
-            self.logger.update_val_loss(avg_val_loss/len(val_generator))
+            self.logger.update_val_loss(self.valLossMeter.read())
+            self.logger.update_val_accuracy(self.valAccuracyMeter.read())
             self.valLossMeter.reset()
             self.valAccuracyMeter.reset()
 

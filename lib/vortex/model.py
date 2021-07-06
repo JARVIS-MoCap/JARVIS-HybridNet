@@ -99,15 +99,21 @@ class VortexBackbone(nn.Module):
 
 
 if __name__ == "__main__":
-    from config import cfg
-    cfg.merge_from_file('/home/timo/Desktop/VoRTEx/projects/Test/config.yaml')
+    from lib.config.project_manager import ProjectManager
 
+    project = ProjectManager()
+    project.load('Test_Crop')
+
+
+    cfg = project.get_cfg()
     import time
     training_set = VortexDataset3D(cfg = cfg, set='val')
+    #cfg.PROJECTS_ROOT_PATH = '/home/timo/Desktop/VoRTEx/projects'
+    #cfg.PROJECT_NAME = 'Test_Crop'
     vortex = VortexBackbone(cfg, training_set.coco.dataset['calibration']['intrinsics'], training_set.coco.dataset['calibration']['extrinsics']).cuda()
 
 
-    #vortex.load_state_dict(torch.load('/home/trackingsetup/Documents/Vortex/projects/handPose_test/vortex/models/Colleen_d3_v2v_ks3_2/Vortex-d_5.pth'), strict = False)
+    vortex.load_state_dict(torch.load('/home/timo/Desktop/VoRTEx/projects/Test/models/vortex/Run_20210705-185157/Vortex-d_30.pth'), strict = True)
     vortex.requires_grad_(False)
     vortex.eval()
     vortex = vortex.cuda()

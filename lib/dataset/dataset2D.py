@@ -66,7 +66,8 @@ class VortexDataset2D(VortexBaseDataset):
     def _build_augpipe(self):
         augmentors = []
         if self.mode == 'cropping':
-            width, height = self.coco.dataset['info']['width'], self.coco.dataset['info']['height']
+            img = self._load_image(0)
+            width, height = img.shape[1], img.shape[0]
             scale = self.cfg.EFFICIENTDET.IMG_SIZE / max(height, width)
             cfg = self.cfg.EFFICIENTDET.AUGMENTATION
             augmentors.append(iaa.Resize(scale,  interpolation='linear'))
@@ -74,24 +75,25 @@ class VortexDataset2D(VortexBaseDataset):
         elif self.mode == 'keypoints':
             cfg = self.cfg.EFFICIENTTRACK.AUGMENTATION
 
-        if cfg.COLOR_MANIPULATION.ENABLED:
-            cman = cfg.COLOR_MANIPULATION
-            augmentors.append(iaa.Sometimes(cman.GAUSSIAN_BLUR.PROBABILITY,
-                              iaa.GaussianBlur(sigma=cman.GAUSSIAN_BLUR.SIGMA)))
-            augmentors.append(iaa.AdditiveGaussianNoise(loc = 0, scale = cman.GAUSSIAN_NOISE.SCALE,
-                              per_channel = cman.GAUSSIAN_NOISE.PER_CHANNEL_PROBABILITY))
-            augmentors.append(iaa.Sometimes(cman.LINEAR_CONTRAST.PROBABILITY,
-                              iaa.LinearContrast(cman.LINEAR_CONTRAST.SCALE)))
-            augmentors.append(iaa.Sometimes(cman.MULTIPLY.PROBABILITY,
-                              iaa.Multiply(cman.MULTIPLY.SCALE)))
-            augmentors.append(iaa.Sometimes(cman.PER_CHANNEL_MULTIPLY.PROBABILITY,
-                              iaa.Multiply(cman.PER_CHANNEL_MULTIPLY.SCALE,
-                              per_channel=cman.PER_CHANNEL_MULTIPLY.PER_CHANNEL_PROBABILITY)))
+        if not (self.mode == 'cropping' and self.set_name == 'val'):
+            if cfg.COLOR_MANIPULATION.ENABLED:
+                cman = cfg.COLOR_MANIPULATION
+                augmentors.append(iaa.Sometimes(cman.GAUSSIAN_BLUR.PROBABILITY,
+                                  iaa.GaussianBlur(sigma=cman.GAUSSIAN_BLUR.SIGMA)))
+                augmentors.append(iaa.AdditiveGaussianNoise(loc = 0, scale = cman.GAUSSIAN_NOISE.SCALE,
+                                  per_channel = cman.GAUSSIAN_NOISE.PER_CHANNEL_PROBABILITY))
+                augmentors.append(iaa.Sometimes(cman.LINEAR_CONTRAST.PROBABILITY,
+                                  iaa.LinearContrast(cman.LINEAR_CONTRAST.SCALE)))
+                augmentors.append(iaa.Sometimes(cman.MULTIPLY.PROBABILITY,
+                                  iaa.Multiply(cman.MULTIPLY.SCALE)))
+                augmentors.append(iaa.Sometimes(cman.PER_CHANNEL_MULTIPLY.PROBABILITY,
+                                  iaa.Multiply(cman.PER_CHANNEL_MULTIPLY.SCALE,
+                                  per_channel=cman.PER_CHANNEL_MULTIPLY.PER_CHANNEL_PROBABILITY)))
 
-        augmentors.append(iaa.Fliplr(cfg.MIRROR.PROBABILITY))
-        augmentors.append(iaa.Sometimes(cfg.AFFINE_TRANSFORM.PROBABILITY,
-                          iaa.Affine(rotate=cfg.AFFINE_TRANSFORM.ROTATION_RANGE,
-                          scale=cfg.AFFINE_TRANSFORM.SCALE_RANGE)))
+            augmentors.append(iaa.Fliplr(cfg.MIRROR.PROBABILITY))
+            augmentors.append(iaa.Sometimes(cfg.AFFINE_TRANSFORM.PROBABILITY,
+                              iaa.Affine(rotate=cfg.AFFINE_TRANSFORM.ROTATION_RANGE,
+                              scale=cfg.AFFINE_TRANSFORM.SCALE_RANGE)))
         if self.mode == 'cropping':
             augmentors.append(iaa.PadToFixedSize(self.cfg.EFFICIENTDET.IMG_SIZE,self.cfg.EFFICIENTDET.IMG_SIZE))
 
@@ -187,16 +189,6 @@ def collater_bbox(data):
     return [imgs, annot_padded]
 
 
-def collater_keypoints(data):
-    imgs = [s[0] for s in data]
-    heatmaps = [torch.from_numpy(np.array([s[1][i] for s in data])) for i in range(2)]
-    keypoints = [s[2] for s in data]
-    imgs = torch.from_numpy(np.stack(imgs, axis=0))
-    imgs = imgs.permute(0, 3, 1, 2)
-
-    return [imgs, heatmaps, keypoints]
-
-
 class Normalizer(object):
     def __init__(self, mean, std, mode = 'cropping'):
         self.mean = np.array([[mean]])
@@ -211,7 +203,7 @@ class Normalizer(object):
         elif self.mode == 'keypoints':
             image, heatmaps = sample[0], sample[1]
             keypoints = sample[2]
-            return [torch.from_numpy((image.astype(np.float32) - self.mean) / self.std).to(torch.float32), heatmaps, keypoints]
+            return [(image.astype(np.float32) - self.mean) / self.std, heatmaps, keypoints]
 
 
 class HeatmapGenerator():
@@ -253,9 +245,14 @@ class HeatmapGenerator():
         return hms
 
 if __name__ == "__main__":
-    from config import cfg
-    training_set = VortexDataset2D(cfg = cfg, set='train', mode='keypoints')
+    from lib.config.project_manager import ProjectManager
+    project = ProjectManager()
+    project.load('Test_Crop')
+    cfg = project.get_cfg()
+    print (cfg.DATASET.DATASET_2D)
+
+    training_set = VortexDataset2D(cfg = cfg, set='train', mode='cropping')
     print (len(training_set.image_ids))
-    for i in range(0,1000,12):
+    for i in range(0,len(training_set.image_ids),10):
         training_set.visualize_sample(i)
     #training_set.__getitem__(0)
