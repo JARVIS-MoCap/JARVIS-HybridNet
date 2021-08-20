@@ -147,7 +147,7 @@ class VortexDataset2D(VortexBaseDataset):
         bbox_min_size = np.max([np.max(x_sizes), np.max(y_sizes)])
         final_bbox_suggestion = int(np.ceil((bbox_min_size*1.02)/64)*64)
         return final_bbox_suggestion
-        
+
 
     def visualize_sample(self, idx):
         sample = self.__getitem__(idx)
@@ -172,6 +172,7 @@ class VortexDataset2D(VortexBaseDataset):
                 cv2.putText(img, '{}'.format(self.labels[int(bbox[4])]),
                             (int(bbox[0]), int(bbox[1]) +8), cv2.FONT_HERSHEY_SIMPLEX, 0.3,
                             (0, 0, 255), 1)
+            img = cv2.resize(img, (512,512));
             cv2.imshow('frame', img)
             cv2.waitKey(0)
 
@@ -233,7 +234,7 @@ class HeatmapGenerator():
 if __name__ == "__main__":
     from lib.config.project_manager import ProjectManager
     project = ProjectManager()
-    project.load('Test_Crop')
+    project.load('TestNew')
     cfg = project.get_cfg()
     print (cfg.DATASET.DATASET_2D)
 

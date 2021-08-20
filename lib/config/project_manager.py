@@ -128,23 +128,32 @@ class ProjectManager:
         ans = input()
         if ans == 'no' or ans == 'n':
             print('Enter custom x-Axis Grid Dimensions, make sure they are divisible by your resolution:')
-            suggestions['grid_x'] = int(input())
+            print('x-Axis start:')
+            suggestions['grid_x_start'] = int(input())
+            print ('x-Axis end:')
+            suggestions['grid_x_end'] = int(input())
         print (f'Use suggested y-Axis Grid Dimension of {suggestions["grid_y"]} mm? (yes/no)')
         ans = input()
         if ans == 'no' or ans == 'n':
             print('Enter custom y-Axis Grid Dimension, make sure they are divisible by your resolution:')
-            suggestions['grid_y'] = int(input())
+            print('y-Axis start:')
+            suggestions['grid_y_start'] = int(input())
+            print ('y-Axis end:')
+            suggestions['grid_y_end'] = int(input())
         print (f'Use suggested z-Axis Grid Dimension of {suggestions["grid_z"]} mm? (yes/no)')
         ans = input()
         if ans == 'no' or ans == 'n':
             print('Enter custom z-Axis Grid Dimension, make sure they are divisible by your resolution:')
-            suggestions['grid_z'] = int(input())
+            print('z-Axis start:')
+            suggestions['grid_z_start'] = int(input())
+            print ('z-Axis end:')
+            suggestions['grid_z_end'] = int(input())
 
         self.cfg.VORTEX.ROI_CUBE_SIZE = suggestions['bbox']
         self.cfg.VORTEX.GRID_SPACING = suggestions['resolution']
-        self.cfg.VORTEX.GRID_DIM_X = suggestions['grid_x']
-        self.cfg.VORTEX.GRID_DIM_Y = suggestions['grid_y']
-        self.cfg.VORTEX.GRID_DIM_Z = suggestions['grid_z']
+        self.cfg.VORTEX.GRID_DIM_X = [suggestions['grid_x_start'],suggestions['grid_x_end']]
+        self.cfg.VORTEX.GRID_DIM_Y = [suggestions['grid_y_start'],suggestions['grid_y_end']]
+        self.cfg.VORTEX.GRID_DIM_Z = [suggestions['grid_z_start'],suggestions['grid_z_end']]
 
     def _init_config(self, name):
         config_path = os.path.join(cfg.PROJECTS_ROOT_PATH, name, 'config.yaml')

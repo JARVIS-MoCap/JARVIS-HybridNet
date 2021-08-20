@@ -45,7 +45,7 @@ class VortexDataset3D(VortexBaseDataset):
             iaa.Sometimes(0.3, iaa.Multiply((0.8, 1.2), per_channel=1.0))],
             random_order=False)
 
-        self.reproTool = ReprojectionTool('T', self.root_dir, self.coco.dataset['calibration']['intrinsics'], self.coco.dataset['calibration']['extrinsics'])
+        self.reproTool = ReprojectionTool(self.coco.dataset['calibration']['primary_camera'], self.root_dir, self.coco.dataset['calibration']['intrinsics'], self.coco.dataset['calibration']['extrinsics'])
         self.num_cameras = self.reproTool.num_cameras
         self.image_ids_all = self.image_ids
         self.image_ids = []
