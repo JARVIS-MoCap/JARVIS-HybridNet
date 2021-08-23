@@ -80,7 +80,10 @@ class VortexBaseDataset(Dataset):
 
         # some images appear to miss annotations
         if len(annotations_ids) == 0:
-            return annotations
+            annotations = np.zeros((1, 5))
+            annotations[0][4] = -1
+            keypoints = np.zeros((0,self.num_keypoints[0]*3))
+            return annotations, keypoints
 
         # parse annotations
         coco_annotations = self.coco.loadAnns(annotations_ids)

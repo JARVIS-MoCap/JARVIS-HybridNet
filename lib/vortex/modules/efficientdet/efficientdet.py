@@ -100,9 +100,9 @@ class EfficientDet:
             print("Load Model in inference mode!")
             return {"images": [], "predictions": []}
         if img_path != None:
-            ori_imgs, framed_imgs, framed_metas = utils.preprocess(img_path, max_size=256)
+            ori_imgs, framed_imgs, framed_metas = utils.preprocess(img_path, max_size=512) #TODO: make this the resolution from the configuration
         else:
-            ori_imgs, framed_imgs, framed_metas = utils.preprocess_img(img, max_size=256)
+            ori_imgs, framed_imgs, framed_metas = utils.preprocess_img(img, max_size=512)
         x = torch.stack([torch.from_numpy(fi).cuda() for fi in framed_imgs], 0)
         x = x.to(torch.float32).permute(0, 3, 1, 2)
         with torch.no_grad():

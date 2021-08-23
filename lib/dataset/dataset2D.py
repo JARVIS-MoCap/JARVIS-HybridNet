@@ -91,12 +91,13 @@ class VortexDataset2D(VortexBaseDataset):
         if self.mode == 'cropping':
             img = self._load_image(idx)
             bboxs, keypoints = self._load_annotations(idx)
-            bboxs_iaa = BoundingBoxesOnImage([BoundingBox(x1=bboxs[0,0], y1=bboxs[0,1], x2=bboxs[0,2], y2=bboxs[0,3])], shape=(img.shape[0],img.shape[1],3))
-            img, bboxs_aug = self.augpipe(image=img, bounding_boxes=bboxs_iaa)
-            bboxs[0,0] = bboxs_aug[0].x1
-            bboxs[0,1] = bboxs_aug[0].y1
-            bboxs[0,2] = bboxs_aug[0].x2
-            bboxs[0,3] = bboxs_aug[0].y2
+            for i,bbox in enumerate(bboxs):
+                bboxs_iaa = BoundingBoxesOnImage([BoundingBox(x1=bboxs[i,0], y1=bboxs[i,1], x2=bboxs[i,2], y2=bboxs[i,3])], shape=(img.shape[0],img.shape[1],3))
+                img, bboxs_aug = self.augpipe(image=img, bounding_boxes=bboxs_iaa)
+                bboxs[i,0] = bboxs_aug[0].x1
+                bboxs[i,1] = bboxs_aug[0].y1
+                bboxs[i,2] = bboxs_aug[0].x2
+                bboxs[i,3] = bboxs_aug[0].y2
             sample = [img, bboxs]
 
         elif self.mode == 'keypoints':
@@ -140,7 +141,8 @@ class VortexDataset2D(VortexBaseDataset):
         bboxs = []
         for id in self.image_ids:
             bbox, _ = self._load_annotations(id)
-            bboxs.append(bbox)
+            if len(bbox) != 0:
+                bboxs.append(bbox)
         bboxs = np.array(bboxs)
         x_sizes = bboxs[:,0,2]-bboxs[:,0,0]
         y_sizes = bboxs[:,0,3]-bboxs[:,0,1]
@@ -168,10 +170,11 @@ class VortexDataset2D(VortexBaseDataset):
             img = cv2.cvtColor(img.astype(np.float32), cv2.COLOR_RGB2BGR)
             bboxs = sample[1].numpy()
             for i,bbox in enumerate(bboxs):
-                cv2.rectangle(img, (int(bbox[0]), int(bbox[1])), (int(bbox[2]), int(bbox[3])), (0, 0, 255), 1)
-                cv2.putText(img, '{}'.format(self.labels[int(bbox[4])]),
-                            (int(bbox[0]), int(bbox[1]) +8), cv2.FONT_HERSHEY_SIMPLEX, 0.3,
-                            (0, 0, 255), 1)
+                if bbox[4] != -1:
+                    cv2.rectangle(img, (int(bbox[0]), int(bbox[1])), (int(bbox[2]), int(bbox[3])), (0, 0, 255), 1)
+                    cv2.putText(img, '{}'.format(self.labels[int(bbox[4])]),
+                                (int(bbox[0]), int(bbox[1]) +8), cv2.FONT_HERSHEY_SIMPLEX, 0.3,
+                                (0, 0, 255), 1)
             img = cv2.resize(img, (512,512));
             cv2.imshow('frame', img)
             cv2.waitKey(0)
@@ -234,7 +237,7 @@ class HeatmapGenerator():
 if __name__ == "__main__":
     from lib.config.project_manager import ProjectManager
     project = ProjectManager()
-    project.load('TestNew')
+    project.load('Test_Ralph')
     cfg = project.get_cfg()
     print (cfg.DATASET.DATASET_2D)
 
