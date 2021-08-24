@@ -147,6 +147,12 @@ class VortexDataset2D(VortexBaseDataset):
         x_sizes = bboxs[:,0,2]-bboxs[:,0,0]
         y_sizes = bboxs[:,0,3]-bboxs[:,0,1]
         bbox_min_size = np.max([np.max(x_sizes), np.max(y_sizes)])
+        ind = np.argmax(x_sizes)
+        image_info = self.coco.loadImgs(self.image_ids[self.image_ids[ind]])[0]
+        path = os.path.join(self.root_dir, self.set_name, image_info['file_name'])
+        print (path)
+
+
         final_bbox_suggestion = int(np.ceil((bbox_min_size*1.02)/64)*64)
         return final_bbox_suggestion
 
@@ -154,7 +160,7 @@ class VortexDataset2D(VortexBaseDataset):
     def visualize_sample(self, idx):
         sample = self.__getitem__(idx)
         if self.mode == 'keypoints':
-            img = (sample[0].numpy()*self.cfg.DATASET.STD+self.cfg.DATASET.MEAN)
+            img = (sample[0]*self.cfg.DATASET.STD+self.cfg.DATASET.MEAN)
             img = cv2.cvtColor(img.astype(np.float32), cv2.COLOR_RGB2BGR)
             heatmaps = sample[1]
             img = cv2.resize(img*255, (heatmaps[1][0].shape[0], heatmaps[1][0].shape[1])).astype(np.uint8)
@@ -237,11 +243,11 @@ class HeatmapGenerator():
 if __name__ == "__main__":
     from lib.config.project_manager import ProjectManager
     project = ProjectManager()
-    project.load('Test_Ralph')
+    project.load('TestNew')
     cfg = project.get_cfg()
     print (cfg.DATASET.DATASET_2D)
 
-    training_set = VortexDataset2D(cfg = cfg, set='train', mode='cropping')
+    training_set = VortexDataset2D(cfg = cfg, set='train', mode='keypoints')
     print (len(training_set.image_ids))
     for i in range(0,len(training_set.image_ids),10):
         training_set.visualize_sample(i)
