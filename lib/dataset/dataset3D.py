@@ -10,6 +10,7 @@ import itertools
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 import time
+import cv2
 
 import torch
 from torch.utils.data import Dataset
@@ -51,22 +52,42 @@ class VortexDataset3D(VortexBaseDataset):
         self.image_ids = []
         self.keypoints3D = []
         for set in self.coco.dataset['framesets']:
-            if len(self.coco.dataset['framesets'][set]) == self.num_cameras:
-                self.image_ids.append(self.coco.dataset['framesets'][set][0])
-                keypoints3D_cam = np.zeros((cfg.EFFICIENTTRACK.NUM_JOINTS, 3))
-                image_info = self.coco.loadImgs(self.image_ids[-1])[0]
-                frameset_ids = self.coco.dataset['framesets'][image_info['file_name'].split('/')[-1]]
-                keypoints_l = []
-                for img_id in frameset_ids:
-                    _, keypoints = self._load_annotations(img_id, is_id = True)
-                    keypoints = keypoints.reshape([-1, 3])
-                    keypoints_l.append(keypoints)
-                for i in range(cfg.EFFICIENTTRACK.NUM_JOINTS):
-                    points2D = np.zeros((self.num_cameras,2))
-                    for cam in range(self.num_cameras):
+            #if len(self.coco.dataset['framesets'][set]) == self.num_cameras:
+            keypoints3D_cam = np.zeros((cfg.EFFICIENTTRACK.NUM_JOINTS, 3))
+            image_info = self.coco.loadImgs(self.coco.dataset['framesets'][set][0])[0]
+            info_split = image_info['file_name'].split("/")
+            frameset_ids = self.coco.dataset['framesets'][info_split[0] + "/" + info_split[1] + "/" + info_split[3].split(".")[0]]
+            keypoints_l = []
+            for i,img_id in enumerate(frameset_ids):
+                _, keypoints = self._load_annotations(img_id, is_id = True)
+                keypoints = keypoints.reshape([-1, 3])
+                keypoints_l.append(keypoints)
+            for i in range(cfg.EFFICIENTTRACK.NUM_JOINTS):
+                points2D = np.zeros((self.num_cameras,2))
+                camsToUse = []
+                for cam in range(self.num_cameras):
+                    if keypoints_l[cam][i][2] != 0:
                         points2D[cam] = keypoints_l[cam][i][:2]
-                    keypoints3D_cam[i] = self.reproTool.reconstructPoint(points2D.transpose())
+                        camsToUse.append(cam)
+                keypoints3D_cam[i] = self.reproTool.reconstructPoint(points2D.transpose(), camsToUse)
+            x_range = [np.min(keypoints3D_cam[:,0]), np.max(keypoints3D_cam[:,0])]
+            y_range = [np.min(keypoints3D_cam[:,1]), np.max(keypoints3D_cam[:,1])]
+            z_range = [np.min(keypoints3D_cam[:,2]), np.max(keypoints3D_cam[:,2])]
+            tracking_area = np.array([x_range, y_range, z_range])
+            x_cube_size_min = np.max(np.max(keypoints3D_cam[:,0], axis = 0)-np.min(keypoints3D_cam[:,0],axis = 0))
+            y_cube_size_min = np.max(np.max(keypoints3D_cam[:,1], axis = 0)-np.min(keypoints3D_cam[:,1],axis = 0))
+            z_cube_size_min = np.max(np.max(keypoints3D_cam[:,2], axis = 0)-np.min(keypoints3D_cam[:,2],axis = 0))
+            min_cube_size = np.max([x_cube_size_min,y_cube_size_min,z_cube_size_min])
+            if (min_cube_size < 144):
+                self.image_ids.append(self.coco.dataset['framesets'][set][0])
                 self.keypoints3D.append(keypoints3D_cam)
+            else:
+                print (image_info['file_name'])
+                print (min_cube_size)
+                self.image_ids.append(self.coco.dataset['framesets'][set][0])
+                print (len(self.image_ids))
+                self.keypoints3D.append(keypoints3D_cam)
+                print (len(camsToUse))
 
         self.transform = transforms.Compose([Normalizer(mean=cfg.DATASET.MEAN, std=cfg.DATASET.STD)])
         #self.get_dataset_config(self.keypoints3D)
@@ -76,11 +97,10 @@ class VortexDataset3D(VortexBaseDataset):
         grid_spacing = self.cfg.VORTEX.GRID_SPACING
         grid_size = self.cfg.VORTEX.ROI_CUBE_SIZE
         image_info = self.coco.loadImgs(self.image_ids[idx])[0]
-        frameset_ids = self.coco.dataset['framesets'][image_info['file_name'].split('/')[-1]]
-        #print (image_info['file_name'])
-
-        img_l = np.zeros((len(frameset_ids), self.cfg.EFFICIENTTRACK.BOUNDING_BOX_SIZE,self.cfg.EFFICIENTTRACK.BOUNDING_BOX_SIZE,3))
-        centerHM = np.zeros((len(frameset_ids), 2), dtype = int)
+        info_split = image_info['file_name'].split("/")
+        frameset_ids = self.coco.dataset['framesets'][info_split[0] + "/" + info_split[1] + "/" + info_split[3].split(".")[0]]
+        img_l = np.zeros((self.num_cameras, self.cfg.EFFICIENTTRACK.BOUNDING_BOX_SIZE,self.cfg.EFFICIENTTRACK.BOUNDING_BOX_SIZE,3))
+        centerHM = np.full((self.num_cameras, 2), 128, dtype = int)
         bbox_hw = int(self.cfg.EFFICIENTTRACK.BOUNDING_BOX_SIZE/2)
         for frame_idx,img_id in enumerate(frameset_ids):
             img = self._load_image(img_id, is_id = True)
@@ -100,7 +120,6 @@ class VortexDataset3D(VortexBaseDataset):
                 img = self.augpipe(image=img)
             img_l[frame_idx] = img
 
-
         keypoints3D = self.keypoints3D[idx]
         x,y,z=zip(*keypoints3D)
         center3D = np.array([int((max(x)+min(x))/float(grid_spacing)/2.)*grid_spacing,
@@ -114,7 +133,7 @@ class VortexDataset3D(VortexBaseDataset):
             translation_factors = np.random.uniform(-0.4,0.4,3)
             center3D += np.array((translation_margins*translation_factors)/float(grid_spacing)/2., dtype = int) *2
 
-        keypoints3D_crop = (keypoints3D+float(grid_size/2.)-center3D)/float(grid_spacing)/2.
+        keypoints3D_crop = (keypoints3D+float(grid_size/grid_spacing)-center3D)/float(grid_spacing)/2.
 
         heatmap_size = int(grid_size/grid_spacing/2.)
         heatmap3D = np.zeros((self.cfg.EFFICIENTTRACK.NUM_JOINTS, heatmap_size,heatmap_size,heatmap_size))
@@ -129,7 +148,6 @@ class VortexDataset3D(VortexBaseDataset):
         for i in range(self.cfg.EFFICIENTTRACK.NUM_JOINTS):
             heatmap3D[i,xx,yy,zz] = 255.*np.exp(-0.5*(np.power((keypoints3D_crop[i][0]-xx)/(1.7),2)+np.power((keypoints3D_crop[i][1]-yy)/(1.7),2)+np.power((keypoints3D_crop[i][2]-zz)/(1.7),2)))
 
-        print (center3D)
         sample = [img_l, keypoints3D, centerHM, center3D, heatmap3D]
         return self.transform(sample)
 
@@ -161,7 +179,7 @@ class VortexDataset3D(VortexBaseDataset):
         x_grid_size = x_range[1]-x_range[0]
         y_grid_size = y_range[1]-y_range[0]
         z_grid_size = z_range[1]-z_range[0]
-        margin = 0.4    #this should be replaced by something dependent on final_bbox_suggestion
+        margin = 0.5   #this should be replaced by something dependent on final_bbox_suggestion
         grid_x_suggestion = [int(np.ceil((x_range[0]-x_grid_size*margin)/resolution_suggestion)*resolution_suggestion),
                              int(np.ceil((x_range[1]+x_grid_size*margin)/resolution_suggestion)*resolution_suggestion)]
         grid_y_suggestion = [int(np.ceil((y_range[0]-y_grid_size*margin)/resolution_suggestion)*resolution_suggestion),
@@ -176,17 +194,17 @@ class VortexDataset3D(VortexBaseDataset):
             'grid_y': grid_y_suggestion,
             'grid_z': grid_z_suggestion,
         }
-        return suggested_parameters
 
         if show_visualization:
             figure = plt.figure()
             axes = figure.gca(projection='3d')
-            visualizer = SetupVisualizer('T', self.root_dir, self.coco.dataset['calibration']['intrinsics'], self.coco.dataset['calibration']['extrinsics'])
+            visualizer = SetupVisualizer('Camera_T', self.root_dir, self.coco.dataset['calibration']['intrinsics'], self.coco.dataset['calibration']['extrinsics'])
             visualizer.plot_cameras(axes)
             visualizer.plot_tracking_area(tracking_area, axes)
             visualizer.plot_datapoints(self.keypoints3D[0], axes)
             plt.show()
 
+        return suggested_parameters
 
     def visualize_sample(self, idx):
         sample = self.__getitem__(idx)
@@ -211,7 +229,7 @@ class VortexDataset3D(VortexBaseDataset):
         colors = [(0,0,1,max(0,3./2*c-0.5)) for c in np.linspace(0,1,100)]
         cmapblue = mcolors.LinearSegmentedColormap.from_list('mycmap', colors, N=100)
 
-        axes.scatter(xx*self.cfg.VORTEX.GRID_SPACING+center3D[0]-100,yy*self.cfg.VORTEX.GRID_SPACING+center3D[1]-100,zz*self.cfg.VORTEX.GRID_SPACING+center3D[2]-100, c = heatmap3D[self.num_cameras,xx,yy,zz], cmap = cmapblue)
+        #axes.scatter(xx*self.cfg.VORTEX.GRID_SPACING+center3D[0]-100,yy*self.cfg.VORTEX.GRID_SPACING+center3D[1]-100,zz*self.cfg.VORTEX.GRID_SPACING+center3D[2]-100, c = heatmap3D[self.num_cameras,xx,yy,zz], cmap = cmapblue)
         points3D_hm = []
         for heatmap in heatmap3D:
             mean = [0,0,0]
@@ -226,15 +244,27 @@ class VortexDataset3D(VortexBaseDataset):
                             mean[2] += ((z*self.cfg.VORTEX.GRID_SPACING+center3D[2])-100)*heatmap[x,y,z]
             points3D_hm.append(np.array(mean)/norm)
 
-        c = ['r', 'r','r','r','b','b','b','b','g','g','g','g', 'orange', 'orange','orange','orange', 'y','y','y','y','grey', 'grey','grey']
+
+        c = ['r', 'r','r','r','b','b','b','b','g','g','g','g', 'orange', 'orange','orange','orange', 'y','y','y','y','purple', 'purple','purple']
+        line_idxs = [[0,1], [1,2], [2,3], [4,5], [5,6], [6,7], [8,9], [9,10], [10,11], [12,13], [13,14], [14,15], [16,17], [17,18], [18,19], [3,7], [7,11], [11,15], [3,21], [7,21],[11,22], [15,22],[21,22], [18,15], [19,22]]
+
+        keypoins3D = sample[1]
+        for i, point in enumerate(keypoins3D):
+            #print ("Classic:", i, point)
+            if i != 20:
+                axes.scatter(point[0], point[1], point[2], color = "gray")
+        for line in line_idxs:
+            axes.plot([keypoins3D[line[0]][0], keypoins3D[line[1]][0]], [keypoins3D[line[0]][1], keypoins3D[line[1]][1]], [keypoins3D[line[0]][2], keypoins3D[line[1]][2]], c = 'gray')
+
+        #c = ['r', 'r','r','r','b','b','b','b','g','g','g','g', 'orange', 'orange','orange','orange', 'y','y','y','y','grey', 'grey','grey']
         #for i, point in enumerate(points3D_hm):
             #axes.scatter(point[0], point[1], point[2], color = c[i])
             #print ("HM:", i, points3D_hm[i])
 
         #axes.scatter(xx*self.cfg.VORTEX.GRID_SPACING+center3D[0]-100,yy*self.cfg.VORTEX.GRID_SPACING+center3D[1]-100,zz*self.cfg.VORTEX.GRID_SPACING+center3D[2]-100)
-        self.reproTool.renderPoints(sample[4], axes = axes, show_cameras = False)
+        #self.reproTool.renderPoints(sample[4], axes = axes, show_cameras = False)
 
-        cube = np.array(list(itertools.product(*zip([-100,-100,-100],[100,100,100]))))
+        cube = np.array(list(itertools.product(*zip([-50,-50,-50],[50,50,50]))))
         cube = cube + center3D
         for corner in cube:
             axes.scatter(corner[0],corner[1],corner[2], c = 'magenta', s = 20)
@@ -261,19 +291,21 @@ if __name__ == "__main__":
     from lib.config.project_manager import ProjectManager
 
     project = ProjectManager()
-    project.load('Test_Crop')
+    project.load('Ralph_Test3D')
 
 
     cfg = project.get_cfg()
     idx = 0
     training_set = VortexDataset3D(cfg = cfg, set='train')
-    sample1 = training_set.__getitem__(0)
-    #training_set.visualize_sample(0)
+    print (len(training_set))
+    #training_set.get_dataset_config(show_visualization = True)
+    for i in range(0,121):
+        training_set.visualize_sample(i)
     val_frame_numbers = []
     print (len(training_set.image_ids))
-    for i in range(len(training_set.image_ids)):
-        image_info = training_set.coco.loadImgs(training_set.image_ids[i])[0]
-        path = os.path.join(training_set.root_dir, training_set.set_name, image_info['file_name'])
-        frameset_ids = training_set.coco.dataset['framesets'][image_info['file_name'].split('/')[-1]]
-        val_frame_numbers.append(path.split(".")[0].split("_")[3])
+    #for i in range(len(training_set.image_ids)):
+        #image_info = training_set.coco.loadImgs(training_set.image_ids[i])[0]
+        #path = os.path.join(training_set.root_dir, training_set.set_name, image_info['file_name'])
+        #frameset_ids = training_set.coco.dataset['framesets'][image_info['file_name'].split('/')[-1]]
+        #val_frame_numbers.append(path.split(".")[0].split("_")[3])
         #print (path.split(".")[0].split("_")[3])

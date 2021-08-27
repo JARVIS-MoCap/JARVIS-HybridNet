@@ -129,31 +129,31 @@ class ProjectManager:
         if ans == 'no' or ans == 'n':
             print('Enter custom x-Axis Grid Dimensions, make sure they are divisible by your resolution:')
             print('x-Axis start:')
-            suggestions['grid_x_start'] = int(input())
+            suggestions['grid_x'][0] = int(input())
             print ('x-Axis end:')
-            suggestions['grid_x_end'] = int(input())
+            suggestions['grid_x'][1] = int(input())
         print (f'Use suggested y-Axis Grid Dimension of {suggestions["grid_y"]} mm? (yes/no)')
         ans = input()
         if ans == 'no' or ans == 'n':
             print('Enter custom y-Axis Grid Dimension, make sure they are divisible by your resolution:')
             print('y-Axis start:')
-            suggestions['grid_y_start'] = int(input())
+            suggestions['grid_y'][0] = int(input())
             print ('y-Axis end:')
-            suggestions['grid_y_end'] = int(input())
+            suggestions['grid_y'][1] = int(input())
         print (f'Use suggested z-Axis Grid Dimension of {suggestions["grid_z"]} mm? (yes/no)')
         ans = input()
         if ans == 'no' or ans == 'n':
             print('Enter custom z-Axis Grid Dimension, make sure they are divisible by your resolution:')
             print('z-Axis start:')
-            suggestions['grid_z_start'] = int(input())
+            suggestions['grid_z'][0] = int(input())
             print ('z-Axis end:')
-            suggestions['grid_z_end'] = int(input())
+            suggestions['grid_z'][1] = int(input())
 
         self.cfg.VORTEX.ROI_CUBE_SIZE = suggestions['bbox']
         self.cfg.VORTEX.GRID_SPACING = suggestions['resolution']
-        self.cfg.VORTEX.GRID_DIM_X = [suggestions['grid_x_start'],suggestions['grid_x_end']]
-        self.cfg.VORTEX.GRID_DIM_Y = [suggestions['grid_y_start'],suggestions['grid_y_end']]
-        self.cfg.VORTEX.GRID_DIM_Z = [suggestions['grid_z_start'],suggestions['grid_z_end']]
+        self.cfg.VORTEX.GRID_DIM_X = [suggestions['grid_x'][0],suggestions['grid_x'][1]]
+        self.cfg.VORTEX.GRID_DIM_Y = [suggestions['grid_y'][0],suggestions['grid_y'][1]]
+        self.cfg.VORTEX.GRID_DIM_Z = [suggestions['grid_z'][0],suggestions['grid_z'][1]]
 
     def _init_config(self, name):
         config_path = os.path.join(cfg.PROJECTS_ROOT_PATH, name, 'config.yaml')

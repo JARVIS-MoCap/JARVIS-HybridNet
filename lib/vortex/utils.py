@@ -70,14 +70,20 @@ class ReprojectionTool:
             pointsRepro[i] = pointRepro
         return pointsRepro
 
-    def reconstructPoint(self,points):
+    def reconstructPoint(self,points, camsToUse = None):
+        if camsToUse == None:
+            camsToUse = range(len(self.cameras))
         camMats = []
-        for camera in self.cameras:
-            cam = self.cameras[camera]
-            camMats.append(cam.cameraMatrix)
-        A = np.zeros((points.shape[1]*2, 4))
-        for i in range(points.shape[1]):
-            A[2*i:2*i+2] =  points[:, i].reshape(2,1).dot(camMats[i][2].reshape(1,4)) - camMats[i][0:2]
+        for i,camera in enumerate(self.cameras):
+            if i in camsToUse:
+                cam = self.cameras[camera]
+                camMats.append(cam.cameraMatrix)
+        pointsToUse = np.zeros((2, len(camsToUse)))
+        for i,cam in enumerate(camsToUse):
+            pointsToUse[:,i] = points[:,cam]
+        A = np.zeros((pointsToUse.shape[1]*2, 4))
+        for i in range(pointsToUse.shape[1]):
+            A[2*i:2*i+2] =  pointsToUse[:, i].reshape(2,1).dot(camMats[i][2].reshape(1,4)) - camMats[i][0:2]
         _,_,vh = np.linalg.svd(A)
         V = np.transpose(vh)
         X = V[:,-1]

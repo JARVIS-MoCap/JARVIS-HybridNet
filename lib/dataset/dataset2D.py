@@ -168,6 +168,7 @@ class VortexDataset2D(VortexBaseDataset):
             for i in range(1,heatmaps[1].shape[0]):
                 colored_heatmap = colored_heatmap + cv2.applyColorMap(heatmaps[1][i].astype(np.uint8), cv2.COLORMAP_JET)
             img = cv2.addWeighted(img,1.0,colored_heatmap,0.4,0)
+            img = cv2.resize(img, (512,512))
             cv2.imshow('frame', img)
             cv2.waitKey(0)
 
@@ -243,11 +244,11 @@ class HeatmapGenerator():
 if __name__ == "__main__":
     from lib.config.project_manager import ProjectManager
     project = ProjectManager()
-    project.load('TestNew')
+    project.load('Ralph_Test')
     cfg = project.get_cfg()
     print (cfg.DATASET.DATASET_2D)
 
-    training_set = VortexDataset2D(cfg = cfg, set='train', mode='keypoints')
+    training_set = VortexDataset2D(cfg = cfg, set='val', mode='keypoints')
     print (len(training_set.image_ids))
     for i in range(0,len(training_set.image_ids),10):
         training_set.visualize_sample(i)

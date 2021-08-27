@@ -66,23 +66,23 @@ class EfficientTrackBackbone(nn.Module):
         self.upsample2 = nn.Upsample(scale_factor = 2, mode = 'nearest')
         self.weights_cat = nn.Parameter(torch.ones(3), requires_grad=True)
         self.weights_relu = nn.ReLU()
-        self.first_conv = SeparableConvBlock(224,192,True)
+        self.first_conv = SeparableConvBlock(160,160,True)
         self.deconv1 = nn.ConvTranspose2d(
-            in_channels=192,
-            out_channels=192,
+            in_channels=160,
+            out_channels=160,
             kernel_size=4,
             stride=2,
             padding=1,
             bias=False)
-        self.gn1 = nn.GroupNorm(self.num_groups, 192)
+        self.gn1 = nn.GroupNorm(self.num_groups, 160)
         self.final_conv1 = nn.Conv2d(
-            in_channels = 192,
+            in_channels = 160,
             out_channels = self.cfg.EFFICIENTTRACK.NUM_JOINTS,
             kernel_size = 3,
             padding=1,
             bias = False)
         self.final_conv2 = nn.Conv2d(
-            in_channels = 192,
+            in_channels = 160,
             out_channels = self.cfg.EFFICIENTTRACK.NUM_JOINTS,
             kernel_size = 3,
             padding=1,

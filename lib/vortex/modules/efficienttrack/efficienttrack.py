@@ -177,7 +177,7 @@ class EfficientTrack:
             self.lossMeter.reset()
 
             if epoch % self.cfg.EFFICIENTTRACK.CHECKPOINT_SAVE_INTERVAL == 0 and epoch > 0:
-                self.save_checkpoint(f'EfficientTrack-d{self.cfg.EFFICIENTTRACK.COMPOUND_COEF}_{epoch}_{step}.pth')
+                self.save_checkpoint(f'EfficientTrack-d{self.cfg.EFFICIENTTRACK.COMPOUND_COEF}_{epoch}.pth')
                 print('checkpoint...')
             if epoch % self.cfg.EFFICIENTTRACK.VAL_INTERVAL == 0:
                 self.model.eval()
@@ -222,7 +222,7 @@ class EfficientTrack:
                 if loss + self.cfg.EFFICIENTTRACK.EARLY_STOPPING_MIN_DELTA < best_loss  and self.cfg.EFFICIENTTRACK.USE_EARLY_STOPPING:
                     best_loss = loss
                     best_epoch = epoch
-                    self.save_checkpoint(f'EfficientTrack-d{self.cfg.EFFICIENTTRACK.COMPOUND_COEF}_{epoch}_{step}.pth')
+                    self.save_checkpoint(f'EfficientTrack-d{self.cfg.EFFICIENTTRACK.COMPOUND_COEF}_{epoch}.pth')
 
                 self.model.train()
 

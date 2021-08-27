@@ -46,8 +46,10 @@ class VortexBackbone(nn.Module):
         self.effTrack = EfficientTrackBackbone(self.cfg, compound_coef=self.cfg.EFFICIENTTRACK.COMPOUND_COEF)
         if efficienttrack_weights != None:
             self.effTrack.load_state_dict(torch.load(efficienttrack_weights), strict = True)
-        self.effTrack.requires_grad_(False)
+        self.effTrack.requires_grad_(True)
+        self.effTrack.backbone_net.requires_grad_(False)
         #self.effTrack.backbone_net.requires_grad_(False)
+
 
 
         self.reproLayer = ReprojectionLayer(cfg, intrinsic_paths, extrinsic_paths)#
@@ -78,6 +80,7 @@ class VortexBackbone(nn.Module):
                                                       ((centerHM[batch,i,1]/2)-heatmap.shape[-1]/2).int(),
                                                       self.heatmap_size[1]-((centerHM[batch,i,1]/2)+heatmap.shape[-1]/2).int()),
                                                  mode='constant', value=0)
+
         heatmaps3D = self.reproLayer(heatmaps_padded, center3D)
         heatmap_final = self.v2vNet(((heatmaps3D/255.)))
         heatmap_final = self.softplus(heatmap_final)
@@ -101,7 +104,7 @@ if __name__ == "__main__":
     from lib.config.project_manager import ProjectManager
 
     project = ProjectManager()
-    project.load('Test_Crop')
+    project.load('Ralph_Test3D')
 
 
     cfg = project.get_cfg()
@@ -112,7 +115,7 @@ if __name__ == "__main__":
     vortex = VortexBackbone(cfg, training_set.coco.dataset['calibration']['intrinsics'], training_set.coco.dataset['calibration']['extrinsics']).cuda()
 
 
-    vortex.load_state_dict(torch.load('/home/timo/Desktop/VoRTEx/projects/Test/models/vortex/Run_20210705-185157/Vortex-d_30.pth'), strict = True)
+    vortex.load_state_dict(torch.load('/home/trackingsetup/Documents/Vortex/projects/Ralph_Test3D/models/vortex/Run_20210827-202110/Vortex-d_15.pth'), strict = True)
     vortex.requires_grad_(False)
     vortex.eval()
     vortex = vortex.cuda()
@@ -149,11 +152,15 @@ if __name__ == "__main__":
         print ((time.time()-start_time)*1000)
         preds, maxvals = darkpose.get_final_preds(heatmaps_padded[0].clamp(0,255).cpu().numpy(), None)
         preds *= 2
-        reproTool = ReprojectionTool('T', training_set.root_dir, training_set.coco.dataset['calibration']['intrinsics'], training_set.coco.dataset['calibration']['extrinsics'])
+        reproTool = ReprojectionTool('Camera_T', training_set.root_dir, training_set.coco.dataset['calibration']['intrinsics'], training_set.coco.dataset['calibration']['extrinsics'])
 
         points3D_rec = []
         for i in range(len(preds[0])):
-            point = reproTool.reconstructPoint(np.transpose(preds[:,i,:]))
+            camsToUse = []
+            for cam in range(12):
+                if maxvals[cam][i] > 100:
+                    camsToUse.append(cam)
+            point = reproTool.reconstructPoint(np.transpose(preds[:,i,:]), camsToUse)
             points3D_rec.append(point)
 
 

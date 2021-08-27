@@ -150,6 +150,8 @@ class Vortex:
                         outputs = self.model(imgs, centerHM, center3D)
                         loss = self.criterion(outputs[0], heatmap3D)
                         loss = loss.mean()
+                        #print (keypoints)
+                        #print (outputs[2])
                         acc = torch.mean(torch.sqrt(torch.sum((keypoints-outputs[2])**2, dim = 2)))
                     scaler.scale(loss).backward()
                     scaler.step(self.optimizer)

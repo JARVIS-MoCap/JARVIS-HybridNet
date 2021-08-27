@@ -16,7 +16,7 @@ class ReprojectionLayer(nn.Module):
         self.cfg = cfg
         lookup_path = os.path.join(cfg.PROJECTS_ROOT_PATH, cfg.PROJECT_NAME, 'lookup.npy')
         dataset_dir = os.path.join(cfg.DATASET.DATASET_ROOT_DIR, cfg.DATASET.DATASET_3D)
-        self.reproTool = ReprojectionTool('T', dataset_dir, intrinsic_paths, extrinsic_paths)
+        self.reproTool = ReprojectionTool('Camera_T', dataset_dir, intrinsic_paths, extrinsic_paths)
 
         if not os.path.isfile(lookup_path):
             self.register_buffer('reproLookup', torch.from_numpy(self._create_lookup(lookup_path)).permute(3,0,1,2))

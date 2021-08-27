@@ -27,7 +27,7 @@ class SetupVisualizer():
 
         cam_positions = []
         for cam in self.cameras:
-            camera_mesh = mesh.Mesh.from_file('/home/timo/Desktop/VoRTEx/lib/dataset/Camera.stl')
+            camera_mesh = mesh.Mesh.from_file('/home/trackingsetup/Documents/Vortex/lib/dataset/Camera.stl')
             camera_mesh.points = camera_mesh.points*0.7
             rotMat = np.eye(3)
             rotMat[0,0] = -1
