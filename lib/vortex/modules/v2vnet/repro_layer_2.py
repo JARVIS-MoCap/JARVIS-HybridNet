@@ -36,22 +36,20 @@ class ReprojectionLayer(nn.Module):
                                                          torch.arange(self.grid_size).cuda(),
                                                          torch.arange(self.grid_size).cuda())
 
-
         self.grid = torch.zeros((self.grid_size, self.grid_size, self.grid_size,3))
-        for i in range(self.grid_size):
-            for j in range(self.grid_size):
-                for k in range(self.grid_size):
-                    self.grid[i,j,k] = torch.tensor([i-int(self.grid_size/2),j-int(self.grid_size/2),k-int(self.grid_size/2)])
+        for i in range(int(-self.grid_size/2), int(self.grid_size/2)):
+            for j in range(int(-self.grid_size/2), int(self.grid_size/2)):
+                for k in range(int(-self.grid_size/2), int(self.grid_size/2)):
+                    self.grid[i,j,k] = torch.tensor([i,j,k])
         self.grid = self.grid.cuda()
-        print (self.grid)
         self.grid = self.grid * self.grid_spacing
-        print (self.grid)
 
         self.cameraMatrices = torch.zeros(self.num_cameras, 4,3)
         for i,cam in enumerate(self.reproTool.cameras):
             print (cam)
             self.cameraMatrices[i] =  torch.from_numpy(self.reproTool.cameras[cam].cameraMatrix).transpose(0,1)
         self.cameraMatrices = self.cameraMatrices.cuda()
+
 
         self.starter, self.ender = torch.cuda.Event(enable_timing=True), torch.cuda.Event(enable_timing=True)
 
@@ -87,27 +85,19 @@ class ReprojectionLayer(nn.Module):
       for i in range(12):
           partial = torch.matmul(x, self.cameraMatrices[i])
           #partial = torch.matmul(x,mult[i])
-          partial[:,:,:,0] = torch.clamp(partial[:,:,:,0]/partial[:,:,:,2],0,1279)
-          partial[:,:,:,1] = torch.clamp(partial[:,:,:,1]/partial[:,:,:,2],0,1023)
+          partial[:,:,:,0] = torch.clamp(partial[:,:,:,0]/x[:,:,:,2],0,1279)
+          partial[:,:,:,1] = torch.clamp(partial[:,:,:,1]/x[:,:,:,2],0,1023)
           res[i] = (partial[:,:,:,1]/2).int()*640+(partial[:,:,:,0]/2).int()
       return res
 
 
-    def _get_heatmap_value2(self, heatmaps, grid):
+    def _get_heatmap_value(self, heatmaps, grid):
         #lookup = lookup.cuda().long()
         heatmaps = heatmaps.flatten(2)
         #print (self.do_something(self.grid, mult[self.jj]).shape)
         test = self.do_something(grid).long()
+
         outs = torch.mean(heatmaps[:,self.ii,test[self.ii,self.xx,self.yy,self.zz]], dim = 1)
-        return outs
-
-
-    def _get_heatmap_value(self, lookup, heatmaps):
-        lookup = lookup.cuda().long()
-        heatmaps = heatmaps.flatten(2)
-        test = lookup[self.ii,self.xx,self.yy,self.zz]
-        print (test[0,0,0,0])
-        outs = torch.mean(heatmaps[:,self.ii,lookup[self.ii,self.xx,self.yy,self.zz]], dim = 1)
         return outs
 
 
@@ -115,14 +105,12 @@ class ReprojectionLayer(nn.Module):
     def forward(self, heatmaps, center):
         self.starter.record()
         center_indices = ((center-self.offset)/self.grid_spacing).int()
+        grid = self.grid+center
         heatmaps3D = torch.cuda.FloatTensor(heatmaps.shape[0], heatmaps.shape[2], self.grid_size, self.grid_size, self.grid_size)
         for batch in range(heatmaps.shape[0]):
-            grid = self.grid+center[batch]
-            lookup_subset = self.reproLookup[:,center_indices[batch][0]-self.grid_size_half:center_indices[batch][0]+self.grid_size_half,
-                                             center_indices[batch][1]-self.grid_size_half:center_indices[batch][1]+self.grid_size_half,
-                                             center_indices[batch][2]-self.grid_size_half:center_indices[batch][2]+self.grid_size_half]
-            #heatmaps3D[batch] = self._get_heatmap_value(lookup_subset,torch.transpose(heatmaps[batch], 0,1))
-            heatmaps3D[batch] = self._get_heatmap_value2(torch.transpose(heatmaps[batch], 0,1), grid)
-
+            #lookup_subset = self.reproLookup[:,center_indices[batch][0]-self.grid_size_half:center_indices[batch][0]+self.grid_size_half,
+            #                                 center_indices[batch][1]-self.grid_size_half:center_indices[batch][1]+self.grid_size_half,
+            #                                 center_indices[batch][2]-self.grid_size_half:center_indices[batch][2]+self.grid_size_half]
+            heatmaps3D[batch] = self._get_heatmap_value(torch.transpose(heatmaps[batch], 0,1), grid)
         self.ender.record()
         return heatmaps3D

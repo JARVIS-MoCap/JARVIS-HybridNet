@@ -116,13 +116,15 @@ class EfficientTrack:
                                         batch_size = self.cfg.EFFICIENTTRACK.BATCH_SIZE,
                                         shuffle = True,
                                         num_workers =  self.cfg.DATALOADER_NUM_WORKERS,
-                                        pin_memory = True)
+                                        pin_memory = True,
+                                        drop_last = True)
 
         val_generator = DataLoader(validation_set,
                                         batch_size = self.cfg.EFFICIENTTRACK.BATCH_SIZE,
                                         shuffle = False,
                                         num_workers =  self.cfg.DATALOADER_NUM_WORKERS,
-                                        pin_memory = True)
+                                        pin_memory = True,
+                                        drop_last = True)
 
         epoch = start_epoch
         best_loss = 1e5

@@ -41,6 +41,7 @@ class VortexDataset2D(VortexBaseDataset):
         super().__init__(cfg, dataset_name,set)
         self.mode = mode
         assert cfg.EFFICIENTTRACK.BOUNDING_BOX_SIZE % 64 == 0, "Bounding Box size has to be divisible by 64!"
+        cfg.EFFICIENTTRACK.NUM_JOINTS = self.num_keypoints[0]
         self.heatmap_generator = [
             HeatmapGenerator(
                 cfg.EFFICIENTTRACK.BOUNDING_BOX_SIZE, output_size, self.num_keypoints[0])  \

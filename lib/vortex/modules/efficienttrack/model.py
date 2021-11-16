@@ -34,7 +34,8 @@ class EfficientTrackBackbone(nn.Module):
 
         self.backbone_compound_coef = [0, 1, 2, 3, 4, 5, 6, 6, 7]
         self.fpn_num_filters = [88, 112, 160, 224, 288, 384, 384, 384, 384]
-        self.fpn_cell_repeats = [4, 5, 6, 7, 7, 8, 8, 8, 8]
+        self.fpn_cell_repeats = [4, 4, 6, 7, 7, 8, 8, 8, 8]
+        self.final_layer_sizes = [88, 112, 160, 192, 224, 288, 288, 384, 384]
         self.input_sizes = [512, 640, 768, 896, 1024, 1280, 1280, 1536, 1536]
         self.pyramid_levels = [5, 5, 5, 5, 5, 5, 5, 5, 6]
         conv_channel_coef = {
@@ -66,23 +67,23 @@ class EfficientTrackBackbone(nn.Module):
         self.upsample2 = nn.Upsample(scale_factor = 2, mode = 'nearest')
         self.weights_cat = nn.Parameter(torch.ones(3), requires_grad=True)
         self.weights_relu = nn.ReLU()
-        self.first_conv = SeparableConvBlock(160,160,True)
+        self.first_conv = SeparableConvBlock(self.fpn_num_filters[self.compound_coef],self.final_layer_sizes[self.compound_coef],True)
         self.deconv1 = nn.ConvTranspose2d(
-            in_channels=160,
-            out_channels=160,
+            in_channels=self.final_layer_sizes[self.compound_coef],
+            out_channels=self.final_layer_sizes[self.compound_coef],
             kernel_size=4,
             stride=2,
             padding=1,
             bias=False)
-        self.gn1 = nn.GroupNorm(self.num_groups, 160)
+        self.gn1 = nn.GroupNorm(self.num_groups, self.final_layer_sizes[self.compound_coef])
         self.final_conv1 = nn.Conv2d(
-            in_channels = 160,
+            in_channels = self.final_layer_sizes[self.compound_coef],
             out_channels = self.cfg.EFFICIENTTRACK.NUM_JOINTS,
             kernel_size = 3,
             padding=1,
             bias = False)
         self.final_conv2 = nn.Conv2d(
-            in_channels = 160,
+            in_channels = self.final_layer_sizes[self.compound_coef],
             out_channels = self.cfg.EFFICIENTTRACK.NUM_JOINTS,
             kernel_size = 3,
             padding=1,

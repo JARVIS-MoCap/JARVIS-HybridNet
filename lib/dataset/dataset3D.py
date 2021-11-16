@@ -78,7 +78,7 @@ class VortexDataset3D(VortexBaseDataset):
             y_cube_size_min = np.max(np.max(keypoints3D_cam[:,1], axis = 0)-np.min(keypoints3D_cam[:,1],axis = 0))
             z_cube_size_min = np.max(np.max(keypoints3D_cam[:,2], axis = 0)-np.min(keypoints3D_cam[:,2],axis = 0))
             min_cube_size = np.max([x_cube_size_min,y_cube_size_min,z_cube_size_min])
-            if (min_cube_size < 144):
+            if (min_cube_size < 208):
                 self.image_ids.append(self.coco.dataset['framesets'][set][0])
                 self.keypoints3D.append(keypoints3D_cam)
             else:
@@ -291,13 +291,26 @@ if __name__ == "__main__":
     from lib.config.project_manager import ProjectManager
 
     project = ProjectManager()
-    project.load('Ralph_Test3D')
+    project.load('12Cam')
 
 
     cfg = project.get_cfg()
     idx = 0
-    training_set = VortexDataset3D(cfg = cfg, set='train')
+    training_set = VortexDataset3D(cfg = cfg, set='val')
     print (len(training_set))
+    frameNames = []
+    for i in range(len(training_set.image_ids)):
+        image_info = training_set.coco.loadImgs(training_set.image_ids[i])[0]
+        print (image_info['file_name'])
+        frameNames.append(image_info['file_name'])
+    print (len(frameNames))
+
+    import csv
+    with open("framesNames.csv", 'w', newline='') as myfile:
+     wr = csv.writer(myfile, quoting=csv.QUOTE_MINIMAL)
+     for name in frameNames:
+         wr.writerow([name])
+
     #training_set.get_dataset_config(show_visualization = True)
     for i in range(0,121):
         training_set.visualize_sample(i)

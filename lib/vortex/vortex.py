@@ -159,6 +159,8 @@ class Vortex:
 
                 else:
                     outputs = self.model(imgs, centerHM, center3D)
+                    torch.cuda.synchronize()
+                    print(self.model.reproLayer.starter.elapsed_time(self.model.reproLayer.ender))
                     loss = self.criterion(outputs[0], heatmap3D)
                     loss = loss.mean()
                     acc = torch.mean(torch.sqrt(torch.sum((keypoints-outputs[2])**2, dim = 2)))
