@@ -1,7 +1,7 @@
 """
 dataset3D.py
 ============
-Vortex 3D dataset loader.
+HybridNet 3D dataset loader.
 """
 
 import os,sys,inspect
@@ -21,14 +21,14 @@ current_dir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentfra
 parent_dir = os.path.dirname(os.path.dirname(current_dir))
 sys.path.insert(0, parent_dir)
 
-from lib.dataset.datasetBase import VortexBaseDataset
-from lib.vortex.utils import ReprojectionTool
+from lib.dataset.datasetBase import BaseDataset
+from lib.hybridnet.utils import ReprojectionTool
 from lib.dataset.utils import SetupVisualizer
 
-class VortexDataset3D(VortexBaseDataset):
+class Dataset3D(BaseDataset):
     """
-    Dataset Class to load 3D datasets in the VoRTEx dataset format, inherits from
-    VortexBaseDataset class. See HERE for more details.
+    Dataset Class to load 3D datasets in the HybridNet dataset format, inherits from
+    BaseDataset class. See HERE for more details.
 
     :param cfg: handle of the global configuration
     :param set: specifies wether to load training ('train') or validation ('val') split.
@@ -176,23 +176,9 @@ class VortexDataset3D(VortexBaseDataset):
         final_bbox_suggestion = int(np.ceil((min_cube_size*1.1)/8)*8)
         resolution_suggestion = int(np.floor((final_bbox_suggestion/100.)))
 
-        x_grid_size = x_range[1]-x_range[0]
-        y_grid_size = y_range[1]-y_range[0]
-        z_grid_size = z_range[1]-z_range[0]
-        margin = 0.5   #this should be replaced by something dependent on final_bbox_suggestion
-        grid_x_suggestion = [int(np.ceil((x_range[0]-x_grid_size*margin)/resolution_suggestion)*resolution_suggestion),
-                             int(np.ceil((x_range[1]+x_grid_size*margin)/resolution_suggestion)*resolution_suggestion)]
-        grid_y_suggestion = [int(np.ceil((y_range[0]-y_grid_size*margin)/resolution_suggestion)*resolution_suggestion),
-                             int(np.ceil((y_range[1]+y_grid_size*margin)/resolution_suggestion)*resolution_suggestion)]
-        grid_z_suggestion = [int(np.ceil((z_range[0]-z_grid_size*margin)/resolution_suggestion)*resolution_suggestion),
-                             int(np.ceil((z_range[1]+z_grid_size*margin)/resolution_suggestion)*resolution_suggestion)]
-
         suggested_parameters = {
             'bbox': final_bbox_suggestion,
             'resolution': resolution_suggestion,
-            'grid_x': grid_x_suggestion,
-            'grid_y': grid_y_suggestion,
-            'grid_z': grid_z_suggestion,
         }
 
         if show_visualization:
@@ -296,7 +282,7 @@ if __name__ == "__main__":
 
     cfg = project.get_cfg()
     idx = 0
-    training_set = VortexDataset3D(cfg = cfg, set='val')
+    training_set = Dataset3D(cfg = cfg, set='val')
     print (len(training_set))
     frameNames = []
     for i in range(len(training_set.image_ids)):

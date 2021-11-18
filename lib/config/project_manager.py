@@ -10,8 +10,8 @@ import shutil
 from yacs.config import CfgNode as CN
 
 from lib.config import cfg
-from lib.dataset.dataset2D import VortexDataset2D
-from lib.dataset.dataset3D import VortexDataset3D
+from lib.dataset.dataset2D import Dataset2D
+from lib.dataset.dataset3D import Dataset3D
 
 
 class ProjectManager:
@@ -39,10 +39,9 @@ class ProjectManager:
             self.cfg = None
             return
         cfg.merge_from_file(os.path.join(self.parent_dir, self.cfg.PROJECTS_ROOT_PATH, project_name, 'config.yaml'))
-        print (self.cfg.EFFICIENTTRACK.BOUNDING_BOX_SIZE)
         self.cfg.logPaths = CN()
         self.cfg.savePaths = CN()
-        for module in ['efficientdet', 'efficienttrack', 'vortex']:
+        for module in ['efficientdet', 'efficienttrack', 'hybridnet']:
             model_savepath = os.path.join(self.parent_dir, self.cfg.PROJECTS_ROOT_PATH, project_name, 'models', module)
             log_path = os.path.join(self.cfg.PROJECTS_ROOT_PATH, project_name, 'logs', module)
             self.cfg.savePaths[module] = model_savepath
@@ -67,10 +66,10 @@ class ProjectManager:
 
         """
         self.cfg = cfg
-        #if (os.path.isfile(os.path.join(self.cfg.PROJECTS_ROOT_PATH, name, 'config.yaml'))):
-        #    print ('Project already exist, change name or delete old project.')
-        #    self.cfg = None
-        #    return
+        # if (os.path.isfile(os.path.join(self.cfg.PROJECTS_ROOT_PATH, name, 'config.yaml'))):
+        #     print ('Project already exist, change name or delete old project.')
+        #     self.cfg = None
+        #     return
         self.cfg.PROJECT_NAME = name
         self.cfg.DATASET.DATASET_2D = dataset2D_path
         self.cfg.DATASET.DATASET_3D = dataset3D_path
@@ -100,7 +99,7 @@ class ProjectManager:
         return self.cfg
 
     def _init_dataset2D(self):
-        dataset2D = VortexDataset2D(self.cfg, set='train', mode = 'keypoints')
+        dataset2D = Dataset2D(self.cfg, set='train', mode = 'keypoints')
         suggested_bbox_size = dataset2D.get_dataset_config()
         print ('\nEfficientTrack Configuration:')
         print (f'Use suggested Bounding Box size of {suggested_bbox_size} pixels? (yes/no)')
@@ -111,9 +110,9 @@ class ProjectManager:
         self.cfg.EFFICIENTTRACK.BOUNDING_BOX_SIZE = suggested_bbox_size
 
     def _init_dataset3D(self):
-        dataset3D = VortexDataset3D(self.cfg, set='train')
+        dataset3D = Dataset3D(self.cfg, set='train')
         suggestions  = dataset3D.get_dataset_config()
-        print ('\nVortex Configuration:')
+        print ('\HybridNet Configuration:')
         print (f'Use suggested 3D Bounding Box size of {suggestions["bbox"]} mm? (yes/no)')
         ans = input()
         if ans == 'no' or ans == 'n':
@@ -124,36 +123,9 @@ class ProjectManager:
         if ans == 'no' or ans == 'n':
             print('Enter custom grid spacing:')
             suggestions['resolution'] = int(input())
-        print (f'Use suggested x-Axis Grid Dimension of {suggestions["grid_x"]} mm? (yes/no)')
-        ans = input()
-        if ans == 'no' or ans == 'n':
-            print('Enter custom x-Axis Grid Dimensions, make sure they are divisible by your resolution:')
-            print('x-Axis start:')
-            suggestions['grid_x'][0] = int(input())
-            print ('x-Axis end:')
-            suggestions['grid_x'][1] = int(input())
-        print (f'Use suggested y-Axis Grid Dimension of {suggestions["grid_y"]} mm? (yes/no)')
-        ans = input()
-        if ans == 'no' or ans == 'n':
-            print('Enter custom y-Axis Grid Dimension, make sure they are divisible by your resolution:')
-            print('y-Axis start:')
-            suggestions['grid_y'][0] = int(input())
-            print ('y-Axis end:')
-            suggestions['grid_y'][1] = int(input())
-        print (f'Use suggested z-Axis Grid Dimension of {suggestions["grid_z"]} mm? (yes/no)')
-        ans = input()
-        if ans == 'no' or ans == 'n':
-            print('Enter custom z-Axis Grid Dimension, make sure they are divisible by your resolution:')
-            print('z-Axis start:')
-            suggestions['grid_z'][0] = int(input())
-            print ('z-Axis end:')
-            suggestions['grid_z'][1] = int(input())
 
         self.cfg.VORTEX.ROI_CUBE_SIZE = suggestions['bbox']
         self.cfg.VORTEX.GRID_SPACING = suggestions['resolution']
-        self.cfg.VORTEX.GRID_DIM_X = [suggestions['grid_x'][0],suggestions['grid_x'][1]]
-        self.cfg.VORTEX.GRID_DIM_Y = [suggestions['grid_y'][0],suggestions['grid_y'][1]]
-        self.cfg.VORTEX.GRID_DIM_Z = [suggestions['grid_z'][0],suggestions['grid_z'][1]]
 
     def _init_config(self, name):
         config_path = os.path.join(cfg.PROJECTS_ROOT_PATH, name, 'config.yaml')
@@ -175,4 +147,3 @@ class ProjectManager:
                     config_dict[k] = cfg[k]
                 except:
                     print (k,v)
-                    print ('No val in cfg')

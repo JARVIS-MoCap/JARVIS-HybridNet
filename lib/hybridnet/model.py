@@ -1,7 +1,7 @@
 """
 model.py
 ========
-Vortex torch module.
+HybridNet torch module.
 """
 
 import os,sys,inspect
@@ -23,21 +23,21 @@ current_dir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentfra
 parent_dir = os.path.dirname(os.path.dirname(current_dir))
 sys.path.insert(0, parent_dir)
 
-from lib.vortex.modules.v2vnet.repro_layer import ReprojectionLayer
-from lib.dataset.dataset3D import VortexDataset3D
-from lib.vortex.modules.efficienttrack.model import EfficientTrackBackbone
-import lib.vortex.modules.efficienttrack.darkpose as darkpose
-from lib.vortex.utils import ReprojectionTool
-from lib.vortex.modules.v2vnet.model import V2VNet
+from lib.hybridnet.modules.v2vnet.repro_layer import ReprojectionLayer
+from lib.dataset.dataset3D import Dataset3D
+from lib.hybridnet.modules.efficienttrack.model import EfficientTrackBackbone
+import lib.hybridnet.modules.efficienttrack.darkpose as darkpose
+from lib.hybridnet.utils import ReprojectionTool
+from lib.hybridnet.modules.v2vnet.model import V2VNet
 
 #        self.starter, self.ender = torch.cuda.Event(enable_timing=True), torch.cuda.Event(enable_timing=True)
 #        self.starter.record()
 #        self.ender.record()
 
 
-class VortexBackbone(nn.Module):
+class HybridNetBackbone(nn.Module):
     def __init__(self, cfg, intrinsic_paths, extrinsic_paths, efficienttrack_weights = None):
-        super(VortexBackbone, self).__init__()
+        super(HybridNetBackbone, self).__init__()
         self.cfg = cfg
         self.root_dir = cfg.DATASET.DATASET_ROOT_DIR
         self.register_buffer('grid_size', torch.tensor(cfg.VORTEX.ROI_CUBE_SIZE))
@@ -61,7 +61,7 @@ class VortexBackbone(nn.Module):
                                                  torch.arange(int(self.grid_size/self.grid_spacing/2)).cuda(),
                                                  torch.arange(int(self.grid_size/self.grid_spacing/2)).cuda())
         self.last_time = 0
-        self.starter, self.ender = torch.cuda.Event(enable_timing=True), torch.cuda.Event(enable_timing=True)
+        #self.starter, self.ender = torch.cuda.Event(enable_timing=True), torch.cuda.Event(enable_timing=True)
 
 
     def forward(self, imgs, centerHM, center3D):
@@ -109,16 +109,16 @@ if __name__ == "__main__":
 
     cfg = project.get_cfg()
     import time
-    training_set = VortexDataset3D(cfg = cfg, set='val')
+    training_set = Dataset3D(cfg = cfg, set='val')
     #cfg.PROJECTS_ROOT_PATH = '/home/timo/Desktop/VoRTEx/projects'
     #cfg.PROJECT_NAME = 'Test_Crop'
-    vortex = VortexBackbone(cfg, training_set.coco.dataset['calibration']['intrinsics'], training_set.coco.dataset['calibration']['extrinsics']).cuda()
+    hybridnet = HybridNetBackbone(cfg, training_set.coco.dataset['calibration']['intrinsics'], training_set.coco.dataset['calibration']['extrinsics']).cuda()
 
 
-    vortex.load_state_dict(torch.load('/home/trackingsetup/Documents/Vortex/projects/Ralph_Test3D/models/vortex/Run_20210827-202110/Vortex-d_15.pth'), strict = True)
-    vortex.requires_grad_(False)
-    vortex.eval()
-    vortex = vortex.cuda()
+    hybridnet.load_state_dict(torch.load('/home/trackingsetup/Documents/Vortex/projects/Ralph_Test3D/models/vortex/Run_20210827-202110/Vortex-d_15.pth'), strict = True)
+    hybridnet.requires_grad_(False)
+    hybridnet.eval()
+    hybridnet = hybridnet.cuda()
     tot_errors_hm3d = []
     tot_errors_class = []
     joint_lengths_hm3d = [[] for i in range(15)]
@@ -145,10 +145,10 @@ if __name__ == "__main__":
         #              output_names=['output'], export_params=True, opset_version=11, do_constant_folding = True, use_external_data_format=True)
 
         with torch.cuda.amp.autocast():
-            heatmap3D, heatmaps_padded, points3D_net = vortex(imgs_p,torch.unsqueeze(centerHM,0),  torch.unsqueeze(center3D,0))
+            heatmap3D, heatmaps_padded, points3D_net = hybridnet(imgs_p,torch.unsqueeze(centerHM,0),  torch.unsqueeze(center3D,0))
             start_time = time.time()
-            heatmap3D, heatmaps_padded, points3D_net = vortex(imgs_p,torch.unsqueeze(centerHM,0),  torch.unsqueeze(center3D,0))
-        print (vortex.last_time)
+            heatmap3D, heatmaps_padded, points3D_net = hybridnet(imgs_p,torch.unsqueeze(centerHM,0),  torch.unsqueeze(center3D,0))
+        print (hybridnet.last_time)
         print ((time.time()-start_time)*1000)
         preds, maxvals = darkpose.get_final_preds(heatmaps_padded[0].clamp(0,255).cpu().numpy(), None)
         preds *= 2

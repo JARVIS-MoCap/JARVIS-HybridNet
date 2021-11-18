@@ -8,7 +8,7 @@ import torch
 from torch import nn
 from torchvision.ops.boxes import nms as nms_torch
 
-from lib.vortex.modules.efficientnet.model import EfficientNet as EffNet
+from lib.hybridnet.modules.efficientnet.model import EfficientNet as EffNet
 from .utils import Anchors
 from .utils import MaxPool2dStaticSamePadding
 from lib.utils.utils import Swish, MemoryEfficientSwish

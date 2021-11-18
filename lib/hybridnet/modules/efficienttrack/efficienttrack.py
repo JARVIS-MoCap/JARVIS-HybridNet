@@ -19,9 +19,9 @@ import onnx
 
 from .model import EfficientTrackBackbone
 from .loss import MultiLossFactory
-import lib.vortex.modules.efficienttrack.utils as utils
+import lib.hybridnet.modules.efficienttrack.utils as utils
 from lib.logger.logger import NetLogger, AverageMeter
-import lib.vortex.modules.efficienttrack.darkpose as darkpose
+import lib.hybridnet.modules.efficienttrack.darkpose as darkpose
 
 
 class EfficientTrack:

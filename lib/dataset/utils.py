@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from stl import mesh
-from lib.vortex.utils import Camera
+from lib.hybridnet.utils import Camera
 import os
 import mpl_toolkits.mplot3d as mplot3d
 import itertools
@@ -27,7 +27,7 @@ class SetupVisualizer():
 
         cam_positions = []
         for cam in self.cameras:
-            camera_mesh = mesh.Mesh.from_file('/home/trackingsetup/Documents/Vortex/lib/dataset/Camera.stl')
+            camera_mesh = mesh.Mesh.from_file('/home/trackingsetup/Documents/Vortex/lib/dataset/Camera.stl') #TODO: Fix this path!
             camera_mesh.points = camera_mesh.points*0.7
             rotMat = np.eye(3)
             rotMat[0,0] = -1

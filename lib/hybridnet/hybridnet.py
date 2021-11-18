@@ -1,8 +1,8 @@
 """
-vortex.py
+hybridnet.py
 ===============
-Vortex convenience class, can be used to train and troublshoot the
-Vortex module.
+HybridNet convenience class, can be used to train and troublshoot the
+HybridNet module.
 """
 
 import os
@@ -15,18 +15,18 @@ from torch import nn
 from torch.utils.data import DataLoader
 import onnx
 
-from .model import VortexBackbone
+from .model import HybridNetBackbone
 from .loss import MSELoss
-import lib.vortex.utils as utils
+import lib.hybridnet.utils as utils
 from lib.logger.logger import NetLogger, AverageMeter
-import lib.vortex.modules.efficienttrack.darkpose as darkpose
+import lib.hybridnet.modules.efficienttrack.darkpose as darkpose
 
 
 
-class Vortex:
+class HybridNet:
     """
-    Vortex convenience class, enables easy training and inference with
-    using the Vortex Module.
+    hybridNet convenience class, enables easy training and inference with
+    using the HybridNet Module.
 
     :param mode: Select wether the network is loaded in training or inference
                  mode
@@ -38,16 +38,16 @@ class Vortex:
     def __init__(self, mode, cfg, calibPaths,weights = None, efficienttrack_weights = None, run_name = None):
         self.mode = mode
         self.cfg = cfg
-        self.model = VortexBackbone(cfg, calibPaths[0], calibPaths[1], efficienttrack_weights)
+        self.model = HybridNetBackbone(cfg, calibPaths[0], calibPaths[1], efficienttrack_weights)
 
         if mode  == 'train':
             if run_name == None:
                 run_name = "Run_" + time.strftime("%Y%m%d-%H%M%S")
 
-            self.model_savepath = os.path.join(self.cfg.savePaths['vortex'], run_name)
+            self.model_savepath = os.path.join(self.cfg.savePaths['hybridnet'], run_name)
             os.makedirs(self.model_savepath, exist_ok=True)
 
-            self.logger = NetLogger(os.path.join(self.cfg.logPaths['vortex'], run_name))
+            self.logger = NetLogger(os.path.join(self.cfg.logPaths['hybridnet'], run_name))
             self.lossMeter = AverageMeter()
             self.accuracyMeter = AverageMeter()
             self.valLossMeter = AverageMeter()
@@ -159,8 +159,8 @@ class Vortex:
 
                 else:
                     outputs = self.model(imgs, centerHM, center3D)
-                    torch.cuda.synchronize()
-                    print(self.model.reproLayer.starter.elapsed_time(self.model.reproLayer.ender))
+                    #torch.cuda.synchronize()
+                    #print(self.model.reproLayer.starter.elapsed_time(self.model.reproLayer.ender))
                     loss = self.criterion(outputs[0], heatmap3D)
                     loss = loss.mean()
                     acc = torch.mean(torch.sqrt(torch.sum((keypoints-outputs[2])**2, dim = 2)))
@@ -184,7 +184,7 @@ class Vortex:
             self.accuracyMeter.reset()
 
             if epoch % self.cfg.VORTEX.CHECKPOINT_SAVE_INTERVAL == 0 and epoch > 0:
-                self.save_checkpoint(f'Vortex-d_{epoch}.pth')
+                self.save_checkpoint(f'HybridNet-d_{epoch}.pth')
                 print('checkpoint...')
 
             if epoch % self.cfg.VORTEX.VAL_INTERVAL == 0:

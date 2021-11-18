@@ -1,7 +1,7 @@
 """
 dataset2D.py
 ============
-Vortex 2D dataset loader.
+HybridNet 2D dataset loader.
 """
 
 import os,sys,inspect
@@ -20,40 +20,51 @@ current_dir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentfra
 parent_dir = os.path.dirname(os.path.dirname(current_dir))
 sys.path.insert(0, parent_dir)
 
-from lib.dataset.datasetBase import VortexBaseDataset
+from lib.dataset.datasetBase import BaseDataset
 
 
-class VortexDataset2D(VortexBaseDataset):
+class Dataset2D(BaseDataset):
     """
-    Dataset Class to load 2D datasets in the VoRTEx dataset format, inherits from
-    VortexBaseDataset class. See HERE for more details.
+    Dataset Class to load 2D datasets in the HybridNet dataset format, inherits from
+    BaseDataset class. See HERE for more details.
 
     :param cfg: handle of the global configuration
     :param set: specifies wether to load training ('train') or validation ('val') split.
                 Augmentation will only be applied to training split.
     :type set: string
-    :param mode: specifies wether bounding box annotations ('cropping') or keypoint
+    :param mode: specifies wether center of mass ('center') or keypoint
                  annotations ('keypoints') will be loaded.
     :type mode: string
     """
-    def __init__(self, cfg, set='train', mode = 'cropping'):
+    def __init__(self, cfg, set='train', mode = 'center'):
         dataset_name = cfg.DATASET.DATASET_2D
         super().__init__(cfg, dataset_name,set)
         self.mode = mode
         assert cfg.EFFICIENTTRACK.BOUNDING_BOX_SIZE % 64 == 0, "Bounding Box size has to be divisible by 64!"
-        cfg.EFFICIENTTRACK.NUM_JOINTS = self.num_keypoints[0]
-        self.heatmap_generator = [
-            HeatmapGenerator(
-                cfg.EFFICIENTTRACK.BOUNDING_BOX_SIZE, output_size, self.num_keypoints[0])  \
-                    for output_size in [int(cfg.EFFICIENTTRACK.BOUNDING_BOX_SIZE/4), int(cfg.EFFICIENTTRACK.BOUNDING_BOX_SIZE/2)]
-        ]
+        if self.mode == "center":
+            cfg.EFFICIENTTRACK.NUM_JOINTS = 1
+            img = self._load_image(0)
+            width, height = img.shape[1], img.shape[0]
+            scale = self.cfg.EFFICIENTDET.IMG_SIZE / max(height, width)
+            self.heatmap_generator = [
+                HeatmapGenerator(
+                    [height*scale,width*scale], output_size, 1, sigma  = -2)  \
+                        for output_size in [[int(height*scale/4),int(width*scale/4)], [int(height*scale/2),int(width*scale/2)]]
+            ]
+        elif self.mode == "keypoints":
+            cfg.EFFICIENTTRACK.NUM_JOINTS = self.num_keypoints[0]
+            self.heatmap_generator = [
+                HeatmapGenerator(
+                    [cfg.EFFICIENTTRACK.BOUNDING_BOX_SIZE,cfg.EFFICIENTTRACK.BOUNDING_BOX_SIZE] , [output_size,output_size], self.num_keypoints[0])  \
+                        for output_size in [int(cfg.EFFICIENTTRACK.BOUNDING_BOX_SIZE/4), int(cfg.EFFICIENTTRACK.BOUNDING_BOX_SIZE/2)]
+            ]
         self._build_augpipe()
-        self.transform = transforms.Compose([Normalizer(mean=cfg.DATASET.MEAN, std=cfg.DATASET.STD, mode=mode)])
+        self.transform = transforms.Compose([Normalizer(mean=cfg.DATASET.MEAN, std=cfg.DATASET.STD)])
 
 
     def _build_augpipe(self):
         augmentors = []
-        if self.mode == 'cropping':
+        if self.mode == 'center':
             img = self._load_image(0)
             width, height = img.shape[1], img.shape[0]
             scale = self.cfg.EFFICIENTDET.IMG_SIZE / max(height, width)
@@ -63,7 +74,7 @@ class VortexDataset2D(VortexBaseDataset):
         elif self.mode == 'keypoints':
             cfg = self.cfg.EFFICIENTTRACK.AUGMENTATION
 
-        if not (self.mode == 'cropping' and self.set_name == 'val'):
+        if not (self.mode == 'center' and self.set_name == 'val'):
             if cfg.COLOR_MANIPULATION.ENABLED:
                 cman = cfg.COLOR_MANIPULATION
                 augmentors.append(iaa.Sometimes(cman.GAUSSIAN_BLUR.PROBABILITY,
@@ -82,28 +93,43 @@ class VortexDataset2D(VortexBaseDataset):
             augmentors.append(iaa.Sometimes(cfg.AFFINE_TRANSFORM.PROBABILITY,
                               iaa.Affine(rotate=cfg.AFFINE_TRANSFORM.ROTATION_RANGE,
                               scale=cfg.AFFINE_TRANSFORM.SCALE_RANGE)))
-        if self.mode == 'cropping':
-            augmentors.append(iaa.PadToFixedSize(self.cfg.EFFICIENTDET.IMG_SIZE,self.cfg.EFFICIENTDET.IMG_SIZE))
 
         self.augpipe = iaa.Sequential(augmentors, random_order = False)
 
 
     def __getitem__(self, idx):
-        if self.mode == 'cropping':
-            img = self._load_image(idx)
-            bboxs, keypoints = self._load_annotations(idx)
-            for i,bbox in enumerate(bboxs):
-                bboxs_iaa = BoundingBoxesOnImage([BoundingBox(x1=bboxs[i,0], y1=bboxs[i,1], x2=bboxs[i,2], y2=bboxs[i,3])], shape=(img.shape[0],img.shape[1],3))
-                img, bboxs_aug = self.augpipe(image=img, bounding_boxes=bboxs_iaa)
-                bboxs[i,0] = bboxs_aug[0].x1
-                bboxs[i,1] = bboxs_aug[0].y1
-                bboxs[i,2] = bboxs_aug[0].x2
-                bboxs[i,3] = bboxs_aug[0].y2
-            sample = [img, bboxs]
+        img = self._load_image(idx)
+        bboxs, keypoints = self._load_annotations(idx)
+        if self.mode == 'center':
+            bbox_hw = int(self.cfg.EFFICIENTTRACK.BOUNDING_BOX_SIZE/2)
+            center_y = min(max(bbox_hw, int((bboxs[0][1]+int(bboxs[0][3]))/2)), img.shape[0]-bbox_hw)
+            center_x = min(max(bbox_hw, int((bboxs[0][0]+int(bboxs[0][2]))/2)), img.shape[1]-bbox_hw)
+            keypoints_masked = np.array(keypoints[0]).reshape(-1,3)
+            keypoints_masked = np.ma.MaskedArray(keypoints_masked, mask=(np.ones_like(keypoints_masked)*(keypoints_masked[:,2]==0).reshape(-1,1)))
+            center_median = np.ma.median(keypoints_masked, axis = 0)
+            if bboxs[0][4]  != -1:
+                center = np.array([[center_median[0],center_median[1],1]])
+            else:
+                center = np.array([[0.0,0.0,1.0]])
+            keypoints_iaa = KeypointsOnImage([Keypoint(x=center[0][0], y=center[0][1])],
+                                             shape=(1024,1280,3))
+            img, keypoints_aug = self.augpipe(image=img, keypoints = keypoints_iaa)
+            center[0][0] = keypoints_aug[0].x
+            center[0][1] = keypoints_aug[0].y
+
+            joints = np.zeros((1,1, 3))
+            joints[0, :1, :3] = center.reshape([-1, 3])
+            joints_list = [[],[]]
+            if bboxs[0][4]  != -1:
+                joints_list = [joints.copy() for _ in range(2)]
+            target_list = list()
+            for scale_id in range(2):
+                target_t = self.heatmap_generator[scale_id](joints_list[scale_id])
+                target_list.append(target_t.astype(np.float32))
+            sample = [img, target_list, center]
+            return self.transform(sample)
 
         elif self.mode == 'keypoints':
-            img = self._load_image(idx)
-            bboxs, keypoints = self._load_annotations(idx)
             bbox_hw = int(self.cfg.EFFICIENTTRACK.BOUNDING_BOX_SIZE/2)
             center_y = min(max(bbox_hw, int((bboxs[0][1]+int(bboxs[0][3]))/2)), img.shape[0]-bbox_hw)
             center_x = min(max(bbox_hw, int((bboxs[0][0]+int(bboxs[0][2]))/2)), img.shape[1]-bbox_hw)
@@ -151,8 +177,6 @@ class VortexDataset2D(VortexBaseDataset):
         ind = np.argmax(x_sizes)
         image_info = self.coco.loadImgs(self.image_ids[self.image_ids[ind]])[0]
         path = os.path.join(self.root_dir, self.set_name, image_info['file_name'])
-        print (path)
-
 
         final_bbox_suggestion = int(np.ceil((bbox_min_size*1.02)/64)*64)
         return final_bbox_suggestion
@@ -160,57 +184,40 @@ class VortexDataset2D(VortexBaseDataset):
 
     def visualize_sample(self, idx):
         sample = self.__getitem__(idx)
-        if self.mode == 'keypoints':
+        if self.mode == 'keypoints' or self.mode == "center":
             img = (sample[0]*self.cfg.DATASET.STD+self.cfg.DATASET.MEAN)
             img = cv2.cvtColor(img.astype(np.float32), cv2.COLOR_RGB2BGR)
             heatmaps = sample[1]
-            img = cv2.resize(img*255, (heatmaps[1][0].shape[0], heatmaps[1][0].shape[1])).astype(np.uint8)
+            img = cv2.resize(img*255, (heatmaps[1][0].shape[1], heatmaps[1][0].shape[0])).astype(np.uint8)
             colored_heatmap = cv2.applyColorMap(heatmaps[1][0].astype(np.uint8), cv2.COLORMAP_JET)
             for i in range(1,heatmaps[1].shape[0]):
                 colored_heatmap = colored_heatmap + cv2.applyColorMap(heatmaps[1][i].astype(np.uint8), cv2.COLORMAP_JET)
             img = cv2.addWeighted(img,1.0,colored_heatmap,0.4,0)
-            img = cv2.resize(img, (512,512))
+            img = cv2.resize(img, (640,512))
             cv2.imshow('frame', img)
             cv2.waitKey(0)
 
-        elif self.mode == 'cropping':
-            img = (sample[0].numpy()*self.cfg.DATASET.STD+self.cfg.DATASET.MEAN)
-            img = cv2.cvtColor(img.astype(np.float32), cv2.COLOR_RGB2BGR)
-            bboxs = sample[1].numpy()
-            for i,bbox in enumerate(bboxs):
-                if bbox[4] != -1:
-                    cv2.rectangle(img, (int(bbox[0]), int(bbox[1])), (int(bbox[2]), int(bbox[3])), (0, 0, 255), 1)
-                    cv2.putText(img, '{}'.format(self.labels[int(bbox[4])]),
-                                (int(bbox[0]), int(bbox[1]) +8), cv2.FONT_HERSHEY_SIMPLEX, 0.3,
-                                (0, 0, 255), 1)
-            img = cv2.resize(img, (512,512));
-            cv2.imshow('frame', img)
-            cv2.waitKey(0)
 
 class Normalizer(object):
-    def __init__(self, mean, std, mode = 'cropping'):
+    def __init__(self, mean, std):
         self.mean = np.array([[mean]])
         self.std = np.array([[std]])
-        self.mode = mode
 
     def __call__(self, sample):
-        if self.mode == 'cropping':
-            image, bboxs = sample[0], sample[1]
-            return [torch.from_numpy((image.astype(np.float32) - self.mean) / self.std).to(torch.float32), torch.from_numpy(bboxs)]
-
-        elif self.mode == 'keypoints':
-            image, heatmaps = sample[0], sample[1]
-            keypoints = sample[2]
-            return [(image.astype(np.float32) - self.mean) / self.std, heatmaps, keypoints]
+        image, heatmaps = sample[0], sample[1]
+        keypoints = sample[2]
+        return [(image.astype(np.float32) - self.mean) / self.std, heatmaps, keypoints]
 
 
 class HeatmapGenerator():
     def __init__(self, original_res, output_res, num_joints, sigma=-1):
         self.output_res = output_res
         self.num_joints = num_joints
-        self.scale_factor = float(output_res)/float(original_res)
-        if sigma < 0:
-            sigma = 2*self.output_res/64
+        self.scale_factor = float(output_res[0])/float(original_res[0])
+        if sigma == -1:
+            sigma = 2*self.output_res[0]/64
+        elif sigma == -2:
+            sigma = 1*self.output_res[0]/64
         self.sigma = sigma
         size = 6*sigma + 3
         x = np.arange(0, size, 1, float)
@@ -219,7 +226,7 @@ class HeatmapGenerator():
         self.g = 255.0*np.exp(- ((x - x0) ** 2 + (y - y0) ** 2) / (2 * sigma ** 2))
 
     def __call__(self, joints):
-        hms = np.zeros((self.num_joints, self.output_res, self.output_res),
+        hms = np.zeros((self.num_joints, self.output_res[0], self.output_res[1]),
                        dtype=np.float32)
         sigma = self.sigma
         for p in joints:
@@ -227,17 +234,17 @@ class HeatmapGenerator():
                 if pt[2] > 0:
                     x, y = int(pt[0]*self.scale_factor), int(pt[1]*self.scale_factor)
                     if x < 0 or y < 0 or \
-                       x >= self.output_res or y >= self.output_res:
+                       x >= self.output_res[1] or y >= self.output_res[0]:
                         continue
 
                     ul = int(np.round(x - 3 * sigma - 1)), int(np.round(y - 3 * sigma - 1))
                     br = int(np.round(x + 3 * sigma + 2)), int(np.round(y + 3 * sigma + 2))
 
-                    c, d = max(0, -ul[0]), min(br[0], self.output_res) - ul[0]
-                    a, b = max(0, -ul[1]), min(br[1], self.output_res) - ul[1]
+                    c, d = max(0, -ul[0]), min(br[0], self.output_res[1]) - ul[0]
+                    a, b = max(0, -ul[1]), min(br[1], self.output_res[0]) - ul[1]
 
-                    cc, dd = max(0, ul[0]), min(br[0], self.output_res)
-                    aa, bb = max(0, ul[1]), min(br[1], self.output_res)
+                    cc, dd = max(0, ul[0]), min(br[0], self.output_res[1])
+                    aa, bb = max(0, ul[1]), min(br[1], self.output_res[0])
                     hms[idx, aa:bb, cc:dd] = np.maximum(
                         hms[idx, aa:bb, cc:dd], self.g[a:b, c:d])
         return hms
@@ -245,11 +252,11 @@ class HeatmapGenerator():
 if __name__ == "__main__":
     from lib.config.project_manager import ProjectManager
     project = ProjectManager()
-    project.load('Ralph_Test')
+    project.load('Ralph_Center_Test')
     cfg = project.get_cfg()
     print (cfg.DATASET.DATASET_2D)
 
-    training_set = VortexDataset2D(cfg = cfg, set='val', mode='keypoints')
+    training_set = Dataset2D(cfg = cfg, set='train', mode='center')
     print (len(training_set.image_ids))
     for i in range(0,len(training_set.image_ids),10):
         training_set.visualize_sample(i)

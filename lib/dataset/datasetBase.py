@@ -1,7 +1,7 @@
 """
 datasetBase.py
 ==============
-Vortex dataset loader base class.
+HybridNet dataset loader base class.
 """
 
 
@@ -18,9 +18,9 @@ parent_dir = os.path.dirname(current_dir)
 sys.path.insert(0, parent_dir)
 
 
-class VortexBaseDataset(Dataset):
+class BaseDataset(Dataset):
     """
-    Dataset Class to load datasets in the VoRTEx dataset format. See HERE for more details.
+    Dataset Class to load datasets in the HybridNet dataset format. See HERE for more details.
 
     :param cfg: handle of the global configuration
     :param dataset_name: name of the dataset to be loaded

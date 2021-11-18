@@ -19,7 +19,7 @@ import onnx
 
 from .model import EfficientDetBackbone
 from .loss import FocalLoss
-import lib.vortex.modules.efficientdet.utils as utils
+import lib.hybridnet.modules.efficientdet.utils as utils
 from lib.logger.logger import NetLogger, AverageMeter
 
 

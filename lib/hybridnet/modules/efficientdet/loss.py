@@ -11,7 +11,7 @@ import cv2
 import numpy as np
 
 from .utils import BBoxTransform, ClipBoxes, invert_affine
-from lib.vortex.modules.efficientdet.utils import postprocess
+from lib.hybridnet.modules.efficientdet.utils import postprocess
 
 
 def calc_iou(a, b):
