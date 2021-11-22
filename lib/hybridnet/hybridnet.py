@@ -10,6 +10,7 @@ import numpy as np
 from tqdm.autonotebook import tqdm
 import time
 
+
 import torch
 from torch import nn
 from torch.utils.data import DataLoader
@@ -283,3 +284,135 @@ class HybridNet:
             self.model.effTrack.backbone_net.requires_grad_(False)
         elif mode == '3D_only':
             self.model.effTrack.requires_grad_(False)
+
+
+    def predictPosesVideos(self, centerDetect, reproTool, cameraMatrices,video_paths, output_dir, frameStart = 0, frameEnd = -1, makeVideos = True):
+        import itertools
+        from joblib import Parallel, delayed
+        import cv2
+        import csv
+
+        def process(cap):
+            ret, img = cap.read()
+            return img
+
+        caps = []
+        outs = []
+        for path in video_paths:
+            caps.append(cv2.VideoCapture(path))
+            os.makedirs(os.path.join(output_dir, 'Videos'), exist_ok = True)
+            img_size = self.cfg.DATASET.IMAGE_SIZE
+            outs.append(cv2.VideoWriter(os.path.join(output_dir, 'Videos',
+                        path.split('/')[-1].split(".")[0] + ".avi"),
+                        cv2.VideoWriter_fourcc('M','J', 'P', 'G'), 100,
+                        (img_size[0],img_size[1])))
+
+        for cap in caps:
+                cap.set(1,frameStart) #99640
+
+        counter = 0
+        with open(os.path.join(output_dir, 'data3D.csv'), 'w', newline='') as csvfile:
+            writer = csv.writer(csvfile, delimiter=',',
+                                        quotechar='"', quoting=csv.QUOTE_MINIMAL)
+            # header = ['Frame Idx']
+            # joints = ["Pinky_T","Pinky_D","Pinky_M","Pinky_P","Ring_T","Ring_D","Ring_M","Ring_P","Middle_T","Middle_D","Middle_M","Middle_P","Index_T","Index_D","Index_M","Index_P","Thumb_T","Thumb_D","Thumb_M","Thumb_P","Palm", "Wrist_U","Wrist_R"]
+            # joints = joints
+            # joints = list(itertools.chain.from_iterable(itertools.repeat(x, 3) for x in joints))
+            # header = header + joints
+            # header2 = [""]
+            # header2 = header2 + ['x','y', 'z']*23
+            # writer.writerow(header)
+            # writer.writerow(header2)
+            ret = True
+            while ret and (frameEnd == -1 or counter < frameEnd):
+                if counter % 100 == 0:
+                    print ("Analysing Frame ", counter)
+                counter += 1
+                imgs = []
+                imgs_orig = []
+                centerHMs = []
+                camsToUse = []
+
+                imgs_orig = Parallel(n_jobs=-1, require='sharedmem')(delayed(process)(cap) for cap in caps)
+                img_downsampled_shape = (int(imgs_orig[0].shape[1]/self.cfg.CENTERDETECT.DOWNSAMPLING_FACTOR),int(imgs_orig[0].shape[0]/self.cfg.CENTERDETECT.DOWNSAMPLING_FACTOR))
+                imgs = torch.zeros(self.cfg.DATASET.NUM_CAMERAS,3,img_downsampled_shape[1],img_downsampled_shape[0])
+                for i,img in enumerate(imgs_orig[:]):
+                    img = ((cv2.cvtColor(img, cv2.COLOR_BGR2RGB).astype(np.float32)/255.0-self.cfg.DATASET.MEAN)/self.cfg.DATASET.STD)
+                    img = cv2.resize(img, img_downsampled_shape)
+                    imgs[i] = torch.from_numpy(cv2.resize(img, img_downsampled_shape).transpose(2,0,1))
+
+                imgs = imgs.cuda()
+                outputs = centerDetect.model(imgs)
+                preds, maxvals = darkpose.get_final_preds(outputs[1].clamp(0,255).detach().cpu().numpy(), None)
+                camsToUse = []
+
+                for i,val in enumerate(maxvals[:]):
+                    if val > 180:
+                        camsToUse.append(i)
+
+                if len(camsToUse) >= 2:
+                    center3D = torch.from_numpy(reproTool.reconstructPoint((preds.reshape(self.cfg.DATASET.NUM_CAMERAS,2)*(self.cfg.CENTERDETECT.DOWNSAMPLING_FACTOR*2)).transpose(), camsToUse))
+                    reproPoints = reproTool.reprojectPoint(center3D)
+
+                    errors = []
+                    errors_valid = []
+                    for i in range(self.cfg.DATASET.NUM_CAMERAS):
+                        if maxvals[i] > 180:
+                            errors.append(np.linalg.norm(preds.reshape(self.cfg.DATASET.NUM_CAMERAS,2)[i]*8-reproPoints[i]))
+                            errors_valid.append(np.linalg.norm(preds.reshape(self.cfg.DATASET.NUM_CAMERAS,2)[i]*8-reproPoints[i]))
+                        else:
+                            errors.append(0)
+                    medianError = np.median(np.array(errors_valid))
+                    # print ("Error: ", medianError)
+                    # print ("Var based: ", medianError+2*np.sqrt(np.var(errors_valid)),medianError*4)
+                    camsToUse = []
+                    for i,val in enumerate(maxvals[:]):
+                        if val > 180 and errors[i] < 2*medianError:
+                            camsToUse.append(i)
+                    center3D = torch.from_numpy(reproTool.reconstructPoint((preds.reshape(self.cfg.DATASET.NUM_CAMERAS,2)*8).transpose(), camsToUse))
+                    reproPoints = reproTool.reprojectPoint(center3D)
+                imgs = []
+                bbox_hw = int(self.cfg.KEYPOINTDETECT.BOUNDING_BOX_SIZE/2)
+                for idx,reproPoint in enumerate(reproPoints):
+                    reproPoint = reproPoint.astype(int)
+                    img = imgs_orig[idx][reproPoint[1]-bbox_hw:reproPoint[1]+bbox_hw, reproPoint[0]-bbox_hw:reproPoint[0]+bbox_hw, :]
+                    img = ((cv2.cvtColor(img, cv2.COLOR_BGR2RGB).astype(np.float32)/255.0-self.cfg.DATASET.MEAN)/self.cfg.DATASET.STD)
+                    imgs.append(img)
+
+                if not ret:
+                    break
+                imgs = torch.from_numpy(np.array(imgs))
+                imgs = imgs.permute(0,3,1,2).view(1,self.cfg.DATASET.NUM_CAMERAS,3,self.cfg.KEYPOINTDETECT.BOUNDING_BOX_SIZE,self.cfg.KEYPOINTDETECT.BOUNDING_BOX_SIZE).cuda().float()
+                centerHMs = np.array(reproPoints).astype(int)
+                if len(camsToUse) >= 2:
+                    center3D = center3D.int().cuda()
+                    centerHMs = torch.from_numpy(centerHMs).cuda()
+                    heatmap3D, heatmaps_padded, points3D_net = self.model(imgs, torch.unsqueeze(centerHMs,0), torch.unsqueeze(center3D, 0), torch.unsqueeze(cameraMatrices.cuda(),0))
+                    row = [counter]
+                    for point in points3D_net.squeeze():
+                        row = row + point.tolist()
+                    writer.writerow(row)
+                    points2D = []
+                    for point in points3D_net[0].cpu().numpy():
+                        points2D.append(reproTool.reprojectPoint(point))
+
+
+                else:
+                    row = [counter]
+                    for i in range(23*3):
+                        row = row + ['NaN']
+                    writer.writerow(row)
+
+                colors = [(255,0,0), (255,0,0),(255,0,0),(255,0,0),(0,255,0),(0,255,0),(0,255,0),(0,255,0),(0,0,255),(0,0,255),(0,0,255),(0,0,255),(255,255,0),(255,255,0),(255,255,0), (255,255,0),
+                (0,255,255),(0,255,255),(0,255,255),(0,255,255), (255,0,255),(100,0,100),(100,0,100)]
+                for i,out in enumerate(outs):
+                    img = imgs_orig[i]
+                    if len(camsToUse) >= 2:
+                        for j,point in enumerate(points2D):
+                            cv2.circle(img, (int(point[i][0]), int(point[i][1])), 2, colors[j], thickness=5)
+                    out.write(img)
+
+            for out in outs:
+                out.release()
+            for cap in caps:
+                cap.release()
