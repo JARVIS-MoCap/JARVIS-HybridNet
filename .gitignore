@@ -2,9 +2,6 @@
 *.pyo
 
 docs/build/
-datasets/
-projects/
-pretrained/
 .ipynb_checkpoints/
 __pycache__/
 *.onnx

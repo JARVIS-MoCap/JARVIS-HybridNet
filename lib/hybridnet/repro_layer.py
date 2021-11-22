@@ -15,25 +15,17 @@ class ReprojectionLayer(nn.Module):
         self.cfg = cfg
         dataset_dir = os.path.join(cfg.DATASET.DATASET_ROOT_DIR,
                                    cfg.DATASET.DATASET_3D)
-
-        self.register_buffer('grid_spacing',
-                    torch.tensor(self.cfg.HYBRIDNET.GRID_SPACING))
-        self.register_buffer('boxsize',
-                    torch.tensor(self.cfg.HYBRIDNET.ROI_CUBE_SIZE))
-        self.register_buffer('grid_size',
-                    torch.tensor(self.cfg.HYBRIDNET.ROI_CUBE_SIZE
-                    / self.cfg.HYBRIDNET.GRID_SPACING).int())
+                    
+        self.grid_spacing = torch.tensor(self.cfg.HYBRIDNET.GRID_SPACING)
+        self.boxsize = torch.tensor(self.cfg.HYBRIDNET.ROI_CUBE_SIZE)
+        self.grid_size = torch.tensor(self.cfg.HYBRIDNET.ROI_CUBE_SIZE
+                    / self.cfg.HYBRIDNET.GRID_SPACING).int()
+        self.img_size = torch.tensor(cfg.DATASET.IMAGE_SIZE)
+        
         if num_cameras:
-            self.register_buffer('num_cameras',
-                        torch.tensor(num_cameras))
+            self.num_cameras = torch.tensor(num_cameras)
         else:
-            self.register_buffer('num_cameras',
-                        torch.tensor(self.cfg.DATASET.NUM_CAMERAS))
-        self.register_buffer('grid_size',
-                    torch.tensor(self.cfg.HYBRIDNET.ROI_CUBE_SIZE
-                    / self.cfg.HYBRIDNET.GRID_SPACING).int())
-        self.register_buffer('img_size',
-                    torch.tensor(cfg.DATASET.IMAGE_SIZE))
+            self.num_cameras = torch.tensor(self.cfg.DATASET.NUM_CAMERAS)
 
         self.ii,self.xx,self.yy,self.zz = torch.meshgrid(
                     torch.arange(self.num_cameras).cuda(),
@@ -54,6 +46,7 @@ class ReprojectionLayer(nn.Module):
         self.grid = self.grid * self.grid_spacing
 
 
+
     def reprojectPoints(self, x, cameraMatrices):
       res = torch.cuda.LongTensor(self.num_cameras, self.grid_size,
                                   self.grid_size, self.grid_size)
@@ -63,6 +56,7 @@ class ReprojectionLayer(nn.Module):
           partial = torch.matmul(x, cameraMatrices[i])
           partial[:,:,:,0] = torch.clamp(partial[:,:,:,0]
                     / partial[:,:,:,2], 0, self.img_size[0] - 1)
+
           partial[:,:,:,1] = torch.clamp(partial[:,:,:,1]
                     / partial[:,:,:,2], 0, self.img_size[1] - 1)
           res[i] = ((partial[:,:,:,1] / 2).int() * (self.img_size[0] / 2).int()

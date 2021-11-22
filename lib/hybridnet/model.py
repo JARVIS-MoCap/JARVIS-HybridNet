@@ -33,11 +33,9 @@ class HybridNetBackbone(nn.Module):
         super(HybridNetBackbone, self).__init__()
         self.cfg = cfg
         self.root_dir = cfg.DATASET.DATASET_ROOT_DIR
-        self.register_buffer('grid_size',
-                    torch.tensor(cfg.HYBRIDNET.ROI_CUBE_SIZE))
-        self.register_buffer('grid_spacing',
-                    torch.tensor(cfg.HYBRIDNET.GRID_SPACING))
-
+        self.grid_spacing = torch.tensor(cfg.HYBRIDNET.GRID_SPACING)
+        self.grid_size = torch.tensor(cfg.HYBRIDNET.ROI_CUBE_SIZE)
+       
         self.effTrack = EfficientTrackBackbone(self.cfg.KEYPOINTDETECT,
                     compound_coef=self.cfg.KEYPOINTDETECT.COMPOUND_COEF,
                     output_channels = self.cfg.KEYPOINTDETECT.NUM_JOINTS)
@@ -47,8 +45,8 @@ class HybridNetBackbone(nn.Module):
 
         self.reproLayer = ReprojectionLayer(cfg)
         img_size = self.cfg.DATASET.IMAGE_SIZE
-        self.register_buffer('heatmap_size', (torch.tensor([int(img_size[0]/2),
-                    int(img_size[1]/2)])))
+        self.heatmap_size = torch.tensor([int(img_size[0]/2),
+                    int(img_size[1]/2)])
         self.v2vNet = V2VNet(cfg.KEYPOINTDETECT.NUM_JOINTS,
                              cfg.KEYPOINTDETECT.NUM_JOINTS)
         self.softplus = nn.Softplus()
@@ -85,7 +83,6 @@ class HybridNetBackbone(nn.Module):
                           self.heatmap_size[1]-((centerHM[batch,i,1]/2)
                           + heatmap.shape[-1]/2).int()),
                      mode='constant', value=0)
-
         heatmaps3D = self.reproLayer(heatmaps_padded, center3D, cameraMatrices)
         heatmap_final = self.v2vNet(((heatmaps3D/255.)))
         heatmap_final = self.softplus(heatmap_final)

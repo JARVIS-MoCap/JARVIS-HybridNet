@@ -272,3 +272,35 @@ class EfficientTrack:
         else:
             torch.save(self.model.state_dict(),
                        os.path.join(self.model_savepath, name))
+
+    def predictCenter(self, img):
+        img_vis = ((img*self.main_cfg.DATASET.STD)+self.main_cfg.DATASET.MEAN)*255
+        img= torch.from_numpy(img).permute(2, 0, 1).float()
+        img = img.reshape(1,3,256,320).cuda()
+        outputs = self.model(img)
+        preds, maxvals = darkpose.get_final_preds(outputs[1].clamp(0,255).detach().cpu().numpy(), None)
+        for i,point in enumerate(preds[0]):
+            if (maxvals[0][i]) > 10:
+                cv2.circle(img_vis, (int(point[0]*2), int(point[1])*2), 2, (255,0,0), thickness=5)
+            else:
+                cv2.circle(img_vis, (int(point[0]*2), int(point[1])*2), 2, (100,0,0), thickness=5)
+
+        heatmap = cv2.resize(outputs[1].clamp(0,255).detach().cpu().numpy()[0][0]/255., (320,256), interpolation=cv2.cv2.INTER_NEAREST)
+        return preds, maxvals, img_vis, heatmap
+
+
+    def predictKeypoints(self, img):
+        img_vis = ((img*self.main_cfg.DATASET.STD)+self.main_cfg.DATASET.MEAN)*255
+        img= torch.from_numpy(img).permute(2, 0, 1).float()
+        img = img.reshape(1,3,256,256).cuda()
+        outputs = self.model(img)
+        colors = [(255,0,0), (255,0,0),(255,0,0),(255,0,0),(0,255,0),(0,255,0),(0,255,0),(0,255,0),(0,0,255),(0,0,255),(0,0,255),(0,0,255),(255,255,0),(255,255,0),(255,255,0), (255,255,0),
+                  (0,255,255),(0,255,255),(0,255,255),(0,255,255), (255,0,255),(100,0,100),(100,0,100)]
+        preds, maxvals = darkpose.get_final_preds(outputs[1].clamp(0,255).detach().cpu().numpy(), None)
+        for i,point in enumerate(preds[0]):
+            if (maxvals[0][i]) > 10:
+                cv2.circle(img_vis, (int(point[0]*2), int(point[1])*2), 2, colors[i], thickness=5)
+            else:
+                cv2.circle(img_vis, (int(point[0]*2), int(point[1])*2), 2, (100,0,0), thickness=5)
+
+        return preds, maxvals, img_vis
