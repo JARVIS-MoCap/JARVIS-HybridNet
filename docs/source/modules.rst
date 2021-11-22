@@ -7,5 +7,4 @@ Modules
     :maxdepth: 2
 
     efficientnet
-    efficientdet
     efficienttrack

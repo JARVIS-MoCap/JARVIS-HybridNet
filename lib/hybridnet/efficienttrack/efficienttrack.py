@@ -18,10 +18,10 @@ from torch.utils.data import DataLoader
 import onnx
 
 from .model import EfficientTrackBackbone
-from .loss import MultiLossFactory
-import lib.hybridnet.modules.efficienttrack.utils as utils
+from .loss import HeatmapLoss
+import lib.hybridnet.efficienttrack.utils as utils
 from lib.logger.logger import NetLogger, AverageMeter
-import lib.hybridnet.modules.efficienttrack.darkpose as darkpose
+import lib.hybridnet.efficienttrack.darkpose as darkpose
 
 
 class EfficientTrack:
@@ -38,36 +38,47 @@ class EfficientTrack:
     """
     def __init__(self, mode, cfg, weights = None, run_name = None):
         self.mode = mode
-        self.cfg = cfg
-        self.model = EfficientTrackBackbone(self.cfg, compound_coef=self.cfg.EFFICIENTTRACK.COMPOUND_COEF)
+        self.main_cfg = cfg
+        if mode == 'CenterDetect' or mode == 'CenterDetectInference':
+            self.cfg = self.main_cfg.CENTERDETECT
+        else:
+            self.cfg = self.main_cfg.KEYPOINTDETECT
+        self.model = EfficientTrackBackbone(self.cfg,
+                    compound_coef=self.cfg.COMPOUND_COEF,
+                    output_channels = self.cfg.NUM_JOINTS)
 
-        if mode  == 'train':
+        if mode  == 'KeypointDetect' or mode == 'CenterDetect':
             if run_name == None:
                 run_name = "Run_" + time.strftime("%Y%m%d-%H%M%S")
-            self.model_savepath = os.path.join(self.cfg.savePaths['efficienttrack'], run_name)
-            os.makedirs(self.model_savepath, exist_ok=True)
 
-            self.logger = NetLogger(os.path.join(self.cfg.logPaths['efficienttrack'], run_name))
+            self.model_savepath = os.path.join(self.main_cfg.savePaths[mode],
+                        run_name)
+            os.makedirs(self.model_savepath, exist_ok=True)
+            self.logger = NetLogger(os.path.join(self.main_cfg.logPaths[mode],
+                        run_name))
+
             self.lossMeter = AverageMeter()
             self.accuracyMeter = AverageMeter()
 
             self.load_weights(weights)
 
-            self.criterion = MultiLossFactory(self.cfg)
+            self.criterion = HeatmapLoss(self.cfg, self.mode)
+            self.model = self.model.cuda()
 
-            if self.cfg.NUM_GPUS > 0:
-                self.model = self.model.cuda()
-                if self.cfg.NUM_GPUS > 1:
-                    self.model = utils.CustomDataParallel(self.model, self.cfg.NUM_GPUS)
 
-            if self.cfg.EFFICIENTTRACK.OPTIMIZER == 'adamw':
-                self.optimizer = torch.optim.AdamW(self.model.parameters(), self.cfg.EFFICIENTTRACK.LEARNING_RATE)
+            if self.cfg.OPTIMIZER == 'adamw':
+                self.optimizer = torch.optim.AdamW(self.model.parameters(),
+                            self.cfg.LEARNING_RATE)
             else:
-                self.optimizer = torch.optim.SGD(self.model.parameters(), self.cfg.EFFICIENTTRACK.LEARNING_RATE, momentum=0.9, nesterov=True)
+                self.optimizer = torch.optim.SGD(self.model.parameters(),
+                            self.cfg.LEARNING_RATE, momentum=0.9, nesterov=True)
 
-            self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, patience=3, verbose=True, min_lr=0.00005, factor = 0.2)
+            self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+                        self.optimizer, patience=3, verbose=True,
+                        min_lr=0.00005, factor = 0.2)
 
-        elif mode == 'inference':
+
+        elif mode == 'KeypointDetectInference' or 'CenterDetectInference':
             self.model.requires_grad_(False)
             self.model.load_state_dict(torch.load(weights))
             self.model.requires_grad_(False)
@@ -75,7 +86,10 @@ class EfficientTrack:
             self.model = self.model.cuda()
 
         elif mode == 'export':
-            self.model = EfficientTrackBackbone(num_classes=len(self.cfg.DATASET.OBJ_LIST), compound_coef=self.cfg.EFFICIENTTRACK.COMPOUND_COEF, onnx_export = True)
+            self.model = EfficientTrackBackbone(
+                        num_classes=len(self.cfg.DATASET.OBJ_LIST),
+                        compound_coef=self.cfg.COMPOUND_COEF,
+                        onnx_export = True)
             self.load_weights(weights)
             self.model = self.model.cuda()
 
@@ -100,8 +114,8 @@ class EfficientTrack:
 
     def train(self, training_set, validation_set, num_epochs, start_epoch = 0):
         """
-        Function to train the network on a given dataset for a set number of epochs.
-        Most of the training parameters can be set in the config file.
+        Function to train the network on a given dataset for a set number of
+        epochs. Most of the training parameters can be set in the config file.
 
         :param training_set: training dataset
         :type training_generator: TODO
@@ -112,25 +126,27 @@ class EfficientTrack:
         :param start_epoch: Initial epoch for the training, set this if training
             is continued from an earlier session
         """
-        training_generator = DataLoader(training_set,
-                                        batch_size = self.cfg.EFFICIENTTRACK.BATCH_SIZE,
-                                        shuffle = True,
-                                        num_workers =  self.cfg.DATALOADER_NUM_WORKERS,
-                                        pin_memory = True,
-                                        drop_last = True)
+        training_generator = DataLoader(
+                    training_set,
+                    batch_size = self.cfg.BATCH_SIZE,
+                    shuffle = True,
+                    num_workers =  self.main_cfg.DATALOADER_NUM_WORKERS,
+                    pin_memory = True,
+                    drop_last = True)
 
-        val_generator = DataLoader(validation_set,
-                                        batch_size = self.cfg.EFFICIENTTRACK.BATCH_SIZE,
-                                        shuffle = False,
-                                        num_workers =  self.cfg.DATALOADER_NUM_WORKERS,
-                                        pin_memory = True,
-                                        drop_last = True)
+        val_generator = DataLoader(
+                    validation_set,
+                    batch_size = self.cfg.BATCH_SIZE,
+                    shuffle = False,
+                    num_workers =  self.main_cfg.DATALOADER_NUM_WORKERS,
+                    pin_memory = True,
+                    drop_last = True)
 
         epoch = start_epoch
         best_loss = 1e5
         best_epoch = 0
         self.model.train()
-        if self.cfg.USE_MIXED_PRECISION:
+        if self.main_cfg.USE_MIXED_PRECISION:
             scaler = torch.cuda.amp.GradScaler()
         #try:
         for epoch in range(num_epochs):
@@ -139,15 +155,15 @@ class EfficientTrack:
                 imgs = data[0].permute(0, 3, 1, 2).float()
                 heatmaps = data[1]
 
-                if self.cfg.NUM_GPUS == 1:
-                    imgs = imgs.cuda()
-                    heatmaps = list(map(lambda x: x.cuda(non_blocking=True), heatmaps))
+                imgs = imgs.cuda()
+                heatmaps = list(map(lambda x: x.cuda(non_blocking=True),
+                            heatmaps))
 
                 self.optimizer.zero_grad()
-                if self.cfg.USE_MIXED_PRECISION:
+                if self.main_cfg.USE_MIXED_PRECISION:
                     with torch.cuda.amp.autocast():
                         outputs = self.model(imgs)
-                        heatmaps_losses, _, _ = self.criterion(outputs, heatmaps,[[],[]])
+                        heatmaps_losses = self.criterion(outputs, heatmaps)
                         loss = 0
                         for idx in range(2):
                             if heatmaps_losses[idx] is not None:
@@ -158,7 +174,7 @@ class EfficientTrack:
                         scaler.update()
                 else:
                     outputs = self.model(imgs)
-                    heatmaps_losses, _, _ = self.criterion(outputs, heatmaps,[[],[]])
+                    heatmaps_losses = self.criterion(outputs, heatmaps)
                     loss = 0
                     for idx in range(2):
                         if heatmaps_losses[idx] is not None:
@@ -178,27 +194,31 @@ class EfficientTrack:
 
             self.lossMeter.reset()
 
-            if epoch % self.cfg.EFFICIENTTRACK.CHECKPOINT_SAVE_INTERVAL == 0 and epoch > 0:
-                self.save_checkpoint(f'EfficientTrack-d{self.cfg.EFFICIENTTRACK.COMPOUND_COEF}_{epoch}.pth')
+            if epoch % self.cfg.CHECKPOINT_SAVE_INTERVAL == 0 and epoch > 0:
+                self.save_checkpoint(f'EfficientTrack-d{self.cfg.COMPOUND_COEF}_{epoch}.pth')
                 print('checkpoint...')
-            if epoch % self.cfg.EFFICIENTTRACK.VAL_INTERVAL == 0:
+            if epoch % self.cfg.VAL_INTERVAL == 0:
                 self.model.eval()
                 for data in val_generator:
                     with torch.no_grad():
                         imgs = data[0].permute(0, 3, 1, 2).float()
                         heatmaps = data[1]
-                        keypoints = np.array(data[2]).reshape(-1,self.cfg.EFFICIENTTRACK.NUM_JOINTS,3)[:,:,:2]
-                        if self.cfg.NUM_GPUS == 1:
-                            imgs = imgs.cuda()
-                            heatmaps = list(map(lambda x: x.cuda(non_blocking=True), heatmaps))
+                        keypoints = np.array(data[2]).reshape(-1,
+                                    self.cfg.NUM_JOINTS,3)[:,:,:2]
 
-                        if self.cfg.USE_MIXED_PRECISION:
+                        imgs = imgs.cuda()
+                        heatmaps = list(map(lambda x: x.cuda(non_blocking=True),
+                                    heatmaps))
+
+                        if self.main_cfg.USE_MIXED_PRECISION:
                             with torch.cuda.amp.autocast():
                                 outputs = self.model(imgs)
-                                heatmaps_losses, _, _ = self.criterion(outputs, heatmaps,[[],[]])
+                                heatmaps_losses, _, _ = self.criterion(outputs,
+                                            heatmaps,[[],[]])
                         else:
                             outputs = self.model(imgs)
-                            heatmaps_losses, _, _ = self.criterion(outputs, heatmaps,[[],[]])
+                            heatmaps_losses, _, _ = self.criterion(outputs,
+                                        heatmaps,[[],[]])
 
                         loss = 0
                         for idx in range(2):
@@ -206,42 +226,46 @@ class EfficientTrack:
                                 heatmaps_loss = heatmaps_losses[idx].mean(dim=0)
                                 loss = loss + heatmaps_loss
 
-                    preds, maxvals = darkpose.get_final_preds(outputs[1].clamp(0,255).detach().cpu().numpy(), None)
-                    masked = np.ma.masked_where(maxvals.reshape(self.cfg.EFFICIENTTRACK.BATCH_SIZE,self.cfg.EFFICIENTTRACK.NUM_JOINTS) < 10, np.linalg.norm((preds+0.5)*2-keypoints, axis = 2))
+                    preds, maxvals = darkpose.get_final_preds(
+                                outputs[1].clamp(0,255).detach().cpu().numpy(),
+                                None)
+                    masked = np.ma.masked_where(maxvals.reshape(
+                                self.cfg.BATCH_SIZE,self.cfg.NUM_JOINTS) < 10,
+                                np.linalg.norm((preds+0.5)*2-keypoints,
+                                axis = 2))
 
                     self.lossMeter.update(loss.item())
                     self.accuracyMeter.update(np.mean(masked))
 
                 print(
                     'Val. Epoch: {}/{}. Loss: {:1.5f}. Acc: {:1.3f}'.format(
-                        epoch, num_epochs, self.lossMeter.read(), self.accuracyMeter.read()))
+                        epoch, num_epochs, self.lossMeter.read(),
+                        self.accuracyMeter.read()))
 
                 self.logger.update_val_loss(self.lossMeter.read())
                 self.logger.update_val_accuracy(self.accuracyMeter.read())
                 self.lossMeter.reset()
                 self.accuracyMeter.reset()
 
-                if loss + self.cfg.EFFICIENTTRACK.EARLY_STOPPING_MIN_DELTA < best_loss  and self.cfg.EFFICIENTTRACK.USE_EARLY_STOPPING:
+                if (loss + self.cfg.EARLY_STOPPING_MIN_DELTA < best_loss
+                            and self.cfg.USE_EARLY_STOPPING):
                     best_loss = loss
                     best_epoch = epoch
-                    self.save_checkpoint(f'EfficientTrack-d{self.cfg.EFFICIENTTRACK.COMPOUND_COEF}_{epoch}.pth')
+                    self.save_checkpoint(f'EfficientTrack-d{self.cfg.COMPOUND_COEF}_{epoch}.pth')
 
                 self.model.train()
 
                 # Early stopping
-                if epoch - best_epoch > self.cfg.EFFICIENTTRACK.EARLY_STOPPING_PATIENCE > 0 and self.cfg.EFFICIENTTRACK.USE_EARLY_STOPPING:
-                    print('[Info] Stop training at epoch {}. The lowest loss achieved is {}'.format(epoch, best_loss))
+                if (epoch - best_epoch > self.cfg.EARLY_STOPPING_PATIENCE > 0
+                            and self.cfg.USE_EARLY_STOPPING):
+                    print('[Info] Stop training at epoch {}. The lowest loss '
+                          'achieved is {}'.format(epoch, best_loss))
                     break
 
     def save_checkpoint(self, name):
         if isinstance(self.model, utils.CustomDataParallel):
-            torch.save(self.module.model.state_dict(), os.path.join(self.model_savepath, name))
+            torch.save(self.module.model.state_dict(),
+                       os.path.join(self.model_savepath, name))
         else:
-            torch.save(self.model.state_dict(), os.path.join(self.model_savepath, name))
-
-    def export_to_onnx(self, savefile_name, input_size = 256, export_params = True, opset_version = 9):
-        input = torch.zeros(1,3,input_size,input_size).cuda()
-        torch.onnx.export(self.model, input, savefile_name, input_names=['input'],
-        	              output_names=['output'], export_params=True, opset_version=9, do_constant_folding = True)
-        onnx_model = onnx.load(savefile_name)
-        onnx.checker.check_model(onnx_model)
+            torch.save(self.model.state_dict(),
+                       os.path.join(self.model_savepath, name))

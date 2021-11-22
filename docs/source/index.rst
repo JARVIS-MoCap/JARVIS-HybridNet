@@ -5,8 +5,10 @@ Welcome to Vortex 3D Markerless Tracking's documentation!
    :maxdepth: 2
    :caption: Contents:
 
-   getting_started
-   documentation
+   hybridnet
+   dataset
+   config
+   logger
 
 
 

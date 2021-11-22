@@ -1,3 +1,9 @@
+"""
+v2vnet.py
+============
+V2V 3D CNN (https://github.com/mks0601/V2V-PoseNet_RELEASE)
+"""
+
 import torch.nn as nn
 import torch.nn.functional as F
 import torch
@@ -7,7 +13,8 @@ class Basic3DBlock(nn.Module):
     def __init__(self, in_planes, out_planes, kernel_size):
         super(Basic3DBlock, self).__init__()
         self.block = nn.Sequential(
-            nn.Conv3d(in_planes, out_planes, kernel_size=kernel_size, stride=1, padding=((kernel_size-1)//2)),
+            nn.Conv3d(in_planes, out_planes, kernel_size=kernel_size,
+                      stride=1, padding=((kernel_size-1)//2)),
             nn.GroupNorm(4, out_planes),
             nn.ReLU(True)
         )
@@ -20,10 +27,12 @@ class Res3DBlock(nn.Module):
     def __init__(self, in_planes, out_planes):
         super(Res3DBlock, self).__init__()
         self.res_branch = nn.Sequential(
-            nn.Conv3d(in_planes, out_planes, kernel_size=3, stride=1, padding=1),
+            nn.Conv3d(in_planes, out_planes, kernel_size=3, stride=1,
+                      padding=1),
             nn.GroupNorm(4, out_planes),
             nn.ReLU(True),
-            nn.Conv3d(out_planes, out_planes, kernel_size=3, stride=1, padding=1),
+            nn.Conv3d(out_planes, out_planes, kernel_size=3, stride=1,
+                      padding=1),
             nn.GroupNorm(4, out_planes)
         )
 
@@ -31,7 +40,8 @@ class Res3DBlock(nn.Module):
             self.skip_con = nn.Sequential()
         else:
             self.skip_con = nn.Sequential(
-                nn.Conv3d(in_planes, out_planes, kernel_size=1, stride=1, padding=0),
+                nn.Conv3d(in_planes, out_planes, kernel_size=1, stride=1,
+                          padding=0),
                 nn.GroupNorm(4, out_planes)
             )
 
@@ -47,7 +57,8 @@ class Pool3DBlock(nn.Module):
         self.pool_size = pool_size
 
     def forward(self, x):
-        return F.max_pool3d(x, kernel_size=self.pool_size, stride=self.pool_size)
+        return F.max_pool3d(x, kernel_size=self.pool_size,
+                            stride=self.pool_size)
 
 
 class Upsample3DBlock(nn.Module):
@@ -56,7 +67,8 @@ class Upsample3DBlock(nn.Module):
         assert(kernel_size == 2)
         assert(stride == 2)
         self.block = nn.Sequential(
-            nn.ConvTranspose3d(in_planes, out_planes, kernel_size=kernel_size, stride=stride, padding=0, output_padding=0),
+            nn.ConvTranspose3d(in_planes, out_planes, kernel_size=kernel_size,
+                               stride=stride, padding=0, output_padding=0),
             nn.GroupNorm(4, out_planes),
             nn.ReLU(True)
         )
@@ -113,9 +125,8 @@ class V2VNet(nn.Module):
 
         self.front_layers = nn.Sequential(
             Basic3DBlock(input_channels, 32, 3),
-            Pool3DBlock(2), #Swap pool and res blocks here?????????
+            Pool3DBlock(2),
             Res3DBlock(32, 32)
-            #Res3DBlock(32, 32),
         )
 
         self.encoder_decoder = EncoderDecorder()
@@ -126,7 +137,8 @@ class V2VNet(nn.Module):
             Basic3DBlock(32, 32, 1),
         )
 
-        self.output_layer = nn.Conv3d(32, output_channels, kernel_size=1, stride=1, padding=0)
+        self.output_layer = nn.Conv3d(32, output_channels, kernel_size=1,
+                                      stride=1, padding=0)
 
         self._initialize_weights()
 
@@ -142,10 +154,8 @@ class V2VNet(nn.Module):
     def _initialize_weights(self):
         for m in self.modules():
             if isinstance(m, nn.Conv3d):
-                # nn.init.xavier_normal_(m.weight)
                 nn.init.normal_(m.weight, 0, 0.001)
                 nn.init.constant_(m.bias, 0)
             elif isinstance(m, nn.ConvTranspose3d):
-                # nn.init.xavier_normal_(m.weight)
                 nn.init.normal_(m.weight, 0, 0.001)
                 nn.init.constant_(m.bias, 0)

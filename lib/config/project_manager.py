@@ -3,7 +3,6 @@ project_manager.py
 ==================
 """
 
-
 import os,sys,inspect
 import ruamel.yaml
 import shutil
@@ -16,12 +15,13 @@ from lib.dataset.dataset3D import Dataset3D
 
 class ProjectManager:
     """
-    Project Manager Class to load and setup projects and find suitable values for network
-    parameters.
+    Project Manager Class to load and setup projects and find suitable values
+    for network parameters.
     """
     def __init__(self):
         self.cfg = None
-        current_dir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
+        current_dir = os.path.dirname(
+                    os.path.abspath(inspect.getfile(inspect.currentframe())))
         self.parent_dir = os.path.dirname(os.path.dirname(current_dir))
 
 
@@ -34,16 +34,23 @@ class ProjectManager:
         """
         self.cfg = cfg
         self.cfg.PROJECT_NAME = project_name
-        if not (os.path.isfile(os.path.join(self.parent_dir, self.cfg.PROJECTS_ROOT_PATH, project_name, 'config.yaml'))):
-            print ('Project does not exist, change name or create new Project by calling create_new(...).')
+        if not (os.path.isfile(os.path.join(self.parent_dir,
+                    self.cfg.PROJECTS_ROOT_PATH, project_name, 'config.yaml'))):
+            print ('Project does not exist, change name or create new Project '
+                   'by calling create_new(...).')
             self.cfg = None
             return
-        cfg.merge_from_file(os.path.join(self.parent_dir, self.cfg.PROJECTS_ROOT_PATH, project_name, 'config.yaml'))
+
+        cfg.merge_from_file(os.path.join(self.parent_dir,
+                    self.cfg.PROJECTS_ROOT_PATH, project_name, 'config.yaml'))
         self.cfg.logPaths = CN()
         self.cfg.savePaths = CN()
-        for module in ['efficientdet', 'efficienttrack', 'hybridnet']:
-            model_savepath = os.path.join(self.parent_dir, self.cfg.PROJECTS_ROOT_PATH, project_name, 'models', module)
-            log_path = os.path.join(self.cfg.PROJECTS_ROOT_PATH, project_name, 'logs', module)
+        for module in ['CenterDetect', 'KeypointDetect', 'HybridNet']:
+            model_savepath = os.path.join(self.parent_dir,
+                        self.cfg.PROJECTS_ROOT_PATH, project_name, 'models',
+                        module)
+            log_path = os.path.join(self.cfg.PROJECTS_ROOT_PATH, project_name,
+                        'logs', module)
             self.cfg.savePaths[module] = model_savepath
             self.cfg.logPaths[module] = log_path
         print ('Successfully loaded project ' + project_name + '!')
@@ -52,24 +59,29 @@ class ProjectManager:
     def create_new(self, name, dataset2D_path, dataset3D_path = None):
         """
         Create a new project. This sets up the project directory structure and
-        initializes the config file values obtained by analyzing the training sets provided.
+        initializes the config file values obtained by analyzing the training
+        sets provided.
 
         :param name: Name of the new project
         :type name: string
-        :param dataset2D_path: Path to the dataset that is used to train the EffDet cropping
-                               and the EffTrack 2D tracking network. This does not have to be
-                               the same Dataset that is used for final 3D training.
+        :param dataset2D_path: Path to the dataset that is used to train the
+                               EffDet cropping and the EffTrack 2D tracking
+                               network. This does not have to be the same
+                               Dataset that is used for final 3D training.
         :type dataset2D_path: string
-        :param dataset3D_path: path to the dataset that is used to train the full 3D network.
-                              If None, the config will not try to setup 3D Network parameters.
+        :param dataset3D_path: path to the dataset that is used to train the
+                               full 3D network. If None, the config will not try
+                               to setup 3D Network parameters.
         :type dataset3D_path: string
 
         """
         self.cfg = cfg
-        # if (os.path.isfile(os.path.join(self.cfg.PROJECTS_ROOT_PATH, name, 'config.yaml'))):
+        # if (os.path.isfile(os.path.join(self.cfg.PROJECTS_ROOT_PATH, name,
+        #            'config.yaml'))):
         #     print ('Project already exist, change name or delete old project.')
         #     self.cfg = None
         #     return
+
         self.cfg.PROJECT_NAME = name
         self.cfg.DATASET.DATASET_2D = dataset2D_path
         self.cfg.DATASET.DATASET_3D = dataset3D_path
@@ -77,9 +89,11 @@ class ProjectManager:
 
         self.cfg.logPaths = CN()
         self.cfg.savePaths = CN()
-        for module in ['efficientdet', 'efficienttrack', 'vortex']:
-            model_savepath = os.path.join(self.cfg.PROJECTS_ROOT_PATH, name, 'models', module)
-            log_path = os.path.join(self.cfg.PROJECTS_ROOT_PATH, name, 'logs', module)
+        for module in ['CenterDetect', 'KeypointDetect', 'HybridNet']:
+            model_savepath = os.path.join(self.cfg.PROJECTS_ROOT_PATH, name,
+                        'models', module)
+            log_path = os.path.join(self.cfg.PROJECTS_ROOT_PATH, name,
+                        'logs', module)
             self.cfg.savePaths[module] = model_savepath
             self.cfg.logPaths[module] = log_path
             os.makedirs(log_path, exist_ok=True)
@@ -95,37 +109,83 @@ class ProjectManager:
         Get configuration handle for the configuration of the current project.
         """
         if self.cfg == None:
-            print ('No Project loaded yet! Call either load(...) or create_new(...).')
+            print ('No Project loaded yet! Call either load(...) or '
+                   'create_new(...).')
         return self.cfg
+
+
+    def _get_number_from_user(self, question, default, div = None,
+        bounds = None):
+        """
+        Get a valid number divisible by div and in range bounds from the user.
+        :param question: Question to ask if no selected
+        :type question: string
+        :param default: Default Value, returned if user selects yes
+        :type default: int
+        :param div: Number input should be divisble by. Not used if None
+        :type div: int
+        :param div: Range for input number
+        :type bounds: list of two ints. Not used if None
+        """
+        number = default
+        if div == None:
+            div = 1
+        valid_accepts = ['yes', 'Yes', 'y', 'Y']
+        valid_declines = ['no', 'No', 'n', 'N']
+        got_valid_answer = False
+        while not got_valid_answer:
+            ans = input()
+            if ans in valid_declines:
+                got_valid_answer = True
+                print(question)
+                ans_is_valid = False
+                while not ans_is_valid:
+                    ans = input()
+                    if ans.isdigit() and int(ans)%div == 0:
+                        if (bounds == None or int(ans) >= bounds[0]
+                                    and int(ans) <= bounds[1]):
+                            number = int(ans)
+                            ans_is_valid = True
+                        else:
+                            print (f"Please enter a Number between {bounds[0]} "
+                                   f"and {bounds[1]}!")
+                    else:
+                        print (f"Please enter a Number divisible by {div}!")
+            elif ans in valid_accepts:
+                got_valid_answer = True
+            else:
+                print ("Please enter either yes or no!")
+        return number
+
 
     def _init_dataset2D(self):
         dataset2D = Dataset2D(self.cfg, set='train', mode = 'keypoints')
         suggested_bbox_size = dataset2D.get_dataset_config()
-        print ('\nEfficientTrack Configuration:')
-        print (f'Use suggested Bounding Box size of {suggested_bbox_size} pixels? (yes/no)')
-        ans = input()
-        if ans == 'no' or ans == 'n':
-            print('Enter custom Bounding Box size, make sure it is divisible by 64:')
-            suggested_bbox_size = int(input())
-        self.cfg.EFFICIENTTRACK.BOUNDING_BOX_SIZE = suggested_bbox_size
+        print ('\KeypointDetect 2D Configuration:')
+        print (f'Use suggested Bounding Box size of {suggested_bbox_size} '
+               'pixels? (yes/no)')
+        q = 'Enter custom Bounding Box size, make sure it is divisible by 64:'
+        bbox_size = self._get_number_from_user(q, suggested_bbox_size, 64)
+        self.cfg.KEYPOINTDETECT.BOUNDING_BOX_SIZE = bbox_size
+
 
     def _init_dataset3D(self):
         dataset3D = Dataset3D(self.cfg, set='train')
         suggestions  = dataset3D.get_dataset_config()
-        print ('\HybridNet Configuration:')
-        print (f'Use suggested 3D Bounding Box size of {suggestions["bbox"]} mm? (yes/no)')
-        ans = input()
-        if ans == 'no' or ans == 'n':
-            print('Enter custom 3D Bounding Box size, make sure it is divisible by 8:')
-            suggestions['bbox'] = int(input())
-        print (f'Use suggested grid spacing of {suggestions["resolution"]} mm? (yes/no)')
-        ans = input()
-        if ans == 'no' or ans == 'n':
-            print('Enter custom grid spacing:')
-            suggestions['resolution'] = int(input())
+        print ('\HybridNet 3D Configuration:')
+        print (f'Use suggested 3D Bounding Box size of {suggestions["bbox"]} '
+               'mm? (yes/no)')
+        q = 'Enter custom 3D Bounding Box size, make sure it is divisible by 8:'
+        bbox_size = self._get_number_from_user(q, suggestions["bbox"], 8)
 
-        self.cfg.VORTEX.ROI_CUBE_SIZE = suggestions['bbox']
-        self.cfg.VORTEX.GRID_SPACING = suggestions['resolution']
+        print (f'Use suggested grid spacing of {suggestions["resolution"]} '
+               'mm? (yes/no)')
+        q = 'Enter custom grid spacing:'
+        resolution = self._get_number_from_user(q, suggestions["resolution"],
+                    bounds = [0,4])
+        self.cfg.VORTEX.ROI_CUBE_SIZE = bbox_size
+        self.cfg.VORTEX.GRID_SPACING = resolution
+
 
     def _init_config(self, name):
         config_path = os.path.join(cfg.PROJECTS_ROOT_PATH, name, 'config.yaml')

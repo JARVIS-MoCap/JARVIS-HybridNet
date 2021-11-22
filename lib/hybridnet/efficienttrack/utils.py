@@ -1,19 +1,84 @@
 """
 utils.py
 ========
-Utility functions for EfficientNet.
+Utility functions for EfficientDet.
 """
+
+import itertools
+import numpy as np
+from typing import Union
+import math
+import cv2
+import collections
 import re
 import math
-import collections
+
+
+
 import torch
-from torch import nn
+import torch.nn as nn
 from torch.nn import functional as F
+from torch.nn.init import _calculate_fan_in_and_fan_out, _no_grad_normal_
+from torchvision.ops.boxes import batched_nms
 
 
-########################################################################
-############### HELPERS FUNCTIONS FOR MODEL ARCHITECTURE ###############
-########################################################################
+class MaxPool2dStaticSamePadding(nn.Module):
+    """
+    Tensorflow like static paddding for BiFPN fuse connections
+    """
+    def __init__(self, *args, **kwargs):
+        super().__init__()
+        self.pool = nn.MaxPool2d(*args, **kwargs)
+        self.left = 0
+        self.right = 1
+        self.bottom = 1
+        self.top = 0
+
+    def forward(self, x):
+        x = F.pad(x, [self.left, self.right, self.top, self.bottom])
+
+        x = self.pool(x)
+        return x
+
+
+def variance_scaling_(tensor, gain=1.):
+    """
+    Initializer for SeparableConv in Regressor/Classifier
+    reference: https://keras.io/zh/initializers/VarianceScaling
+    :param tensor: TODO
+    :type tensor: torch.tensor
+    :param gain: gain for scaling
+    :type gain: float
+    :return: TODO
+    """
+    fan_in, fan_out = _calculate_fan_in_and_fan_out(tensor)
+    std = math.sqrt(gain / float(fan_in))
+
+    return _no_grad_normal_(tensor, 0., std)
+
+
+
+def init_weights(model):
+    """
+    Initialize weights of EfficientTrack using kaiman uniform initialization and
+    variance scaling.
+    """
+    for name, module in model.named_modules():
+        is_conv_layer = isinstance(module, nn.Conv2d)
+
+        if is_conv_layer:
+            if "conv_list" or "header" in name:
+                variance_scaling_(module.weight.data)
+            else:
+                nn.init.kaiming_uniform_(module.weight.data)
+
+            if module.bias is not None:
+                if "classifier.header" in name:
+                    bias_value = -np.log((1 - 0.01) / 0.01)
+                    torch.nn.init.constant_(module.bias, bias_value)
+                else:
+                    module.bias.data.zero_()
+
 
 # Parameters for the entire model (stem, all blocks, and head)
 GlobalParams = collections.namedtuple('GlobalParams', [
@@ -48,7 +113,7 @@ def round_filters(filters, global_params):
     min_depth = global_params.min_depth
     filters *= multiplier
     min_depth = min_depth or divisor
-    new_filters = max(min_depth, int(filters + divisor / 2) // divisor * divisor)
+    new_filters = max(min_depth, int(filters + divisor/2) // divisor * divisor)
     if new_filters < 0.9 * filters:  # prevent rounding by more than 10%
         new_filters += divisor
     return int(new_filters)
@@ -72,8 +137,8 @@ def round_repeats(repeats, global_params):
 
 def drop_connect(inputs, p, training):
     """
-    Drop Connect implementation. Drops random activations, with probability p and
-    renormalizes activations.
+    Drop Connect implementation. Drops random activations, with probability p
+    and renormalizes activations.
 
     :param inputs: Input acitvations
     :type inputs: torch.tensor
@@ -89,23 +154,19 @@ def drop_connect(inputs, p, training):
     batch_size = inputs.shape[0]
     keep_prob = 1 - p
     random_tensor = keep_prob
-    random_tensor += torch.rand([batch_size, 1, 1, 1], dtype=inputs.dtype, device=inputs.device)
+    random_tensor += torch.rand([batch_size, 1, 1, 1], dtype=inputs.dtype,
+                device=inputs.device)
     binary_tensor = torch.floor(random_tensor)
     output = inputs / keep_prob * binary_tensor
     return output
-
-
-########################################################################
-############## HELPERS FUNCTIONS FOR LOADING MODEL PARAMS ##############
-########################################################################
 
 
 def efficientnet_params(model_name):
     """
     Map EfficientNet model name to parameter coefficients.
 
-    :param model_name: Name of the model, formated like "efficientnet-b<x>" with <x>
-        being the compound coefficient.
+    :param model_name: Name of the model, formated like "efficientnet-b<x>"
+                       with <x> being the compound coefficient.
     :return: Dictionary with scaling factors and dropout probability
     :rtype: dict
     """
@@ -126,7 +187,10 @@ def efficientnet_params(model_name):
 
 
 class BlockDecoder(object):
-    """ Block Decoder for readability, straight from the official TensorFlow repository """
+    """
+    Block Decoder for readability, straight from the official TensorFlow
+    repository
+    """
 
     @staticmethod
     def _decode_block_string(block_string):
@@ -177,7 +241,8 @@ class BlockDecoder(object):
         """
         Decodes a list of string notations to specify blocks inside the network.
 
-        :param string_list: a list of strings, each string is a notation of block
+        :param string_list: a list of strings, each string is a notation of
+                            block
         :return: a list of BlockArgs namedtuples of block args
         """
         assert isinstance(string_list, list)
@@ -200,8 +265,9 @@ class BlockDecoder(object):
         return block_strings
 
 
-def efficientnet(width_coefficient=None, depth_coefficient=None, dropout_rate=0.2,
-                 drop_connect_rate=0.2, image_size=None, num_classes=1000):
+def efficientnet(width_coefficient=None, depth_coefficient=None,
+                 dropout_rate=0.2, drop_connect_rate=0.2, image_size=None,
+                 num_classes=1000):
     """
     Creates a efficientnet model.
 
@@ -233,7 +299,6 @@ def efficientnet(width_coefficient=None, depth_coefficient=None, dropout_rate=0.
         batch_norm_epsilon=1e-3,
         dropout_rate=dropout_rate,
         drop_connect_rate=drop_connect_rate,
-        # data_format='channels_last',  # removed, this is always true in PyTorch
         num_classes=num_classes,
         width_coefficient=width_coefficient,
         depth_coefficient=depth_coefficient,
@@ -251,10 +316,13 @@ def get_model_params(model_name, override_params):
         w, d, s, p = efficientnet_params(model_name)
         # note: all models have drop connect rate = 0.2
         blocks_args, global_params = efficientnet(
-            width_coefficient=w, depth_coefficient=d, dropout_rate=p, image_size=s)
+                    width_coefficient=w, depth_coefficient=d, dropout_rate=p,
+                    image_size=s)
     else:
-        raise NotImplementedError('model name is not pre-defined: %s' % model_name)
+        raise NotImplementedError('model name is not pre-defined: %s'
+                    % model_name)
     if override_params:
-        # ValueError will be raised here if override_params has fields not included in global_params.
+        # ValueError will be raised here if override_params has fields not
+        # included in global_params.
         global_params = global_params._replace(**override_params)
     return blocks_args, global_params

@@ -1,5 +1,5 @@
 ======
-Vortex
+HybridNet
 ======
 
 
@@ -8,18 +8,18 @@ Vortex
 
     modules
 
-.. automodule:: lib.vortex.vortex
+.. automodule:: lib.hybridnet.hybridnet
     :members:
     :exclude-members: forward
 
-.. automodule:: lib.vortex.model
+.. automodule:: lib.hybridnet.model
     :members:
     :exclude-members: forward
 
-.. automodule:: lib.vortex.loss
+.. automodule:: lib.hybridnet.loss
     :members:
     :exclude-members: forward
 
-.. automodule:: lib.vortex.utils
+.. automodule:: lib.hybridnet.utils
     :members:
     :exclude-members: forward

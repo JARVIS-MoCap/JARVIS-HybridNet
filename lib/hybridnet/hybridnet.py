@@ -17,9 +17,9 @@ import onnx
 
 from .model import HybridNetBackbone
 from .loss import MSELoss
-import lib.hybridnet.utils as utils
+import lib.utils.utils as utils
 from lib.logger.logger import NetLogger, AverageMeter
-import lib.hybridnet.modules.efficienttrack.darkpose as darkpose
+import lib.hybridnet.efficienttrack.darkpose as darkpose
 
 
 
@@ -35,19 +35,22 @@ class HybridNet:
     :param weights: Path to parameter savefile to be loaded
     :type weights: string, optional
     """
-    def __init__(self, mode, cfg, calibPaths,weights = None, efficienttrack_weights = None, run_name = None):
+    def __init__(self, mode, cfg, weights = None, efficienttrack_weights = None,
+                 run_name = None):
         self.mode = mode
         self.cfg = cfg
-        self.model = HybridNetBackbone(cfg, calibPaths[0], calibPaths[1], efficienttrack_weights)
+        self.model = HybridNetBackbone(cfg, efficienttrack_weights)
 
         if mode  == 'train':
             if run_name == None:
                 run_name = "Run_" + time.strftime("%Y%m%d-%H%M%S")
 
-            self.model_savepath = os.path.join(self.cfg.savePaths['hybridnet'], run_name)
+            self.model_savepath = os.path.join(self.cfg.savePaths['HybridNet'],
+                        run_name)
             os.makedirs(self.model_savepath, exist_ok=True)
 
-            self.logger = NetLogger(os.path.join(self.cfg.logPaths['hybridnet'], run_name))
+            self.logger = NetLogger(os.path.join(self.cfg.logPaths['HybridNet'],
+                        run_name))
             self.lossMeter = AverageMeter()
             self.accuracyMeter = AverageMeter()
             self.valLossMeter = AverageMeter()
@@ -56,18 +59,20 @@ class HybridNet:
             self.load_weights(weights)
 
             self.criterion = MSELoss()
+            self.model = self.model.cuda()
 
-            if self.cfg.NUM_GPUS > 0:
-                self.model = self.model.cuda()
-                if self.cfg.NUM_GPUS > 1:
-                    self.model = utils.CustomDataParallel(self.model, self.cfg.NUM_GPUS)
-
-            if self.cfg.VORTEX.OPTIMIZER == 'adamw':
-                self.optimizer = torch.optim.AdamW(self.model.parameters(), self.cfg.VORTEX.LEARNING_RATE)
+            if self.cfg.HYBRIDNET.OPTIMIZER == 'adamw':
+                self.optimizer = torch.optim.AdamW(self.model.parameters(),
+                            self.cfg.HYBRIDNET.LEARNING_RATE)
             else:
-                self.optimizer = torch.optim.SGD(self.model.parameters(), self.cfg.VORTEX.LEARNING_RATE, momentum=0.9, nesterov=True)
+                self.optimizer = torch.optim.SGD(self.model.parameters(),
+                            self.cfg.HYBRIDNET.LEARNING_RATE,
+                            momentum=0.9, nesterov=True)
 
-            self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, patience=3, verbose=True, min_lr=0.00005, factor = 0.2)
+            self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+                        self.optimizer, patience=3, verbose=True,
+                        min_lr=0.00005, factor = 0.2)
+            self.set_training_mode('all')
 
         elif mode == 'inference':
             self.load_weights(weights)
@@ -75,18 +80,10 @@ class HybridNet:
             self.model.eval()
             self.model = self.model.cuda()
 
-        elif mode == 'export':
-            pass
-            #self.model = EfficientTrackBackbone(num_classes=len(self.cfg.DATASET.OBJ_LIST), compound_coef=self.cfg.EFFICIENTTRACK.COMPOUND_COEF, onnx_export = True)
-            #self.load_weights(weights)
-            #self.model = self.model.cuda()
-
-
 
     def load_weights(self, weights_path = None):
         if weights_path is not None:
             state_dict = torch.load(weights_path)
-            del state_dict['reproLayer.offset']
             self.model.load_state_dict(state_dict, strict=False)
             print(f'[Info] loaded weights: {os.path.basename(weights_path)}')
         else:
@@ -96,31 +93,33 @@ class HybridNet:
 
     def train(self, training_set, validation_set, num_epochs, start_epoch = 0):
         """
-        Function to train the network on a given dataset for a set number of epochs.
-        Most of the training parameters can be set in the config file.
+        Function to train the network on a given dataset for a set number of
+        epochs. Most of the training parameters can be set in the config file.
 
         :param training_generator: training data generator (default torch data
-            generator)
+                                   generator)
         :type training_generator: TODO
         :param val_generator: validation data generator (default torch data
-            generator)
+                              generator)
         :type val_generator: TODO
         :param num_epochs: Number of epochs the network is trained for
         :type num_epochs: int
-        :param start_epoch: Initial epoch for the training, set this if training
-            is continued from an earlier session
+        :param start_epoch: Initial epoch for the training, set this if
+                            training is continued from an earlier session
         """
-        training_generator = DataLoader(training_set,
-                                        batch_size = self.cfg.VORTEX.BATCH_SIZE,
-                                        shuffle = True,
-                                        num_workers =  self.cfg.DATALOADER_NUM_WORKERS,
-                                        pin_memory = True)
+        training_generator = DataLoader(
+                    training_set,
+                    batch_size = self.cfg.HYBRIDNET.BATCH_SIZE,
+                    shuffle = True,
+                    num_workers =  self.cfg.DATALOADER_NUM_WORKERS,
+                    pin_memory = True)
 
-        val_generator = DataLoader(validation_set,
-                                        batch_size = self.cfg.VORTEX.BATCH_SIZE,
-                                        shuffle = False,
-                                        num_workers =  self.cfg.DATALOADER_NUM_WORKERS,
-                                        pin_memory = True)
+        val_generator = DataLoader(
+                    validation_set,
+                    batch_size = self.cfg.HYBRIDNET.BATCH_SIZE,
+                    shuffle = False,
+                    num_workers =  self.cfg.DATALOADER_NUM_WORKERS,
+                    pin_memory = True)
         epoch = start_epoch
         best_loss = 1e5
         best_epoch = 0
@@ -136,34 +135,35 @@ class HybridNet:
                 centerHM = data[2]
                 center3D = data[3]
                 heatmap3D = data[4]
+                cameraMatrices = data[5]
 
-                if self.cfg.NUM_GPUS == 1:
-                    imgs = imgs.cuda()
-                    keypoints = keypoints.cuda()
-                    centerHM = centerHM.cuda()
-                    center3D = center3D.cuda()
-                    heatmap3D = heatmap3D.cuda()
+                imgs = imgs.cuda()
+                keypoints = keypoints.cuda()
+                centerHM = centerHM.cuda()
+                center3D = center3D.cuda()
+                heatmap3D = heatmap3D.cuda()
+                cameraMatrices = cameraMatrices.cuda()
 
                 self.optimizer.zero_grad()
                 if self.cfg.USE_MIXED_PRECISION:
                     with torch.cuda.amp.autocast():
-                        outputs = self.model(imgs, centerHM, center3D)
+                        outputs = self.model(imgs, centerHM, center3D,
+                                    cameraMatrices)
                         loss = self.criterion(outputs[0], heatmap3D)
                         loss = loss.mean()
-                        #print (keypoints)
-                        #print (outputs[2])
-                        acc = torch.mean(torch.sqrt(torch.sum((keypoints-outputs[2])**2, dim = 2)))
+                        acc = torch.mean(torch.sqrt(torch.sum(
+                                    (keypoints-outputs[2])**2, dim = 2)))
                     scaler.scale(loss).backward()
                     scaler.step(self.optimizer)
                     scaler.update()
 
                 else:
-                    outputs = self.model(imgs, centerHM, center3D)
-                    #torch.cuda.synchronize()
-                    #print(self.model.reproLayer.starter.elapsed_time(self.model.reproLayer.ender))
+                    outputs = self.model(imgs, centerHM, center3D,
+                                         cameraMatrices)
                     loss = self.criterion(outputs[0], heatmap3D)
                     loss = loss.mean()
-                    acc = torch.mean(torch.sqrt(torch.sum((keypoints-outputs[2])**2, dim = 2)))
+                    acc = torch.mean(torch.sqrt(torch.sum(
+                                (keypoints-outputs[2])**2, dim = 2)))
 
                     loss.backward()
                     self.optimizer.step()
@@ -173,7 +173,8 @@ class HybridNet:
 
                 progress_bar.set_description(
                     'Epoch: {}/{}. Loss: {:.4f}. Acc: {:.2f}'.format(
-                        epoch, num_epochs, self.lossMeter.read(), self.accuracyMeter.read()))
+                        epoch, num_epochs, self.lossMeter.read(),
+                        self.accuracyMeter.read()))
 
 
             self.logger.update_train_loss(self.lossMeter.read())
@@ -183,11 +184,12 @@ class HybridNet:
             self.lossMeter.reset()
             self.accuracyMeter.reset()
 
-            if epoch % self.cfg.VORTEX.CHECKPOINT_SAVE_INTERVAL == 0 and epoch > 0:
+            if (epoch % self.cfg.HYBRIDNET.CHECKPOINT_SAVE_INTERVAL == 0
+                        and epoch > 0):
                 self.save_checkpoint(f'HybridNet-d_{epoch}.pth')
                 print('checkpoint...')
 
-            if epoch % self.cfg.VORTEX.VAL_INTERVAL == 0:
+            if epoch % self.cfg.HYBRIDNET.VAL_INTERVAL == 0:
                 self.model.eval()
                 avg_val_loss = 0
                 avg_val_acc = 0
@@ -198,32 +200,39 @@ class HybridNet:
                         centerHM = data[2]
                         center3D = data[3]
                         heatmap3D = data[4]
+                        cameraMatrices = data[5]
 
-                        if self.cfg.NUM_GPUS == 1:
-                            imgs = imgs.cuda()
-                            keypoints = keypoints.cuda()
-                            centerHM = centerHM.cuda()
-                            center3D = center3D.cuda()
-                            heatmap3D = heatmap3D.cuda()
+                        imgs = imgs.cuda()
+                        keypoints = keypoints.cuda()
+                        centerHM = centerHM.cuda()
+                        center3D = center3D.cuda()
+                        heatmap3D = heatmap3D.cuda()
+                        cameraMatrices = cameraMatrices.cuda()
+
 
                         if self.cfg.USE_MIXED_PRECISION:
                             with torch.cuda.amp.autocast():
-                                outputs = self.model(imgs, centerHM, center3D)
+                                outputs = self.model(imgs, centerHM, center3D,
+                                                     cameraMatrices)
                                 loss = self.criterion(outputs[0], heatmap3D)
                                 loss = loss.mean()
-                                acc = torch.mean(torch.sqrt(torch.sum((keypoints-outputs[2])**2, dim = 2)))
+                                acc = torch.mean(torch.sqrt(torch.sum(
+                                        (keypoints-outputs[2])**2, dim = 2)))
                         else:
-                            outputs = self.model(imgs, centerHM, center3D)
+                            outputs = self.model(imgs, centerHM, center3D,
+                                                 cameraMatrices)
                             loss = self.criterion(outputs[0], heatmap3D)
                             loss = loss.mean()
-                            acc = torch.mean(torch.sqrt(torch.sum((keypoints-outputs[2])**2, dim = 2)))
+                            acc = torch.mean(torch.sqrt(torch.sum(
+                                        (keypoints-outputs[2])**2, dim = 2)))
 
                         self.valLossMeter.update(loss.item())
                         self.valAccuracyMeter.update(acc.item())
 
             print(
                 'Val. Epoch: {}/{}. Loss: {:.3f}. Acc: {:.2f}'.format(
-                    epoch, num_epochs, self.valLossMeter.read(),  self.valAccuracyMeter.read()))
+                    epoch, num_epochs, self.valLossMeter.read(),
+                    self.valAccuracyMeter.read()))
 
 
             self.logger.update_val_loss(self.valLossMeter.read())
@@ -231,7 +240,8 @@ class HybridNet:
             self.valLossMeter.reset()
             self.valAccuracyMeter.reset()
 
-            if loss + self.cfg.VORTEX.EARLY_STOPPING_MIN_DELTA < best_loss  and self.cfg.VORTEX.USE_EARLY_STOPPING:
+            if (loss + self.cfg.HYBRIDNET.EARLY_STOPPING_MIN_DELTA < best_loss
+                        and self.cfg.HYBRIDNET.USE_EARLY_STOPPING):
                 best_loss = loss
                 best_epoch = epoch
                 #self.save_checkpoint(f'Vortex_{epoch}.pth')
@@ -239,21 +249,35 @@ class HybridNet:
             self.model.train()
 
             # Early stopping
-            if epoch - best_epoch > self.cfg.VORTEX.EARLY_STOPPING_PATIENCE > 0 and self.cfg.VORTEX.USE_EARLY_STOPPING:
-                print('[Info] Stop training at epoch {}. The lowest loss achieved is {}'.format(epoch, best_loss))
+            if (epoch-best_epoch > self.cfg.HYBRIDNET.EARLY_STOPPING_PATIENCE > 0
+                        and self.cfg.HYBRIDNET.USE_EARLY_STOPPING):
+                print('[Info] Stop training at epoch {}. The lowest loss '
+                      'achieved is {}'.format(epoch, best_loss))
                 break
 
 
     def save_checkpoint(self, name):
-        if isinstance(self.model, utils.CustomDataParallel):
-            torch.save(self.module.model.state_dict(), os.path.join(self.model_savepath, name))
-        else:
-            torch.save(self.model.state_dict(), os.path.join(self.model_savepath, name))
+        torch.save(self.model.state_dict(),
+                   os.path.join(self.model_savepath, name))
 
-
-    def export_to_onnx(self, savefile_name, input_size = 256, export_params = True, opset_version = 9):
-        input = torch.zeros(1,3,input_size,input_size).cuda()
-        torch.onnx.export(self.model, input, savefile_name, input_names=['input'],
-        	              output_names=['output'], export_params=True, opset_version=9, do_constant_folding = True)
-        onnx_model = onnx.load(savefile_name)
-        onnx.checker.check_model(onnx_model)
+    def set_training_mode(self, mode):
+        """
+        Selects which parts of the network will be trained.
+        :param mode: 'all': The whole network will be trained
+                     'bifpn': The whole network except the efficientnet backbone
+                              will be trained
+                     'last_layers': The 3D network and the output layers of the
+                                    2D network will be trained
+                     '3D_only': Only the 3D network will be trained
+        """
+        if mode == 'all':
+            self.model.effTrack.requires_grad_(True)
+        elif mode == 'bifpn':
+            self.model.effTrack.requires_grad_(True)
+            self.model.effTrack.backbone_net.requires_grad_(False)
+        elif mode == 'last_layers':
+            self.model.effTrack.requires_grad_(True)
+            self.model.effTrack.bifpn.requires_grad_(False)
+            self.model.effTrack.backbone_net.requires_grad_(False)
+        elif mode == '3D_only':
+            self.model.effTrack.requires_grad_(False)

@@ -13,10 +13,10 @@ number of MBConvBlocks and the number of convolutional channels. |br|
 Vortex uses EfficientNet as the Backbone of the cropping and the 2D pose estimation network.
 
 
-.. automodule:: lib.vortex.modules.efficientnet.model
+.. automodule:: lib.hybridnet.modules.efficientnet.model
     :members:
     :exclude-members: forward
-.. automodule:: lib.vortex.modules.efficientnet.utils
+.. automodule:: lib.hybridnet.modules.efficientnet.utils
     :members:
     :exclude-members: forward, GlobalParams, BlockArgs
 

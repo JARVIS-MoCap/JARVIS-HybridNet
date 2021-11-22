@@ -8,7 +8,7 @@ import torch
 from torch import nn
 from torchvision.ops.boxes import nms as nms_torch
 
-from lib.hybridnet.modules.efficientnet.model import EfficientNet as EffNet
+from lib.hybridnet.efficienttrack.efficientnet import EfficientNet as EffNet
 from .utils import MaxPool2dStaticSamePadding
 from lib.utils.utils import Swish, MemoryEfficientSwish
 
@@ -19,14 +19,16 @@ class EfficientTrackBackbone(nn.Module):
 
     :param num_classes: Number of object classes
     :type num_classes: int
-    :param compound_coef: Compound Coefficient of the network. Smaller coefficients correspond to smaller (both in memory and FLOPs)
-        networks.
+    :param compound_coef: Compound Coefficient of the network.
+                          Smaller coefficients correspond to smaller
+                          (both in memory and FLOPs) networks.
     :type compound_coef: int
     :param onnx_export: Select if model will be exported to onnx format. If True
         regular swish implementation will be used
     :type onnx_export: bool, optional
     """
-    def __init__(self, cfg, compound_coef=0, onnx_export = False, **kwargs):
+    def __init__(self, cfg, compound_coef=0, output_channels = 1,
+                 onnx_export = False, **kwargs):
         super(EfficientTrackBackbone, self).__init__()
         self.num_groups = 8
         self.cfg = cfg
@@ -59,7 +61,8 @@ class EfficientTrackBackbone(nn.Module):
                     use_p8=compound_coef > 7, onnx_export = onnx_export)
               for _ in range(self.fpn_cell_repeats[compound_coef])])
 
-        self.backbone_net = EfficientNet(self.backbone_compound_coef[compound_coef])
+        self.backbone_net = EfficientNet(
+                    self.backbone_compound_coef[compound_coef])
         self.backbone_net.model.set_swish(not onnx_export)
 
         self.swish = MemoryEfficientSwish()
@@ -67,7 +70,9 @@ class EfficientTrackBackbone(nn.Module):
         self.upsample2 = nn.Upsample(scale_factor = 2, mode = 'nearest')
         self.weights_cat = nn.Parameter(torch.ones(3), requires_grad=True)
         self.weights_relu = nn.ReLU()
-        self.first_conv = SeparableConvBlock(self.fpn_num_filters[self.compound_coef],self.final_layer_sizes[self.compound_coef],True)
+        self.first_conv = SeparableConvBlock(
+                    self.fpn_num_filters[self.compound_coef],
+                    self.final_layer_sizes[self.compound_coef],True)
         self.deconv1 = nn.ConvTranspose2d(
             in_channels=self.final_layer_sizes[self.compound_coef],
             out_channels=self.final_layer_sizes[self.compound_coef],
@@ -75,16 +80,17 @@ class EfficientTrackBackbone(nn.Module):
             stride=2,
             padding=1,
             bias=False)
-        self.gn1 = nn.GroupNorm(self.num_groups, self.final_layer_sizes[self.compound_coef])
+        self.gn1 = nn.GroupNorm(self.num_groups,
+                                self.final_layer_sizes[self.compound_coef])
         self.final_conv1 = nn.Conv2d(
             in_channels = self.final_layer_sizes[self.compound_coef],
-            out_channels = self.cfg.EFFICIENTTRACK.NUM_JOINTS,
+            out_channels = output_channels,
             kernel_size = 3,
             padding=1,
             bias = False)
         self.final_conv2 = nn.Conv2d(
             in_channels = self.final_layer_sizes[self.compound_coef],
-            out_channels = self.cfg.EFFICIENTTRACK.NUM_JOINTS,
+            out_channels = output_channels,
             kernel_size = 3,
             padding=1,
             bias = False)
@@ -229,12 +235,14 @@ class BiFPN(nn.Module):
     :param num_channels: Number of convolutional channels for all convolutions
         used in BiFPN
     :type num_channels: int
-    :param conv_channels: Number of xonvolutional channels of the different input stages
+    :param conv_channels: Number of xonvolutional channels of the different
+                          input stages
     :type conv_channels: int
     :param first_time: Specifies wether this is the first BiFPN block after the
         EffNet backbone, if yes some tranisition convs are added
     :type first_time: bool, optional
-    :param epsilon: small constant for numerical stability of the weight normalization
+    :param epsilon: small constant for numerical stability of the weight
+                    normalization
     :type epsilon: float, optional
     :param onnx_export: Select if model will be exported to onnx format. If True
         regular swish implementation will be used
@@ -244,12 +252,9 @@ class BiFPN(nn.Module):
     :param use_p8: Specifies wether an extra FPN stage is used
     :type use_p8: bool, optional
     """
-    def __init__(self, num_channels, conv_channels, first_time=False, epsilon=1e-4, onnx_export=False, attention=True,
-                 use_p8=False):
+    def __init__(self, num_channels, conv_channels, first_time=False,
+                 epsilon=1e-4, onnx_export=False, attention=True, use_p8=False):
         super(BiFPN, self).__init__()
-        #self.num_groups = 8
-        #self.epsilon = torch.tensor(epsilon)
-        #self.first_time = first_time
         self.register_buffer('epsilon', torch.tensor(epsilon))
         self.register_buffer('num_groups', torch.tensor(8))
         self.register_buffer('first_time', torch.tensor(first_time))
@@ -257,17 +262,27 @@ class BiFPN(nn.Module):
         self.use_p8 = use_p8
 
         # Conv layers
-        self.conv6_up = SeparableConvBlock(num_channels, onnx_export=onnx_export)
-        self.conv5_up = SeparableConvBlock(num_channels, onnx_export=onnx_export)
-        self.conv4_up = SeparableConvBlock(num_channels, onnx_export=onnx_export)     #CHECK IF AND WHEN THIS ACTUALLY MAKES IT FASTERT
-        self.conv3_up = SeparableConvBlock(num_channels, onnx_export=onnx_export)
-        self.conv4_down = SeparableConvBlock(num_channels, onnx_export=onnx_export)
-        self.conv5_down = SeparableConvBlock(num_channels, onnx_export=onnx_export)
-        self.conv6_down = SeparableConvBlock(num_channels, onnx_export=onnx_export)
-        self.conv7_down = SeparableConvBlock(num_channels, onnx_export=onnx_export)
+        self.conv6_up = SeparableConvBlock(num_channels,
+                                           onnx_export=onnx_export)
+        self.conv5_up = SeparableConvBlock(num_channels,
+                                           onnx_export=onnx_export)
+        self.conv4_up = SeparableConvBlock(num_channels,
+                                           onnx_export=onnx_export)
+        self.conv3_up = SeparableConvBlock(num_channels,
+                                           onnx_export=onnx_export)
+        self.conv4_down = SeparableConvBlock(num_channels,
+                                             onnx_export=onnx_export)
+        self.conv5_down = SeparableConvBlock(num_channels,
+                                             onnx_export=onnx_export)
+        self.conv6_down = SeparableConvBlock(num_channels,
+                                             onnx_export=onnx_export)
+        self.conv7_down = SeparableConvBlock(num_channels,
+                                             onnx_export=onnx_export)
         if use_p8:
-            self.conv7_up = SeparableConvBlock(num_channels, onnx_export=onnx_export)
-            self.conv8_down = SeparableConvBlock(num_channels, onnx_export=onnx_export)
+            self.conv7_up = SeparableConvBlock(num_channels,
+                                               onnx_export=onnx_export)
+            self.conv8_down = SeparableConvBlock(num_channels,
+                                                 onnx_export=onnx_export)
 
         # Feature scaling layers
         self.p6_upsample = nn.Upsample(scale_factor=2, mode='nearest')
@@ -370,26 +385,30 @@ class BiFPN(nn.Module):
         p6_w1 = self.p6_w1_relu(self.p6_w1)
         weight = p6_w1 / (torch.sum(p6_w1, dim=0) + self.epsilon)
         # Connections for P6_0 and P7_0 to P6_1 respectively
-        p6_up = self.conv6_up(self.swish(weight[0] * p6_in + weight[1] * self.p6_upsample(p7_in)))
+        p6_up = self.conv6_up(self.swish(weight[0] * p6_in + weight[1]
+                    * self.p6_upsample(p7_in)))
 
         # Weights for P5_0 and P6_1 to P5_1
         p5_w1 = self.p5_w1_relu(self.p5_w1)
         weight = p5_w1 / (torch.sum(p5_w1, dim=0) + self.epsilon)
         # Connections for P5_0 and P6_1 to P5_1 respectively
-        p5_up = self.conv5_up(self.swish(weight[0] * p5_in + weight[1] * self.p5_upsample(p6_up)))
+        p5_up = self.conv5_up(self.swish(weight[0] * p5_in + weight[1]
+                    * self.p5_upsample(p6_up)))
 
 
         # Weights for P4_0 and P5_1 to P4_1
         p4_w1 = self.p4_w1_relu(self.p4_w1)
         weight = p4_w1 / (torch.sum(p4_w1, dim=0) + self.epsilon)
         # Connections for P4_0 and P5_1 to P4_1 respectively
-        p4_up = self.conv4_up(self.swish(weight[0] * p4_in + weight[1] * self.p4_upsample(p5_up)))
+        p4_up = self.conv4_up(self.swish(weight[0] * p4_in + weight[1]
+                    * self.p4_upsample(p5_up)))
 
         # Weights for P3_0 and P4_1 to P3_2
         p3_w1 = self.p3_w1_relu(self.p3_w1)
         weight = p3_w1 / (torch.sum(p3_w1, dim=0) + self.epsilon)
         # Connections for P3_0 and P4_1 to P3_2 respectively
-        p3_out = self.conv3_up(self.swish(weight[0] * p3_in + weight[1] * self.p3_upsample(p4_up)))
+        p3_out = self.conv3_up(self.swish(weight[0] * p3_in + weight[1]
+                    * self.p3_upsample(p4_up)))
 
         if self.first_time:
             p4_in = self.p4_down_channel_2(p4)
@@ -400,27 +419,31 @@ class BiFPN(nn.Module):
         weight = p4_w2 / (torch.sum(p4_w2, dim=0) + self.epsilon)
         # Connections for P4_0, P4_1 and P3_2 to P4_2 respectively
         p4_out = self.conv4_down(
-            self.swish(weight[0] * p4_in + weight[1] * p4_up + weight[2] * self.p4_downsample(p3_out)))
+            self.swish(weight[0] * p4_in + weight[1] * p4_up + weight[2]
+                        * self.p4_downsample(p3_out)))
 
         # Weights for P5_0, P5_1 and P4_2 to P5_2
         p5_w2 = self.p5_w2_relu(self.p5_w2)
         weight = p5_w2 / (torch.sum(p5_w2, dim=0) + self.epsilon)
         # Connections for P5_0, P5_1 and P4_2 to P5_2 respectively
         p5_out = self.conv5_down(
-            self.swish(weight[0] * p5_in + weight[1] * p5_up + weight[2] * self.p5_downsample(p4_out)))
+            self.swish(weight[0] * p5_in + weight[1] * p5_up + weight[2]
+                        * self.p5_downsample(p4_out)))
 
         # Weights for P6_0, P6_1 and P5_2 to P6_2
         p6_w2 = self.p6_w2_relu(self.p6_w2)
         weight = p6_w2 / (torch.sum(p6_w2, dim=0) + self.epsilon)
         # Connections for P6_0, P6_1 and P5_2 to P6_2 respectively
         p6_out = self.conv6_down(
-            self.swish(weight[0] * p6_in + weight[1] * p6_up + weight[2] * self.p6_downsample(p5_out)))
+            self.swish(weight[0] * p6_in + weight[1] * p6_up + weight[2]
+                        * self.p6_downsample(p5_out)))
 
         # Weights for P7_0 and P6_2 to P7_2
         p7_w2 = self.p7_w2_relu(self.p7_w2)
         weight = p7_w2 / (torch.sum(p7_w2, dim=0) + self.epsilon)
         # Connections for P7_0 and P6_2 to P7_2
-        p7_out = self.conv7_down(self.swish(weight[0] * p7_in + weight[1] * self.p7_downsample(p6_out)))
+        p7_out = self.conv7_down(self.swish(weight[0] * p7_in + weight[1]
+                    * self.p7_downsample(p6_out)))
 
         return p3_out, p4_out, p5_out, p6_out, p7_out
 
@@ -490,12 +513,14 @@ class BiFPN(nn.Module):
                 self.swish(p7_in + p7_up + self.p7_downsample(p6_out)))
 
             # Connections for P8_0 and P7_2 to P8_2
-            p8_out = self.conv8_down(self.swish(p8_in + self.p8_downsample(p7_out)))
+            p8_out = self.conv8_down(self.swish(p8_in
+                        + self.p8_downsample(p7_out)))
 
             return p3_out, p4_out, p5_out, p6_out, p7_out, p8_out
         else:
             # Connections for P7_0 and P6_2 to P7_2
-            p7_out = self.conv7_down(self.swish(p7_in + self.p7_downsample(p6_out)))
+            p7_out = self.conv7_down(self.swish(p7_in
+                        + self.p7_downsample(p6_out)))
 
             return p3_out, p4_out, p5_out, p6_out, p7_out
 

@@ -1,9 +1,13 @@
-# ------------------------------------------------------------------------------
-# Copyright (c) Microsoft
-# Licensed under the MIT License.
-# Written by Bin Xiao (Bin.Xiao@microsoft.com)
-# Modified by Hanbin Dai (daihanbin.ac@gmail.com) and Feng Zhang (zhangfengwcy@gmail.com)
-# ------------------------------------------------------------------------------
+"""
+dataset3D.py
+============
+HybridNet 3D dataset loader.
+    Copyright (c) Microsoft
+    Licensed under the MIT License.
+    Written by Bin Xiao (Bin.Xiao@microsoft.com)
+    Modified by Hanbin Dai (daihanbin.ac@gmail.com) and
+    Feng Zhang (zhangfengwcy@gmail.com)
+"""
 
 from __future__ import absolute_import
 from __future__ import division
@@ -90,8 +94,7 @@ def get_final_preds(hm, Ms):
     heatmap_height = hm.shape[2]
     heatmap_width = hm.shape[3]
 
-    # post-processing
-    hm = gaussian_blur(hm, 11)  #11 taken from default config, no idea what it is yet
+    hm = gaussian_blur(hm, 11)
     hm = np.maximum(hm, 1e-10)
     hm = np.log(hm)
     for n in range(coords.shape[0]):
@@ -99,7 +102,4 @@ def get_final_preds(hm, Ms):
             coords[n,p] = taylor(hm[n][p], coords[n][p])
 
     preds = coords.copy()
-    #for j in range(preds.shape[0]):
-    #    M_inv = cv2.invertAffineTransform(Ms[j])
-    #    preds[j, :, :2] = np.matmul(M_inv[:, :2], preds[j, :, :2].T).T + M_inv[:, 2].T
     return preds, maxvals

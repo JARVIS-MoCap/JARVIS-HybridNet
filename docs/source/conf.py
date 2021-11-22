@@ -20,7 +20,7 @@ sys.path.insert(0, os.path.abspath('../..'))
 
 # -- Project information -----------------------------------------------------
 
-project = 'Vortex 3D Markerless Tracking'
+project = 'JARVIS HybridNet 3D Markerless Tracking'
 copyright = '2021, Timo Hueser'
 author = 'Timo Hueser'
 

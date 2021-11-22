@@ -6,16 +6,16 @@ Implementation of EfficientTrack based on https://github.com/zylo117/Yet-Another
 
 .. image:: imgs/EfficientDet.svg
 
-.. automodule:: lib.vortex.modules.efficienttrack.model
+.. automodule:: lib.hybridnet.modules.efficienttrack.model
     :members:
     :exclude-members: forward
-.. automodule:: lib.vortex.modules.efficienttrack.utils
+.. automodule:: lib.hybridnet.modules.efficienttrack.utils
     :members:
     :exclude-members: forward
-.. automodule:: lib.vortex.modules.efficienttrack.loss
+.. automodule:: lib.hybridnet.modules.efficienttrack.loss
     :members:
     :exclude-members: forward
-.. automodule:: lib.vortex.modules.efficienttrack.efficienttrack
+.. automodule:: lib.hybridnet.modules.efficienttrack.efficienttrack
     :members:
     :exclude-members: forward
 

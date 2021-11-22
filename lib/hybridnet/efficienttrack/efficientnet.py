@@ -21,7 +21,8 @@ class MBConvBlock(nn.Module):
     """
     Mobile Inverted Residual Block.
 
-    :param block_args: Parameters for creating specific block (e.g. number of filters)
+    :param block_args: Parameters for creating specific block
+                       (e.g. number of filters)
     """
     def __init__(self, block_args, block_idx):
         super().__init__()
@@ -29,40 +30,52 @@ class MBConvBlock(nn.Module):
         self.padding = {1:{1:0,2:0}, 3:{1:1, 2:1}, 5:{1:2,2:2}}
         self._block_args = block_args
         self.num_groups = 8
-        self.has_se = (self._block_args.se_ratio is not None) and (0 < self._block_args.se_ratio <= 1)
+        self.has_se = (self._block_args.se_ratio is not None) and (0
+                       < self._block_args.se_ratio <= 1)
         self.id_skip = block_args.id_skip  # skip connection and drop connect
 
         # Expansion phase
         inp = self._block_args.input_filters  # number of input channels
-        oup = self._block_args.input_filters * self._block_args.expand_ratio  # number of output channels
+        oup = (self._block_args.input_filters *
+               self._block_args.expand_ratio)  # number of output channels
         if self._block_args.expand_ratio != 1:
-            self._expand_conv = nn.Conv2d(in_channels=inp, out_channels=oup, kernel_size=1, bias=False)
+            self._expand_conv = nn.Conv2d(in_channels=inp, out_channels=oup,
+                                          kernel_size=1, bias=False)
             self._gn0 = nn.GroupNorm(self.num_groups, oup)
 
         # Depthwise convolution phase
         k = self._block_args.kernel_size
         s = self._block_args.stride
         if self.block_idx < 4:
-            self._depthwise_conv =  nn.Conv2d(in_channels=inp, out_channels=oup, kernel_size=k, stride = s, bias=False, padding = self.padding[k][s])
+            self._depthwise_conv =  nn.Conv2d(in_channels=inp, out_channels=oup,
+                                              kernel_size=k, stride = s,
+                                              bias=False,
+                                              padding = self.padding[k][s])
 
         else:
             if self._block_args.expand_ratio != 1:
-                self._expand_conv = nn.Conv2d(in_channels=inp, out_channels=oup, kernel_size=1, bias=False)
+                self._expand_conv = nn.Conv2d(in_channels=inp, out_channels=oup,
+                                              kernel_size=1, bias=False)
                 self._gn0 = nn.GroupNorm(self.num_groups, oup)
             self._depthwise_conv = nn.Conv2d(
-                in_channels=oup, out_channels=oup, groups=oup,  # groups makes it depthwise
-                kernel_size=k, stride=s, bias=False, padding = self.padding[k][s])
+                in_channels=oup, out_channels=oup,
+                groups=oup, kernel_size=k, #groups makes it depthwise
+                stride=s, bias=False, padding = self.padding[k][s])
         self._gn1 = nn.GroupNorm(self.num_groups, oup)
 
         # Squeeze and Excitation layer, if desired
         if self.has_se:
-            num_squeezed_channels = max(1, int(self._block_args.input_filters * self._block_args.se_ratio))
-            self._se_reduce = nn.Conv2d(in_channels=oup, out_channels=num_squeezed_channels, kernel_size=1)
-            self._se_expand = nn.Conv2d(in_channels=num_squeezed_channels, out_channels=oup, kernel_size=1)
+            num_squeezed_channels = max(1,
+                int(self._block_args.input_filters * self._block_args.se_ratio))
+            self._se_reduce = nn.Conv2d(in_channels=oup,
+                        out_channels=num_squeezed_channels, kernel_size=1)
+            self._se_expand = nn.Conv2d(in_channels=num_squeezed_channels,
+                        out_channels=oup, kernel_size=1)
 
         # Output phase
         final_oup = self._block_args.output_filters
-        self._project_conv = nn.Conv2d(in_channels=oup, out_channels=final_oup, kernel_size=1, bias=False)
+        self._project_conv = nn.Conv2d(in_channels=oup, out_channels=final_oup,
+                    kernel_size=1, bias=False)
         self._gn2 = nn.GroupNorm(self.num_groups, final_oup)
         self._swish = MemoryEfficientSwish()
 
@@ -94,25 +107,33 @@ class MBConvBlock(nn.Module):
         x = self._gn2(x)
 
         # Skip connection and drop connect
-        input_filters, output_filters = self._block_args.input_filters, self._block_args.output_filters
-        if self.id_skip and self._block_args.stride == 1 and input_filters == output_filters:
+        input_filters = self._block_args.input_filters
+        output_filters = self._block_args.output_filters
+        if (self.id_skip and self._block_args.stride == 1
+            and input_filters == output_filters):
             if drop_connect_rate:
                 x = drop_connect(x, p=drop_connect_rate, training=self.training)
             x = x + inputs  # skip connection
         return x
 
     def set_swish(self, memory_efficient=True):
-        """Sets swish function as memory efficient (for training) or standard (for export)"""
+        """
+        Sets swish function as memory efficient (for training) or
+        standard (for export)
+        """
         self._swish = MemoryEfficientSwish() if memory_efficient else Swish()
 
 
 
 class EfficientNet(nn.Module):
     """
-    An EfficientNet model. Most easily loaded with the .from_name or .from_pretrained methods
+    An EfficientNet model. Most easily loaded with the .from_name
+    or .from_pretrained methods
 
-    :param block_args: Parameters for creating specific blocks (e.g. number of filters)
-    :param global_params: Global Parameters of the network (e.g. drop_connect_rate)
+    :param block_args: Parameters for creating specific blocks
+                       (e.g. number of filters)
+    :param global_params: Global Parameters of the network
+                          (e.g. drop_connect_rate)
     """
 
     def __init__(self, blocks_args=None, global_params=None):
@@ -125,8 +146,9 @@ class EfficientNet(nn.Module):
 
         # Stem
         in_channels = 3  # rgb
-        out_channels = round_filters(32, self._global_params)  # number of output channels
-        self._conv_stem = nn.Conv2d(in_channels, out_channels, kernel_size=3, stride=2, bias=False, padding = 1)
+        out_channels = round_filters(32, self._global_params)
+        self._conv_stem = nn.Conv2d(in_channels, out_channels, kernel_size=3,
+                                    stride=2, bias=False, padding = 1)
         self._gn0 = nn.GroupNorm(self.num_groups, out_channels)
 
         # Build blocks
@@ -135,22 +157,27 @@ class EfficientNet(nn.Module):
 
             # Update block input and output filters based on depth multiplier.
             block_args = block_args._replace(
-                input_filters=round_filters(block_args.input_filters, self._global_params),
-                output_filters=round_filters(block_args.output_filters, self._global_params),
-                num_repeat=round_repeats(block_args.num_repeat, self._global_params)
+                input_filters = round_filters(block_args.input_filters,
+                            self._global_params),
+                output_filters = round_filters(block_args.output_filters,
+                            self._global_params),
+                num_repeat = round_repeats(block_args.num_repeat,
+                            self._global_params)
             )
 
             # The first block needs to take care of stride and filter size increase.
             self._blocks.append(MBConvBlock(block_args, idx))
             if block_args.num_repeat > 1:
-                block_args = block_args._replace(input_filters=block_args.output_filters, stride=1)
+                block_args = block_args._replace(
+                            input_filters=block_args.output_filters, stride=1)
             for _ in range(block_args.num_repeat - 1):
                 self._blocks.append(MBConvBlock(block_args, idx))
 
         # Head
         in_channels = block_args.output_filters  # output of final block
         out_channels = round_filters(1280, self._global_params)
-        self._conv_head = nn.Conv2d(in_channels, out_channels, kernel_size=1, bias=False)
+        self._conv_head = nn.Conv2d(in_channels, out_channels, kernel_size=1,
+                                    bias=False)
         self._gn1 = nn.GroupNorm(self.num_groups, out_channels)
 
         # Final linear layer
@@ -160,7 +187,10 @@ class EfficientNet(nn.Module):
         self._swish = MemoryEfficientSwish()
 
     def set_swish(self, memory_efficient=True):
-        """Sets swish function as memory efficient (for training) or standard (for export)"""
+        """
+        Sets swish function as memory efficient (for training) or
+        standard (for export)
+        """
         self._swish = MemoryEfficientSwish() if memory_efficient else Swish()
         for block in self._blocks:
             block.set_swish(memory_efficient)
@@ -196,15 +226,19 @@ class EfficientNet(nn.Module):
     @classmethod
     def from_name(cls, model_name, override_params=None):
         cls._check_model_name_is_valid(model_name)
-        blocks_args, global_params = get_model_params(model_name, override_params)
+        blocks_args, global_params = get_model_params(model_name,
+                                                      override_params)
         return cls(blocks_args, global_params)
 
     @classmethod
-    def from_pretrained(cls, model_name, advprop=False, num_classes=1000, in_channels=3):
-        model = cls.from_name(model_name, override_params={'num_classes': num_classes})
+    def from_pretrained(cls, model_name, advprop=False, num_classes=1000,
+                        in_channels=3):
+        model = cls.from_name(model_name,
+                    override_params = {'num_classes': num_classes})
         if in_channels != 3:
             out_channels = round_filters(32, model._global_params)
-            model._conv_stem = nn.Conv2d(in_channels, out_channels, kernel_size=3, stride=2, bias=False, padding = 1)
+            model._conv_stem = nn.Conv2d(in_channels, out_channels,
+                        kernel_size=3, stride=2, bias=False, padding = 1)
         return model
 
     @classmethod
@@ -218,4 +252,5 @@ class EfficientNet(nn.Module):
         """ Validates model name. """
         valid_models = ['efficientnet-b'+str(i) for i in range(9)]
         if model_name not in valid_models:
-            raise ValueError('model_name should be one of: ' + ', '.join(valid_models))
+            raise ValueError('model_name should be one of: '
+                        + ', '.join(valid_models))

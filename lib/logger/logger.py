@@ -1,3 +1,9 @@
+"""
+logger.py
+============
+Logging utilities for network training.
+"""
+
 from torch.utils.tensorboard import SummaryWriter
 
 class NetLogger(object):
@@ -32,10 +38,13 @@ class NetLogger(object):
         """
         if not isinstance(loss, list):
             loss = [loss]
-        assert len(loss) == len(self.losses), "Number of given losses doesn't match loss list..."
+        assert len(loss) == len(self.losses), \
+                    "Number of given losses doesn't match loss list..."
         for loss, loss_name in zip(loss, self.losses):
-            self.writer.add_scalar("Train " + loss_name, loss, self.trainig_loss_steps)
+            self.writer.add_scalar("Train " + loss_name, loss,
+                                   self.trainig_loss_steps)
         self.trainig_loss_steps += 1
+
 
     def update_val_loss(self, loss):
         """
@@ -46,10 +55,13 @@ class NetLogger(object):
         """
         if not isinstance(loss, list):
             loss = [loss]
-        assert len(loss) == len(self.losses), "Number of given losses doesn't match loss list..."
+        assert len(loss) == len(self.losses), \
+                    "Number of given losses doesn't match loss list..."
         for loss, loss_name in zip(loss, self.losses):
-            self.writer.add_scalar("Validation " + loss_name, loss, self.validation_loss_steps)
+            self.writer.add_scalar("Validation " + loss_name,
+                                   loss, self.validation_loss_steps)
         self.validation_loss_steps += 1
+
 
     def update_train_accuracy (self, acc):
         """
@@ -61,6 +73,7 @@ class NetLogger(object):
         self.writer.add_scalar('Train Accuracy', acc, self.trainig_acc_steps)
         self.trainig_acc_steps += 1
 
+
     def update_val_accuracy(self, acc):
         """
         Update validation accuracy tesnorboard log.
@@ -68,18 +81,21 @@ class NetLogger(object):
         :param acc: current accuracy
         :type acc: float
         """
-        self.writer.add_scalar('Validation Accuracy', acc, self.validation_acc_steps)
+        self.writer.add_scalar('Validation Accuracy', acc,
+                               self.validation_acc_steps)
         self.validation_acc_steps += 1
+
 
 
 class AverageMeter():
     """
-    Simple average metering class to better monitor training parameters like loss
-    and accuracy.
+    Simple average metering class to better monitor training parameters like
+    loss and accuracy.
     """
     def __init__(self):
         self.value = 0
         self.step = 0
+
 
     def update(self, val):
         """
@@ -90,6 +106,7 @@ class AverageMeter():
         """
         self.value += val
         self.step += 1
+
 
     def read(self):
         """
@@ -102,6 +119,7 @@ class AverageMeter():
             return (self.value/self.step)
         else:
             return 0
+
 
     def reset(self):
         """
