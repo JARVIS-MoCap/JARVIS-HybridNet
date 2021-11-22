@@ -13,7 +13,6 @@ import time
 import torch
 from torch import nn
 from torch.utils.data import DataLoader
-import onnx
 
 from .model import HybridNetBackbone
 from .loss import MSELoss
@@ -21,7 +20,10 @@ import lib.utils.utils as utils
 from lib.logger.logger import NetLogger, AverageMeter
 import lib.hybridnet.efficienttrack.darkpose as darkpose
 
-
+import warnings
+#Filter out weird pytorch floordiv deprecation warning, don't know where it's
+#coming from so can't really fix it
+warnings.filterwarnings("ignore", category=UserWarning)
 
 class HybridNet:
     """

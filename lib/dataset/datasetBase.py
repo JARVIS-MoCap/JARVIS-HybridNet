@@ -90,7 +90,7 @@ class BaseDataset(Dataset):
             return annotations, keypoints
 
         coco_annotations = self.coco.loadAnns(annotations_ids)
-        
+
         for idx, a in enumerate(coco_annotations):
             annotation = np.zeros((1, 5))
             annotation[0, :4] = a['bbox']

@@ -55,7 +55,7 @@ class HybridNetBackbone(nn.Module):
         self.xx,self.yy,self.zz = torch.meshgrid(
                 torch.arange(int(self.grid_size/self.grid_spacing/2)).cuda(),
                 torch.arange(int(self.grid_size/self.grid_spacing/2)).cuda(),
-                torch.arange(int(self.grid_size/self.grid_spacing/2)).cuda())
+                torch.arange(int(self.grid_size/self.grid_spacing/2)).cuda(), indexing = 'ij')
         self.last_time = 0
 
 

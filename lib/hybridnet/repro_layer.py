@@ -39,7 +39,7 @@ class ReprojectionLayer(nn.Module):
                     torch.arange(self.num_cameras).cuda(),
                     torch.arange(self.grid_size).cuda(),
                     torch.arange(self.grid_size).cuda(),
-                    torch.arange(self.grid_size).cuda())
+                    torch.arange(self.grid_size).cuda(), indexing='ij')
 
         self.grid = torch.zeros((self.grid_size, self.grid_size,
                                  self.grid_size,3))

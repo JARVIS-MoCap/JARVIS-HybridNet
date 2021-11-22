@@ -12,7 +12,6 @@ from lib.config import cfg
 from lib.dataset.dataset2D import Dataset2D
 from lib.dataset.dataset3D import Dataset3D
 
-
 class ProjectManager:
     """
     Project Manager Class to load and setup projects and find suitable values
