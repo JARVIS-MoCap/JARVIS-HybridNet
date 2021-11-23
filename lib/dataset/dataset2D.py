@@ -108,9 +108,9 @@ class Dataset2D(BaseDataset):
                     iaa.Multiply(cman.PER_CHANNEL_MULTIPLY.SCALE,
                     per_channel =
                     cman.PER_CHANNEL_MULTIPLY.PER_CHANNEL_PROBABILITY)))
-
-            augmentors.append(
-                iaa.Fliplr(cfg.MIRROR.PROBABILITY))
+            if self.mode == 'KeypointDetect':
+                augmentors.append(
+                    iaa.Fliplr(cfg.MIRROR.PROBABILITY))
             augmentors.append(
                 iaa.Sometimes(cfg.AFFINE_TRANSFORM.PROBABILITY,
                 iaa.Affine(rotate=cfg.AFFINE_TRANSFORM.ROTATION_RANGE,

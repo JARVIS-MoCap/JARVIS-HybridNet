@@ -197,10 +197,10 @@ class EfficientTrack:
 
             self.lossMeter.reset()
 
-            if epoch % self.cfg.CHECKPOINT_SAVE_INTERVAL == 0 and epoch > 0:
-                self.save_checkpoint(f'EfficientTrack-d{self.cfg.COMPOUND_COEF}_{epoch}.pth')
+            if (epoch+1) % self.cfg.CHECKPOINT_SAVE_INTERVAL == 0:
+                self.save_checkpoint(f'EfficientTrack-d{self.cfg.COMPOUND_COEF}_{epoch+1}.pth')
                 print('checkpoint...')
-            if epoch % self.cfg.VAL_INTERVAL == 0:
+            if (epoch+1) % self.cfg.VAL_INTERVAL == 0:
                 self.model.eval()
                 for data in val_generator:
                     with torch.no_grad():
@@ -232,8 +232,8 @@ class EfficientTrack:
                     preds, maxvals = darkpose.get_final_preds(
                                 outputs[1].clamp(0,255).detach().cpu().numpy(),
                                 None)
-                    masked = np.ma.masked_where(maxvals.reshape(
-                                self.cfg.BATCH_SIZE,self.cfg.NUM_JOINTS) < 10,
+                    mask = np.sum(keypoints,axis = 2)
+                    masked = np.ma.masked_where(mask == 0,
                                 np.linalg.norm((preds+0.5)*2-keypoints,
                                 axis = 2))
 
@@ -254,7 +254,7 @@ class EfficientTrack:
                             and self.cfg.USE_EARLY_STOPPING):
                     best_loss = loss
                     best_epoch = epoch
-                    self.save_checkpoint(f'EfficientTrack-d{self.cfg.COMPOUND_COEF}_{epoch}.pth')
+                    self.save_checkpoint(f'EfficientTrack-d{self.cfg.COMPOUND_COEF}_{epoch+1}.pth')
 
                 self.model.train()
 

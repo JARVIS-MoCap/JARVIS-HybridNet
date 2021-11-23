@@ -349,7 +349,6 @@ class HybridNet:
                 for i,val in enumerate(maxvals[:]):
                     if val > 150:
                         camsToUse.append(i)
-                print (len(camsToUse))
                 if len(camsToUse) >= 2:
                     center3D = torch.from_numpy(reproTool.reconstructPoint((preds.reshape(self.cfg.DATASET.NUM_CAMERAS,2)*(self.cfg.CENTERDETECT.DOWNSAMPLING_FACTOR*2)).transpose(), camsToUse))
                     reproPoints = reproTool.reprojectPoint(center3D)
@@ -363,15 +362,12 @@ class HybridNet:
                         else:
                             errors.append(0)
                     medianError = np.median(np.array(errors_valid))
-                    # print ("Error: ", medianError)
-                    # print ("Var based: ", medianError+2*np.sqrt(np.var(errors_valid)),medianError*4)
                     camsToUse = []
                     for i,val in enumerate(maxvals[:]):
                         if val > 180 and errors[i] < 2*medianError:
                             camsToUse.append(i)
                     center3D = torch.from_numpy(reproTool.reconstructPoint((preds.reshape(self.cfg.DATASET.NUM_CAMERAS,2)*8).transpose(), camsToUse))
                     reproPoints = reproTool.reprojectPoint(center3D)
-                    print (center3D)
                 imgs = []
                 bbox_hw = int(self.cfg.KEYPOINTDETECT.BOUNDING_BOX_SIZE/2)
                 for idx,reproPoint in enumerate(reproPoints):

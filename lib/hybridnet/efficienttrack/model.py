@@ -98,7 +98,6 @@ class EfficientTrackBackbone(nn.Module):
 
     def forward(self, inputs):
         p3, p4, p5 = self.backbone_net(inputs)
-
         features = (p3, p4, p5)
         features = self.bifpn(features)
         x3 = self.upsample3(features[2])
@@ -114,7 +113,6 @@ class EfficientTrackBackbone(nn.Module):
 
         res1 = self.final_conv1(res1)
         res2 = self.final_conv2(res2)
-
 
         return [res1, res2]
 
@@ -255,10 +253,10 @@ class BiFPN(nn.Module):
     def __init__(self, num_channels, conv_channels, first_time=False,
                  epsilon=1e-4, onnx_export=False, attention=True, use_p8=False):
         super(BiFPN, self).__init__()
-        self.register_buffer('epsilon', torch.tensor(epsilon))
-        self.register_buffer('num_groups', torch.tensor(8))
-        self.register_buffer('first_time', torch.tensor(first_time))
-
+        self.epsilon = torch.tensor(epsilon)
+        self.num_groups = torch.tensor(8)
+        self.first_time =  torch.tensor(first_time)
+        
         self.use_p8 = use_p8
 
         # Conv layers
