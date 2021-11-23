@@ -52,6 +52,8 @@ class Dataset3D(BaseDataset):
         img = self._load_image(0)
         width, height = img.shape[1], img.shape[0]
         cfg.DATASET.IMAGE_SIZE = [width,height]
+        self.reproTool.resolution = [width,height]
+
 
         #TODO: This is only temporary, will get changed in Calib overhaul
         self.cameraMatrices = torch.zeros(self.num_cameras, 4,3)
@@ -103,7 +105,7 @@ class Dataset3D(BaseDataset):
             min_cube_size = np.max([x_cube_size_min,
                                     y_cube_size_min,
                                     z_cube_size_min])
-            if (min_cube_size <= self.cfg.HYBRIDNET.ROI_CUBE_SIZE):
+            if ((self.cfg.HYBRIDNET.ROI_CUBE_SIZE == None) or min_cube_size <= self.cfg.HYBRIDNET.ROI_CUBE_SIZE):
                 self.image_ids.append(self.coco.dataset['framesets'][set][0])
                 self.keypoints3D.append(keypoints3D_cam)
             else:

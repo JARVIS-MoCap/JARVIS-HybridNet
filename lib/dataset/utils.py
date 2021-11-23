@@ -28,17 +28,17 @@ class ReprojectionTool:
 
         self.camera_list = [self.cameras[cam] for cam in self.cameras]
         self.num_cameras = len(self.camera_list)
-        resolutions = [self.cameras[cam].resolution for cam in self.cameras]
-        assert resolutions[:-1] == resolutions[1:], 'All cameras need to record at the same resolution'
-        self.resolution = resolutions[0]
+        #resolutions = [self.cameras[cam].resolution for cam in self.cameras]
+        #assert resolutions[:-1] == resolutions[1:], 'All cameras need to record at the same resolution'
+        #self.resolution = resolutions[0]
 
     def reprojectPoint(self,point3D):
         pointsRepro = np.zeros((self.num_cameras, 2))
         for i,cam in enumerate(self.camera_list):
             pointRepro = cam.cameraMatrix.dot(np.concatenate((point3D, np.array([1]))))
             pointRepro = (pointRepro/pointRepro[-1])[:2]
-            pointRepro[0] = max(0, min(pointRepro[0],cam.resolution[0]-1))
-            pointRepro[1] = max(0, min(pointRepro[1],cam.resolution[1]-1))
+            pointRepro[0] = max(0, min(pointRepro[0],self.resolution[0]-1))
+            pointRepro[1] = max(0, min(pointRepro[1],self.resolution[1]-1))
             pointsRepro[i] = pointRepro
         return pointsRepro
 
@@ -68,7 +68,6 @@ class Camera:
     def __init__(self, name, primary, intrinsics, extrinsics = None):
         self.name = name
         self.primary = primary
-        self.resolution = [1280,1024] #TODO: Include this in intrinsics file
         if self.primary:
             self.position = np.array([0.,0.,0.]).reshape(3,1)
             self.rotationMatrix = np.eye(3)

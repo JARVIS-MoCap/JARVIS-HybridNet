@@ -182,8 +182,8 @@ class ProjectManager:
         q = 'Enter custom grid spacing:'
         resolution = self._get_number_from_user(q, suggestions["resolution"],
                     bounds = [0,4])
-        self.cfg.VORTEX.ROI_CUBE_SIZE = bbox_size
-        self.cfg.VORTEX.GRID_SPACING = resolution
+        self.cfg.HYBRIDNET.ROI_CUBE_SIZE = bbox_size
+        self.cfg.HYBRIDNET.GRID_SPACING = resolution
 
 
     def _init_config(self, name):

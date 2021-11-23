@@ -87,7 +87,7 @@ class HybridNet:
     def load_weights(self, weights_path = None):
         if weights_path is not None:
             state_dict = torch.load(weights_path)
-            self.model.load_state_dict(state_dict, strict=False)
+            self.model.load_state_dict(state_dict, strict=True)
             print(f'[Info] loaded weights: {os.path.basename(weights_path)}')
         else:
             print('[Info] initializing weights...')
@@ -347,9 +347,9 @@ class HybridNet:
                 camsToUse = []
 
                 for i,val in enumerate(maxvals[:]):
-                    if val > 180:
+                    if val > 150:
                         camsToUse.append(i)
-
+                print (len(camsToUse))
                 if len(camsToUse) >= 2:
                     center3D = torch.from_numpy(reproTool.reconstructPoint((preds.reshape(self.cfg.DATASET.NUM_CAMERAS,2)*(self.cfg.CENTERDETECT.DOWNSAMPLING_FACTOR*2)).transpose(), camsToUse))
                     reproPoints = reproTool.reprojectPoint(center3D)
@@ -371,6 +371,7 @@ class HybridNet:
                             camsToUse.append(i)
                     center3D = torch.from_numpy(reproTool.reconstructPoint((preds.reshape(self.cfg.DATASET.NUM_CAMERAS,2)*8).transpose(), camsToUse))
                     reproPoints = reproTool.reprojectPoint(center3D)
+                    print (center3D)
                 imgs = []
                 bbox_hw = int(self.cfg.KEYPOINTDETECT.BOUNDING_BOX_SIZE/2)
                 for idx,reproPoint in enumerate(reproPoints):

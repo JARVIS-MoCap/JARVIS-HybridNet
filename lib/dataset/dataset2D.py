@@ -60,7 +60,7 @@ class Dataset2D(BaseDataset):
             for output_size in output_sizes:
                 self.heatmap_generators.append(HeatmapGenerator(
                                 [height*scale,width*scale], output_size,
-                                cfg.CENTERDETECT.NUM_JOINTS, sigma  = -2))
+                                cfg.CENTERDETECT.NUM_JOINTS, sigma = -2))
 
         elif self.mode == 'KeypointDetect':
             cfg.KEYPOINTDETECT.NUM_JOINTS = self.num_keypoints[0]
@@ -309,11 +309,11 @@ class HeatmapGenerator():
 if __name__ == "__main__":
     from lib.config.project_manager import ProjectManager
     project = ProjectManager()
-    project.load('Test_Project')
+    project.load('Example_Project')
     cfg = project.get_cfg()
     print (cfg.DATASET.DATASET_2D)
 
-    training_set = Dataset2D(cfg = cfg, set='train', mode='KeypointDetect')
+    training_set = Dataset2D(cfg = cfg, set='train', mode='CenterDetect')
     print (len(training_set.image_ids))
     for i in range(0,len(training_set.image_ids),10):
         training_set.visualize_sample(i)

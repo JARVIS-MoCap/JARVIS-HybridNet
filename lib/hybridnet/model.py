@@ -35,7 +35,7 @@ class HybridNetBackbone(nn.Module):
         self.root_dir = cfg.DATASET.DATASET_ROOT_DIR
         self.grid_spacing = torch.tensor(cfg.HYBRIDNET.GRID_SPACING)
         self.grid_size = torch.tensor(cfg.HYBRIDNET.ROI_CUBE_SIZE)
-       
+
         self.effTrack = EfficientTrackBackbone(self.cfg.KEYPOINTDETECT,
                     compound_coef=self.cfg.KEYPOINTDETECT.COMPOUND_COEF,
                     output_channels = self.cfg.KEYPOINTDETECT.NUM_JOINTS)
