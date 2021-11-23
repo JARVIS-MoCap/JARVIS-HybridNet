@@ -95,6 +95,6 @@ class HybridNetBackbone(nn.Module):
         z = torch.mul(heatmap_final, self.zz)
         z = torch.sum(z, dim = [2,3,4])/norm
         points3D = torch.stack([x,y,z], dim = 2)
-        points3D = (points3D*self.grid_spacing*2 - self.grid_size
-                    / self.grid_spacing + center3D)
+        points3D = (points3D.transpose(0,1)*self.grid_spacing*2 - self.grid_size
+                    / self.grid_spacing + center3D).transpose(0,1)
         return heatmap_final, heatmaps_padded, points3D
