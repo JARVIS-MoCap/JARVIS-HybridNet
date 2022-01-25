@@ -53,11 +53,11 @@ class HybridNetBackbone(nn.Module):
         self.xx,self.yy,self.zz = torch.meshgrid(
                 torch.arange(int(self.grid_size/self.grid_spacing/2)).cuda(),
                 torch.arange(int(self.grid_size/self.grid_spacing/2)).cuda(),
-                torch.arange(int(self.grid_size/self.grid_spacing/2)).cuda(), indexing = 'ij')
+                torch.arange(int(self.grid_size/self.grid_spacing/2)).cuda())#, indexing = 'ij')
         self.last_time = 0
 
 
-    def forward(self, imgs, centerHM, center3D, cameraMatrices):
+    def forward(self, imgs, centerHM, center3D, cameraMatrices, intrinsicMatrices, distortionCoefficients):
         batch_size = imgs.shape[0]
         heatmaps_batch = self.effTrack(
                 imgs.reshape(-1,imgs.shape[2], imgs.shape[3], imgs.shape[4]))[1]
@@ -75,17 +75,29 @@ class HybridNetBackbone(nn.Module):
         for i in range(imgs.shape[1]):
             heatmaps = heatmaps_batch[:,i]
             for batch, heatmap in enumerate(heatmaps):
+                rand = torch.rand(1)
+                rand2 = torch.normal(0.0,heatmap.shape[-1]*0.1,(2,))
+                if rand < 0.75 or (not self.training):
+                    rand2 = rand2*0
+                min_shift_1 = -(((centerHM[batch,i,0])/2)-heatmap.shape[-1]/2).int()+1
+                max_shift_1 = self.heatmap_size[0]-(centerHM[batch,i,0]/2)-1
+                rand2[0]=torch.max(min_shift_1,torch.min(max_shift_1, rand2[0])).int()
+                min_shift_2 = -(((centerHM[batch,i,1])/2)-heatmap.shape[-1]/2).int()+1
+                max_shift_2 = self.heatmap_size[1]-(centerHM[batch,i,1]/2)-1
+                rand2[1]=torch.max(min_shift_2,torch.min(max_shift_2, rand2[1])).int()
                 heatmaps_padded[batch,i] = F.pad(input=heatmap,
-                     pad = (((centerHM[batch,i,0]/2)-heatmap.shape[-1]/2).int(),
-                          self.heatmap_size[0]-((centerHM[batch,i,0]/2)
-                          + heatmap.shape[-1]/2).int(),
-                          ((centerHM[batch,i,1]/2)-heatmap.shape[-1]/2).int(),
-                          self.heatmap_size[1]-((centerHM[batch,i,1]/2)
-                          + heatmap.shape[-1]/2).int()),
+                     pad = ((((centerHM[batch,i,0])/2)-heatmap.shape[-1]/2+rand2[0]).int(),
+                          self.heatmap_size[0]-(((centerHM[batch,i,0])/2)
+                          + heatmap.shape[-1]/2+rand2[0]).int(),
+                          (((centerHM[batch,i,1])/2)-heatmap.shape[-1]/2+rand2[1]).int(),
+                          self.heatmap_size[1]-(((centerHM[batch,i,1])/2)
+                          + heatmap.shape[-1]/2+rand2[1]).int()),
                      mode='constant', value=0)
-        heatmaps3D = self.reproLayer(heatmaps_padded, center3D, cameraMatrices)
+
+        heatmaps3D = self.reproLayer(heatmaps_padded, center3D, cameraMatrices, intrinsicMatrices, distortionCoefficients)
         heatmap_final = self.v2vNet(((heatmaps3D/255.)))
         heatmap_final = self.softplus(heatmap_final)
+        #heatmap_final = heatmaps_gt
         #TODO: Make this work for different batch sizes"!!
         norm = torch.sum(heatmap_final, dim = [2,3,4])
         x = torch.mul(heatmap_final, self.xx)
@@ -96,5 +108,5 @@ class HybridNetBackbone(nn.Module):
         z = torch.sum(z, dim = [2,3,4])/norm
         points3D = torch.stack([x,y,z], dim = 2)
         points3D = (points3D.transpose(0,1)*self.grid_spacing*2 - self.grid_size
-                    / self.grid_spacing + center3D).transpose(0,1)
+                    / 2. + center3D).transpose(0,1)
         return heatmap_final, heatmaps_padded, points3D

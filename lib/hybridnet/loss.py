@@ -12,6 +12,9 @@ class MSELoss(nn.Module):
 
     def forward(self, pred, gt):
         assert pred.size() == gt.size()
-        loss = ((pred - gt)**2)
-        loss = torch.mean(loss)
+        loss = 0
+        for i,gt_batch in enumerate(gt):
+            for j, gt_single in enumerate(gt_batch):
+                if torch.sum(gt_single) > 1:
+                    loss += torch.mean(((pred[i][j] - gt_single)**2))
         return loss

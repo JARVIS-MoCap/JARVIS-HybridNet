@@ -9,7 +9,11 @@ import os
 import numpy as np
 from tqdm.autonotebook import tqdm
 import time
-
+import itertools
+from joblib import Parallel, delayed
+import cv2
+import csv
+import matplotlib
 
 import torch
 from torch import nn
@@ -139,6 +143,8 @@ class HybridNet:
                 center3D = data[3]
                 heatmap3D = data[4]
                 cameraMatrices = data[5]
+                intrinsicMatrices = data[6]
+                distortionCoefficients = data[7]
 
                 imgs = imgs.cuda()
                 keypoints = keypoints.cuda()
@@ -146,27 +152,45 @@ class HybridNet:
                 center3D = center3D.cuda()
                 heatmap3D = heatmap3D.cuda()
                 cameraMatrices = cameraMatrices.cuda()
+                intrinsicMatrices = intrinsicMatrices.cuda()
+                distortionCoefficients = distortionCoefficients.cuda()
+
 
                 self.optimizer.zero_grad()
                 if self.cfg.USE_MIXED_PRECISION:
                     with torch.cuda.amp.autocast():
                         outputs = self.model(imgs, centerHM, center3D,
-                                    cameraMatrices)
+                                    cameraMatrices, intrinsicMatrices, distortionCoefficients)
                         loss = self.criterion(outputs[0], heatmap3D)
                         loss = loss.mean()
-                        acc = torch.mean(torch.sqrt(torch.sum(
-                                    (keypoints-outputs[2])**2, dim = 2)))
+                        acc = 0
+                        count = 0
+                        for i,keypoints_batch in enumerate(keypoints):
+                            for j,keypoint in enumerate(keypoints_batch):
+                                if keypoint[0] != 0 or keypoint[1] != 0  or keypoint[2] != 0:
+                                    acc += torch.sqrt(torch.sum(
+                                                (keypoint-outputs[2][i][j])**2))
+                                    count += 1
+                        acc = acc/count
                     scaler.scale(loss).backward()
                     scaler.step(self.optimizer)
                     scaler.update()
 
                 else:
                     outputs = self.model(imgs, centerHM, center3D,
-                                         cameraMatrices)
+                                         cameraMatrices, intrinsicMatrices, distortionCoefficients)
                     loss = self.criterion(outputs[0], heatmap3D)
                     loss = loss.mean()
-                    acc = torch.mean(torch.sqrt(torch.sum(
-                                (keypoints-outputs[2])**2, dim = 2)))
+
+                    acc = 0
+                    count = 0
+                    for i,keypoints_batch in enumerate(keypoints):
+                        for j,keypoint in enumerate(keypoints_batch):
+                            if keypoint[0] != 0 or keypoint[1] != 0  or keypoint[2] != 0:
+                                acc += torch.sqrt(torch.sum(
+                                            (keypoint-outputs[2][i][j])**2))
+                                count += 1
+                    acc = acc/count
 
                     loss.backward()
                     self.optimizer.step()
@@ -204,6 +228,8 @@ class HybridNet:
                         center3D = data[3]
                         heatmap3D = data[4]
                         cameraMatrices = data[5]
+                        intrinsicMatrices = data[6]
+                        distortionCoefficients = data[7]
 
                         imgs = imgs.cuda()
                         keypoints = keypoints.cuda()
@@ -211,23 +237,33 @@ class HybridNet:
                         center3D = center3D.cuda()
                         heatmap3D = heatmap3D.cuda()
                         cameraMatrices = cameraMatrices.cuda()
+                        intrinsicMatrices = intrinsicMatrices.cuda()
+                        distortionCoefficients = distortionCoefficients.cuda()
+
 
 
                         if self.cfg.USE_MIXED_PRECISION:
                             with torch.cuda.amp.autocast():
                                 outputs = self.model(imgs, centerHM, center3D,
-                                                     cameraMatrices)
+                                                     cameraMatrices, intrinsicMatrices, distortionCoefficients)
                                 loss = self.criterion(outputs[0], heatmap3D)
                                 loss = loss.mean()
                                 acc = torch.mean(torch.sqrt(torch.sum(
                                         (keypoints-outputs[2])**2, dim = 2)))
                         else:
                             outputs = self.model(imgs, centerHM, center3D,
-                                                 cameraMatrices)
+                                                 cameraMatrices,intrinsicMatrices, distortionCoefficients)
                             loss = self.criterion(outputs[0], heatmap3D)
                             loss = loss.mean()
-                            acc = torch.mean(torch.sqrt(torch.sum(
-                                        (keypoints-outputs[2])**2, dim = 2)))
+                            acc = 0
+                            count = 0
+                            for i,keypoints_batch in enumerate(keypoints):
+                                for j,keypoint in enumerate(keypoints_batch):
+                                    if keypoint[0] != 0 or keypoint[1] != 0  or keypoint[2] != 0:
+                                        acc += torch.sqrt(torch.sum(
+                                                    (keypoint-outputs[2][i][j])**2))
+                                        count += 1
+                            acc = acc/count
 
                         self.valLossMeter.update(loss.item())
                         self.valAccuracyMeter.update(acc.item())
@@ -247,7 +283,6 @@ class HybridNet:
                         and self.cfg.HYBRIDNET.USE_EARLY_STOPPING):
                 best_loss = loss
                 best_epoch = epoch
-                #self.save_checkpoint(f'Vortex_{epoch}.pth')
 
             self.model.train()
 
@@ -286,92 +321,106 @@ class HybridNet:
             self.model.effTrack.requires_grad_(False)
 
 
-    def predictPosesVideos(self, centerDetect, reproTool, cameraMatrices,video_paths, output_dir, frameStart = 0, frameEnd = -1, makeVideos = True):
-        import itertools
-        from joblib import Parallel, delayed
-        import cv2
-        import csv
-
-        def process(cap):
+    def predictPosesVideos(self, centerDetect, reproTool, video_paths,
+            output_dir, frameStart = 0, numberFrames = -1, skeletonPreset = None):
+        def read_images(cap):
             ret, img = cap.read()
             return img
+
+        def process_images(img):
+            img = ((cv2.cvtColor(img, cv2.COLOR_BGR2RGB).astype(np.float32)
+                    / 255.0 - self.cfg.DATASET.MEAN) / self.cfg.DATASET.STD)
+            img = cv2.resize(img, img_downsampled_shape)
+            return img
+
+        img_size = self.cfg.DATASET.IMAGE_SIZE
 
         caps = []
         outs = []
         for path in video_paths:
             caps.append(cv2.VideoCapture(path))
+            frameRate = caps[-1].get(cv2.CAP_PROP_FPS)
             os.makedirs(os.path.join(output_dir, 'Videos'), exist_ok = True)
-            img_size = self.cfg.DATASET.IMAGE_SIZE
             outs.append(cv2.VideoWriter(os.path.join(output_dir, 'Videos',
                         path.split('/')[-1].split(".")[0] + ".avi"),
-                        cv2.VideoWriter_fourcc('M','J', 'P', 'G'), 100,
+                        cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'), frameRate,
                         (img_size[0],img_size[1])))
 
         for cap in caps:
-                cap.set(1,frameStart) #99640
-
+                cap.set(1,frameStart)
         counter = 0
         with open(os.path.join(output_dir, 'data3D.csv'), 'w', newline='') as csvfile:
             writer = csv.writer(csvfile, delimiter=',',
-                                        quotechar='"', quoting=csv.QUOTE_MINIMAL)
-            # header = ['Frame Idx']
-            # joints = ["Pinky_T","Pinky_D","Pinky_M","Pinky_P","Ring_T","Ring_D","Ring_M","Ring_P","Middle_T","Middle_D","Middle_M","Middle_P","Index_T","Index_D","Index_M","Index_P","Thumb_T","Thumb_D","Thumb_M","Thumb_P","Palm", "Wrist_U","Wrist_R"]
-            # joints = joints
-            # joints = list(itertools.chain.from_iterable(itertools.repeat(x, 3) for x in joints))
-            # header = header + joints
-            # header2 = [""]
-            # header2 = header2 + ['x','y', 'z']*23
-            # writer.writerow(header)
-            # writer.writerow(header2)
+                            quotechar='"', quoting=csv.QUOTE_MINIMAL)
+
+            colors = []
+            line_idxs = []
+            if isinstance(skeletonPreset, str):
+                colors, line_idxs = self.get_colors_and_lines(skeletonPreset)
+                self.create_header(writer, skeletonPreset)
+            elif skeletonPreset != None:
+                colors = skeletonPreset["colors"]
+                line_idxs = skeletonPreset["line_idxs"]
+            else:
+                cmap = matplotlib.cm.get_cmap('jet')
+                for i in range(self.cfg.KEYPOINTDETECT.NUM_JOINTS):
+                    colors.append(((np.array(
+                            cmap(float(i)/self.cfg.KEYPOINTDETECT.NUM_JOINTS)) *
+                            255).astype(int)[:3]).tolist())
+
             ret = True
-            while ret and (frameEnd == -1 or counter < frameEnd):
+            if (numberFrames == -1):
+                numberFrames = int(caps[0].get(cv2.CAP_PROP_FRAME_COUNT))
+            while ret and (numberFrames == -1 or counter < numberFrames):
                 if counter % 100 == 0:
-                    print ("Analysing Frame ", counter)
+                    print ("Analysing Frame {}/{}".format(counter, numberFrames))
                 counter += 1
                 imgs = []
                 imgs_orig = []
                 centerHMs = []
                 camsToUse = []
 
-                imgs_orig = Parallel(n_jobs=-1, require='sharedmem')(delayed(process)(cap) for cap in caps)
-                img_downsampled_shape = (int(imgs_orig[0].shape[1]/self.cfg.CENTERDETECT.DOWNSAMPLING_FACTOR),int(imgs_orig[0].shape[0]/self.cfg.CENTERDETECT.DOWNSAMPLING_FACTOR))
-                imgs = torch.zeros(self.cfg.DATASET.NUM_CAMERAS,3,img_downsampled_shape[1],img_downsampled_shape[0])
-                for i,img in enumerate(imgs_orig[:]):
-                    img = ((cv2.cvtColor(img, cv2.COLOR_BGR2RGB).astype(np.float32)/255.0-self.cfg.DATASET.MEAN)/self.cfg.DATASET.STD)
-                    img = cv2.resize(img, img_downsampled_shape)
-                    imgs[i] = torch.from_numpy(cv2.resize(img, img_downsampled_shape).transpose(2,0,1))
+                imgs_orig = Parallel(n_jobs=-1, require='sharedmem')(delayed(read_images)(cap) for cap in caps)
+                img_downsampled_shape = (self.cfg.CENTERDETECT.IMAGE_SIZE, self.cfg.CENTERDETECT.IMAGE_SIZE)
+                downsampling_scale = np.array([float(imgs_orig[0].shape[1]/self.cfg.CENTERDETECT.IMAGE_SIZE), float(imgs_orig[0].shape[0]/self.cfg.CENTERDETECT.IMAGE_SIZE)])
+                imgs = Parallel(n_jobs=-1, require='sharedmem')(delayed(process_images)(img) for img in imgs_orig)
 
-                imgs = imgs.cuda()
+                imgs = torch.from_numpy(np.array(imgs).transpose(0,3,1,2)).cuda().float()
                 outputs = centerDetect.model(imgs)
                 preds, maxvals = darkpose.get_final_preds(outputs[1].clamp(0,255).detach().cpu().numpy(), None)
                 camsToUse = []
 
                 for i,val in enumerate(maxvals[:]):
-                    if val > 150:
+                    if val > 100:
                         camsToUse.append(i)
                 if len(camsToUse) >= 2:
-                    center3D = torch.from_numpy(reproTool.reconstructPoint((preds.reshape(self.cfg.DATASET.NUM_CAMERAS,2)*(self.cfg.CENTERDETECT.DOWNSAMPLING_FACTOR*2)).transpose(), camsToUse))
+                    center3D = torch.from_numpy(reproTool.reconstructPoint((preds.reshape(self.cfg.DATASET.NUM_CAMERAS,2)*(downsampling_scale*2)).transpose(), camsToUse))
                     reproPoints = reproTool.reprojectPoint(center3D)
+
 
                     errors = []
                     errors_valid = []
                     for i in range(self.cfg.DATASET.NUM_CAMERAS):
-                        if maxvals[i] > 180:
-                            errors.append(np.linalg.norm(preds.reshape(self.cfg.DATASET.NUM_CAMERAS,2)[i]*8-reproPoints[i]))
-                            errors_valid.append(np.linalg.norm(preds.reshape(self.cfg.DATASET.NUM_CAMERAS,2)[i]*8-reproPoints[i]))
+                        if maxvals[i] > 100:
+                            errors.append(np.linalg.norm(preds.reshape(self.cfg.DATASET.NUM_CAMERAS,2)[i]*downsampling_scale*2-reproPoints[i]))
+                            errors_valid.append(np.linalg.norm(preds.reshape(self.cfg.DATASET.NUM_CAMERAS,2)[i]*downsampling_scale*2-reproPoints[i]))
                         else:
                             errors.append(0)
                     medianError = np.median(np.array(errors_valid))
                     camsToUse = []
                     for i,val in enumerate(maxvals[:]):
-                        if val > 180 and errors[i] < 2*medianError:
+                        if val > 100 and errors[i] < 2*medianError:
                             camsToUse.append(i)
-                    center3D = torch.from_numpy(reproTool.reconstructPoint((preds.reshape(self.cfg.DATASET.NUM_CAMERAS,2)*8).transpose(), camsToUse))
+                    center3D = torch.from_numpy(reproTool.reconstructPoint((preds.reshape(self.cfg.DATASET.NUM_CAMERAS,2)*downsampling_scale*2).transpose(), camsToUse))
                     reproPoints = reproTool.reprojectPoint(center3D)
                 imgs = []
                 bbox_hw = int(self.cfg.KEYPOINTDETECT.BOUNDING_BOX_SIZE/2)
                 for idx,reproPoint in enumerate(reproPoints):
                     reproPoint = reproPoint.astype(int)
+                    reproPoints[idx][0] = min(max(reproPoint[0], bbox_hw), img_size[0]-1-bbox_hw)
+                    reproPoints[idx][1] = min(max(reproPoint[1], bbox_hw), img_size[1]-1-bbox_hw)
+                    reproPoint[0] = reproPoints[idx][0]
+                    reproPoint[1] = reproPoints[idx][1]
                     img = imgs_orig[idx][reproPoint[1]-bbox_hw:reproPoint[1]+bbox_hw, reproPoint[0]-bbox_hw:reproPoint[0]+bbox_hw, :]
                     img = ((cv2.cvtColor(img, cv2.COLOR_BGR2RGB).astype(np.float32)/255.0-self.cfg.DATASET.MEAN)/self.cfg.DATASET.STD)
                     imgs.append(img)
@@ -384,8 +433,13 @@ class HybridNet:
                 if len(camsToUse) >= 2:
                     center3D = center3D.int().cuda()
                     centerHMs = torch.from_numpy(centerHMs).cuda()
-                    heatmap3D, heatmaps_padded, points3D_net = self.model(imgs, torch.unsqueeze(centerHMs,0), torch.unsqueeze(center3D, 0), torch.unsqueeze(cameraMatrices.cuda(),0))
-                    row = [counter]
+                    heatmap3D, heatmaps_padded, points3D_net = self.model(imgs,
+                                torch.unsqueeze(centerHMs,0),
+                                torch.unsqueeze(center3D, 0),
+                                torch.unsqueeze(reproTool.cameraMatrices.cuda(),0),
+                                torch.unsqueeze(reproTool.intrinsicMatrices.cuda(),0),
+                                torch.unsqueeze(reproTool.distortionCoefficients.cuda(),0))
+                    row = []
                     for point in points3D_net.squeeze():
                         row = row + point.tolist()
                     writer.writerow(row)
@@ -393,23 +447,110 @@ class HybridNet:
                     for point in points3D_net[0].cpu().numpy():
                         points2D.append(reproTool.reprojectPoint(point))
 
+                    for i in range(len(outs)):
+                        for line in line_idxs:
+                            self.draw_line(imgs_orig[i], line, points2D,
+                                    img_size, colors[line[1]], i)
+                        for j,point in enumerate(points2D):
+                            self.draw_point(imgs_orig[i], point, img_size,
+                                    colors[j], i)
 
                 else:
-                    row = [counter]
+                    row = []
                     for i in range(23*3):
                         row = row + ['NaN']
                     writer.writerow(row)
 
-                colors = [(255,0,0), (255,0,0),(255,0,0),(255,0,0),(0,255,0),(0,255,0),(0,255,0),(0,255,0),(0,0,255),(0,0,255),(0,0,255),(0,0,255),(255,255,0),(255,255,0),(255,255,0), (255,255,0),
-                (0,255,255),(0,255,255),(0,255,255),(0,255,255), (255,0,255),(100,0,100),(100,0,100)]
                 for i,out in enumerate(outs):
-                    img = imgs_orig[i]
-                    if len(camsToUse) >= 2:
-                        for j,point in enumerate(points2D):
-                            cv2.circle(img, (int(point[i][0]), int(point[i][1])), 2, colors[j], thickness=5)
-                    out.write(img)
+                    out.write(imgs_orig[i])
 
             for out in outs:
                 out.release()
             for cap in caps:
                 cap.release()
+
+
+    def create_header(self, writer, skeletonPreset):
+        if skeletonPreset == "Hand":
+            joints = ["Pinky_T","Pinky_D","Pinky_M","Pinky_P","Ring_T",
+                      "Ring_D","Ring_M","Ring_P","Middle_T","Middle_D",
+                      "Middle_M","Middle_P","Index_T","Index_D","Index_M",
+                      "Index_P","Thumb_T","Thumb_D","Thumb_M","Thumb_P",
+                      "Palm", "Wrist_U","Wrist_R"]
+            header = []
+            joints = list(itertools.chain.from_iterable(itertools.repeat(x, 3) for x in joints))
+            header = header + joints
+            writer.writerow(header)
+        header2 = ['x','y','z']*self.cfg.KEYPOINTDETECT.NUM_JOINTS
+        writer.writerow(header2)
+
+
+    def draw_line(self, img, line, points2D, img_size, color, i):
+        array_sum = np.sum(np.array(points2D))
+        array_has_nan = np.isnan(array_sum)
+        if ((not array_has_nan) and int(points2D[line[0]][i][0]) < img_size[0]-1
+                and int(points2D[line[0]][i][0]) > 0
+                and  int(points2D[line[1]][i][0]) < img_size[0]-1
+                and int(points2D[line[1]][i][0]) > 0
+                and int(points2D[line[0]][i][1]) < img_size[1]-1
+                and int(points2D[line[0]][i][1]) > 0
+                and int(points2D[line[1]][i][1]) < img_size[1]-1
+                and int(points2D[line[1]][i][1]) > 0):
+            cv2.line(img,
+                    (int(points2D[line[0]][i][0]), int(points2D[line[0]][i][1])),
+                    (int(points2D[line[1]][i][0]), int(points2D[line[1]][i][1])),
+                    color, 1)
+
+
+    def draw_point(self, img, point, img_size, color, i):
+        array_sum = np.sum(np.array(point))
+        array_has_nan = np.isnan(array_sum)
+        if ((not array_has_nan) and (point[i][0] < img_size[0]-1
+                and point[i][0] > 0 and point[i][1] < img_size[1]-1
+                and point[i][1] > 0)):
+            cv2.circle(img, (int(point[i][0]), int(point[i][1])),
+                    3, color, thickness=3)
+
+
+
+    def get_colors_and_lines(self, skeletonPreset):
+        colors = []
+        line_idxs = []
+        if skeletonPreset == "Hand":
+            colors = [(255,0,0), (255,0,0),(255,0,0),(255,0,0),
+                      (0,255,0),(0,255,0),(0,255,0),(0,255,0),
+                      (0,0,255),(0,0,255),(0,0,255),(0,0,255),
+                      (255,255,0),(255,255,0),(255,255,0),
+                      (255,255,0),(0,255,255),(0,255,255),
+                      (0,255,255),(0,255,255),(255,0,255),
+                      (100,0,100),(100,0,100)]
+            line_idxs = [[0,1], [1,2], [2,3], [4,5], [5,6], [6,7],
+                         [8,9], [9,10], [10,11], [12,13], [13,14],
+                         [14,15], [16,17], [17,18], [18,19],
+                         [15,18], [15,19], [15,11], [11,7], [7,3],
+                         [3,21], [21,22], [19,22]]
+        elif skeletonPreset == "HumanBody":
+            colors = [(255,0,0),(255,0,0),(255,0,0),(255,0,0),
+                      (100,100,100),(0,255,0),(0,255,0),(0,255,0),
+                      (0,255,0),(0,0,255),(0,0,255),(0,0,255),
+                      (0,0,255),(100,100,100),(255,0,255),
+                      (255,0,255),(255,0,255),(255,0,255),
+                      (255,255,0),(255,255,0),(255,255,0),(255,255,0)]
+            line_idxs = [[4,5], [5,6], [6,7], [7,8], [4,9], [9,10],
+                         [10,11], [11,12], [4,13], [13,14], [14,15],
+                         [15,16], [16,17], [13,18], [18,19],
+                         [19,20], [20,21]]
+        elif skeletonPreset == "RodentBody":
+            colors = [(255,0,0), (255,0,0), (255,0,0),
+                      (100,100,100), (0,255,0), (0,255,0),
+                      (0,255,0), (0,255,0), (0,0,255), (0,0,255),
+                      (0,0,255), (0,0,255),(100,100,100),
+                      (0,255,255), (0,255,255), (0,255,255),
+                      (255,0,255), (255,0,255), (255,0,255),
+                      (255,255,0), (255,255,0), (255,255,0)]
+            line_idxs = [[0,1], [0,2], [1,2],[1,3], [2,3], [3,7],
+                         [7,6], [6,5], [5,4], [3,11], [11,10],
+                         [10,9], [9,8], [3,12], [12,15], [15,14],
+                         [14,13], [12,18], [18,17], [17,16], [12,19]]
+
+        return colors, line_idxs

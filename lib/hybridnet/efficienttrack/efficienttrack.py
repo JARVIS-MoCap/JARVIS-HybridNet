@@ -11,6 +11,10 @@ from tqdm.autonotebook import tqdm
 import traceback
 import cv2
 import time
+import csv
+import itertools
+import matplotlib
+
 
 import torch
 from torch import nn
@@ -81,6 +85,7 @@ class EfficientTrack:
                         min_lr=0.00005, factor = 0.2)
 
 
+
         elif mode == 'KeypointDetectInference' or 'CenterDetectInference':
             self.model.requires_grad_(False)
             self.model.load_state_dict(torch.load(weights))
@@ -100,7 +105,10 @@ class EfficientTrack:
 
     def load_weights(self, weights_path = None):
         if weights_path is not None:
-            self.model.load_state_dict(torch.load(weights_path), strict=True)
+            pretrained_dict = torch.load(weights_path)
+            #pretrained_dict = {k: v for k, v in pretrained_dict.items() if not k in ['final_conv1.weight', 'final_conv2.weight', 'first_conv.pointwise_conv.bias', 'first_conv.gn.weight', 'first_conv.gn.bias', 'first_conv.pointwise_conv.weight']}
+            #pretrained_dict = {k: v for k, v in pretrained_dict.items() if not k in ['final_conv1.weight', 'final_conv2.weight']}
+            self.model.load_state_dict(pretrained_dict, strict=False)
             print(f'Successfully loaded weights: {os.path.basename(weights_path)}')
         else:
             print('Initializing weights...')
@@ -151,8 +159,16 @@ class EfficientTrack:
         self.model.train()
         if self.main_cfg.USE_MIXED_PRECISION:
             scaler = torch.cuda.amp.GradScaler()
-        #try:
+
+        #self.model.requires_grad_(False)
+        #self.model.final_conv1.requires_grad_(True)
+        #self.model.final_conv2.requires_grad_(True)
+        #self.model.first_conv.requires_grad_(True)
+
         for epoch in range(num_epochs):
+            #if epoch == 0:
+            #    self.model.requires_grad_(True)
+            #    print ("Training whole model now.")
             progress_bar = tqdm(training_generator)
             for data in progress_bar:
                 imgs = data[0].permute(0, 3, 1, 2).float()
@@ -275,29 +291,234 @@ class EfficientTrack:
         img = torch.from_numpy(img).permute(2, 0, 1).float()
         img = img.reshape(1,3,img_shape[0],img_shape[1]).cuda()
         outputs = self.model(img)
-        preds, maxvals = darkpose.get_final_preds(outputs[1].clamp(0,255).detach().cpu().numpy(), None)
+        preds, maxvals = darkpose.get_final_preds(
+                    outputs[1].clamp(0,255).detach().cpu().numpy(), None)
         for i,point in enumerate(preds[0]):
             if (maxvals[0][i]) > 10:
                 cv2.circle(img_vis, (int(point[0]*2), int(point[1])*2), 2, (255,0,0), thickness=5)
             else:
                 cv2.circle(img_vis, (int(point[0]*2), int(point[1])*2), 2, (100,0,0), thickness=5)
 
-        heatmap = cv2.resize(outputs[1].clamp(0,255).detach().cpu().numpy()[0][0]/255., (img_shape[1],img_shape[0]), interpolation=cv2.cv2.INTER_NEAREST)
-        return preds, maxvals, img_vis, heatmap
+        heatmap = cv2.resize(outputs[1].clamp(0,255).detach().cpu().numpy()[0][0]/255.,
+                    (img_shape[1],img_shape[0]), interpolation=cv2.cv2.INTER_NEAREST)
+        return preds, maxvals, img_vis, outputs
 
 
-    def predictKeypoints(self, img):
+    def predictKeypoints(self, img, colorPreset = None):
         img_vis = ((img*self.main_cfg.DATASET.STD)+self.main_cfg.DATASET.MEAN)*255
         img= torch.from_numpy(img).permute(2, 0, 1).float()
-        img = img.reshape(1,3,self.main_cfg.KEYPOINTDETECT.BOUNDING_BOX_SIZE,self.main_cfg.KEYPOINTDETECT.BOUNDING_BOX_SIZE).cuda()
+        img = img.reshape(1,3,self.main_cfg.KEYPOINTDETECT.BOUNDING_BOX_SIZE,
+                              self.main_cfg.KEYPOINTDETECT.BOUNDING_BOX_SIZE).cuda()
         outputs = self.model(img)
-        colors = [(255,0,0), (255,0,0),(255,0,0),(255,0,0),(0,255,0),(0,255,0),(0,255,0),(0,255,0),(0,0,255),(0,0,255),(0,0,255),(0,0,255),(255,255,0),(255,255,0),(255,255,0), (255,255,0),
-                  (0,255,255),(0,255,255),(0,255,255),(0,255,255), (255,0,255),(100,0,100),(100,0,100)]
-        preds, maxvals = darkpose.get_final_preds(outputs[1].clamp(0,255).detach().cpu().numpy(), None)
+        colors = []
+        if isinstance(colorPreset, str):
+            colors, _ = self.get_colors_and_lines(colorPreset)
+        elif colorPreset != None:
+            colors = colorPreset
+        else:
+            cmap = matplotlib.cm.get_cmap('jet')
+            for i in range(self.main_cfg.KEYPOINTDETECT.NUM_JOINTS):
+                colors.append(((np.array(
+                        cmap(float(i)/self.main_cfg.KEYPOINTDETECT.NUM_JOINTS)) *
+                        255).astype(int)[:3]).tolist())
+
+        preds, maxvals = darkpose.get_final_preds(
+                    outputs[1].clamp(0,255).detach().cpu().numpy(), None)
+
+        assert (preds[0].shape[0] <= len(colors)), "colorPreset does not match number of Keypoints!"
         for i,point in enumerate(preds[0]):
-            if (maxvals[0][i]) > 10:
+            if (maxvals[0][i]) > 50:
                 cv2.circle(img_vis, (int(point[0]*2), int(point[1])*2), 2, colors[i], thickness=5)
             else:
-                cv2.circle(img_vis, (int(point[0]*2), int(point[1])*2), 2, (100,0,0), thickness=5)
+                cv2.circle(img_vis, (int(point[0]*2), int(point[1])*2), 2, (100,100,100), thickness=5)
 
-        return preds, maxvals, img_vis
+
+        return preds, maxvals, img_vis, outputs
+
+
+    def predictPosesVideos(self, centerDetect, video_path,
+            output_dir, frameStart = 0, numberFrames = -1, skeletonPreset = None):
+
+        img_size = self.main_cfg.DATASET.IMAGE_SIZE
+
+        cap = cv2.VideoCapture(video_path)
+        cap.set(1,frameStart)
+        frameRate = cap.get(cv2.CAP_PROP_FPS)
+        os.makedirs(os.path.join(output_dir), exist_ok = True)
+        out = cv2.VideoWriter(os.path.join(output_dir,
+                    video_path.split('/')[-1].split(".")[0] + ".avi"),
+                    cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'), frameRate,
+                    (img_size[0],img_size[1]))
+
+        counter = 0
+        with open(os.path.join(output_dir, 'data2D.csv'), 'w', newline='') as csvfile:
+            writer = csv.writer(csvfile, delimiter=',',
+                            quotechar='"', quoting=csv.QUOTE_MINIMAL)
+
+            colors = []
+            line_idxs = []
+            if isinstance(skeletonPreset, str):
+                colors, line_idxs = self.get_colors_and_lines(skeletonPreset)
+                self.create_header(writer, skeletonPreset)
+            elif skeletonPreset != None:
+                colors = skeletonPreset["colors"]
+                line_idxs = skeletonPreset["line_idxs"]
+            else:
+                cmap = matplotlib.cm.get_cmap('jet')
+                for i in range(self.main_cfg.KEYPOINTDETECT.NUM_JOINTS):
+                    colors.append(((np.array(
+                            cmap(float(i)/self.main_cfg.KEYPOINTDETECT.NUM_JOINTS)) *
+                            255).astype(int)[:3]).tolist())
+
+            ret = True
+            if (numberFrames == -1):
+                numberFrames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+            while ret and (numberFrames == -1 or counter < numberFrames):
+                if counter % 100 == 0:
+                    print ("Analysing Frame {}/{}".format(counter, numberFrames))
+                counter += 1
+
+                ret, img_orig = cap.read()
+                img_downsampled_shape = (self.main_cfg.CENTERDETECT.IMAGE_SIZE,
+                                         self.main_cfg.CENTERDETECT.IMAGE_SIZE)
+                downsampling_scale = np.array(
+                            [float(img_orig.shape[1]/self.main_cfg.CENTERDETECT.IMAGE_SIZE),
+                             float(img_orig.shape[0]/self.main_cfg.CENTERDETECT.IMAGE_SIZE)])
+                img = ((cv2.cvtColor(img_orig, cv2.COLOR_BGR2RGB).astype(np.float32)
+                        / 255.0 - self.main_cfg.DATASET.MEAN) / self.main_cfg.DATASET.STD)
+                img = cv2.resize(img, img_downsampled_shape)
+
+                img = torch.from_numpy(img.transpose(2,0,1)).cuda().float()
+                outputs = centerDetect.model(torch.unsqueeze(img,0))
+                center, maxval = darkpose.get_final_preds(
+                            outputs[1].clamp(0,255).detach().cpu().numpy(), None)
+                center = center.squeeze()
+                center =center*(downsampling_scale*2)
+                bbox_hw = int(self.main_cfg.KEYPOINTDETECT.BOUNDING_BOX_SIZE/2)
+                center[0] = min(max(center[0], bbox_hw), img_size[0]-1-bbox_hw)
+                center[1] = min(max(center[1], bbox_hw), img_size[1]-1-bbox_hw)
+                center = center.astype(int)
+
+                img = img_orig[center[1]-bbox_hw:center[1]+bbox_hw, center[0]-bbox_hw:center[0]+bbox_hw, :]
+                img = ((cv2.cvtColor(img, cv2.COLOR_BGR2RGB).astype(np.float32) /
+                            255.0-self.main_cfg.DATASET.MEAN)/self.main_cfg.DATASET.STD)
+
+                img = torch.from_numpy(img)
+                img = img.permute(2,0,1).view(1,3,
+                            self.main_cfg.KEYPOINTDETECT.BOUNDING_BOX_SIZE,
+                            self.main_cfg.KEYPOINTDETECT.BOUNDING_BOX_SIZE).cuda().float()
+                if maxval >= 50:
+                    outputs = self.model(img)
+                    preds, maxvals = darkpose.get_final_preds(
+                                outputs[1].clamp(0,255).detach().cpu().numpy(), None)
+                    preds = preds.squeeze()
+                    preds = preds*2+center-bbox_hw
+                    row = []
+                    for point in preds.squeeze():
+                        row = row + point.tolist()
+                    writer.writerow(row)
+                    assert (preds.shape[0] <= len(colors)), "colorPreset does not match number of Keypoints!"
+                    for line in line_idxs:
+                        self.draw_line(img_orig, line, preds,
+                                img_size, colors[line[1]])
+                    for j,point in enumerate(preds):
+                        if maxvals[0,j] > 50:
+                            self.draw_point(img_orig, point, img_size,
+                                    colors[j])
+
+                else:
+                    row = []
+                    for i in range(23*2):
+                        row = row + ['NaN']
+                    writer.writerow(row)
+
+                out.write(img_orig)
+
+            out.release()
+            cap.release()
+
+
+    def create_header(self, writer, skeletonPreset):
+        if skeletonPreset == "Hand":
+            joints = ["Pinky_T","Pinky_D","Pinky_M","Pinky_P","Ring_T",
+                      "Ring_D","Ring_M","Ring_P","Middle_T","Middle_D",
+                      "Middle_M","Middle_P","Index_T","Index_D","Index_M",
+                      "Index_P","Thumb_T","Thumb_D","Thumb_M","Thumb_P",
+                      "Palm", "Wrist_U","Wrist_R"]
+            header = []
+            joints = list(itertools.chain.from_iterable(itertools.repeat(x, 3) for x in joints))
+            header = header + joints
+            writer.writerow(header)
+        header2 = ['x','y','z']*self.main_cfg.KEYPOINTDETECT.NUM_JOINTS
+        writer.writerow(header2)
+
+
+    def draw_line(self, img, line, points2D, img_size, color):
+        array_sum = np.sum(np.array(points2D))
+        array_has_nan = np.isnan(array_sum)
+        if ((not array_has_nan) and int(points2D[line[0]][0]) < img_size[0]-1
+                and int(points2D[line[0]][0]) > 0
+                and  int(points2D[line[1]][0]) < img_size[0]-1
+                and int(points2D[line[1]][0]) > 0
+                and int(points2D[line[0]][1]) < img_size[1]-1
+                and int(points2D[line[0]][1]) > 0
+                and int(points2D[line[1]][1]) < img_size[1]-1
+                and int(points2D[line[1]][1]) > 0):
+            cv2.line(img,
+                    (int(points2D[line[0]][0]), int(points2D[line[0]][1])),
+                    (int(points2D[line[1]][0]), int(points2D[line[1]][1])),
+                    color, 1)
+
+
+    def draw_point(self, img, point, img_size, color):
+        array_sum = np.sum(np.array(point))
+        array_has_nan = np.isnan(array_sum)
+        if ((not array_has_nan) and (point[0] < img_size[0]-1
+                and point[0] > 0 and point[1] < img_size[1]-1
+                and point[1] > 0)):
+            cv2.circle(img, (int(point[0]), int(point[1])),
+                    3, color, thickness=3)
+
+
+
+    def get_colors_and_lines(self, skeletonPreset):
+        colors = []
+        line_idxs = []
+        if skeletonPreset == "Hand":
+            colors = [(255,0,0), (255,0,0),(255,0,0),(255,0,0),
+                      (0,255,0),(0,255,0),(0,255,0),(0,255,0),
+                      (0,0,255),(0,0,255),(0,0,255),(0,0,255),
+                      (255,255,0),(255,255,0),(255,255,0),
+                      (255,255,0),(0,255,255),(0,255,255),
+                      (0,255,255),(0,255,255),(255,0,255),
+                      (100,0,100),(100,0,100)]
+            line_idxs = [[0,1], [1,2], [2,3], [4,5], [5,6], [6,7],
+                         [8,9], [9,10], [10,11], [12,13], [13,14],
+                         [14,15], [16,17], [17,18], [18,19],
+                         [15,18], [15,19], [15,11], [11,7], [7,3],
+                         [3,21], [21,22], [19,22]]
+        elif skeletonPreset == "HumanBody":
+            colors = [(255,0,0),(255,0,0),(255,0,0),(255,0,0),
+                      (100,100,100),(0,255,0),(0,255,0),(0,255,0),
+                      (0,255,0),(0,0,255),(0,0,255),(0,0,255),
+                      (0,0,255),(100,100,100),(255,0,255),
+                      (255,0,255),(255,0,255),(255,0,255),
+                      (255,255,0),(255,255,0),(255,255,0),(255,255,0)]
+            line_idxs = [[4,5], [5,6], [6,7], [7,8], [4,9], [9,10],
+                         [10,11], [11,12], [4,13], [13,14], [14,15],
+                         [15,16], [16,17], [13,18], [18,19],
+                         [19,20], [20,21]]
+        elif skeletonPreset == "RodentBody":
+            colors = [(255,0,0), (255,0,0), (255,0,0),
+                      (100,100,100), (0,255,0), (0,255,0),
+                      (0,255,0), (0,255,0), (0,0,255), (0,0,255),
+                      (0,0,255), (0,0,255),(100,100,100),
+                      (0,255,255), (0,255,255), (0,255,255),
+                      (255,0,255), (255,0,255), (255,0,255),
+                      (255,255,0), (255,255,0), (255,255,0)]
+            line_idxs = [[0,1], [0,2], [1,2],[1,3], [2,3], [3,7],
+                         [7,6], [6,5], [5,4], [3,11], [11,10],
+                         [10,9], [9,8], [3,12], [12,15], [15,14],
+                         [14,13], [12,18], [18,17], [17,16], [12,19]]
+
+        return colors, line_idxs

@@ -18,9 +18,11 @@ class Basic3DBlock(nn.Module):
             nn.GroupNorm(4, out_planes),
             nn.ReLU(True)
         )
+        self.dropout = nn.Dropout(0.2)
+
 
     def forward(self, x):
-        return self.block(x)
+        return self.dropout(self.block(x))
 
 
 class Res3DBlock(nn.Module):
@@ -36,6 +38,8 @@ class Res3DBlock(nn.Module):
             nn.GroupNorm(4, out_planes)
         )
 
+        self.dropout = nn.Dropout(0.2)
+
         if in_planes == out_planes:
             self.skip_con = nn.Sequential()
         else:
@@ -48,7 +52,7 @@ class Res3DBlock(nn.Module):
     def forward(self, x):
         res = self.res_branch(x)
         skip = self.skip_con(x)
-        return F.relu(res + skip, True)
+        return self.dropout(F.relu(res + skip, True))
 
 
 class Pool3DBlock(nn.Module):
@@ -73,8 +77,11 @@ class Upsample3DBlock(nn.Module):
             nn.ReLU(True)
         )
 
+        self.dropout = nn.Dropout(0.2)
+
+
     def forward(self, x):
-        return self.block(x)
+        return self.dropout(self.block(x))
 
 
 class EncoderDecorder(nn.Module):

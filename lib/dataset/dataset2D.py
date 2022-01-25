@@ -46,20 +46,24 @@ class Dataset2D(BaseDataset):
         assert cfg.KEYPOINTDETECT.BOUNDING_BOX_SIZE % 64 == 0, \
                     "Bounding Box size has to be divisible by 64!"
 
+        img = self._load_image(0)
+        width, height = img.shape[1], img.shape[0]
+        cfg.DATASET.IMAGE_SIZE = [width,height]
+
         if self.mode == 'CenterDetect':
             cfg.CENTERDETECT.NUM_JOINTS = 1
             img = self._load_image(0)
-            width, height = img.shape[1], img.shape[0]
-            scale = 1./self.cfg.CENTERDETECT.DOWNSAMPLING_FACTOR
-            assert int(width*scale)%64 == 0 and int(height*scale)%64 == 0, \
-                        "Downsampled image must be divisible by 64!"
+            self.width, self.height = img.shape[1], img.shape[0]
 
             self.heatmap_generators = []
-            output_sizes = [[int(height*scale/4),int(width*scale/4)],
-                                [int(height*scale/2),int(width*scale/2)]]
+            output_sizes = [[int(self.cfg.CENTERDETECT.IMAGE_SIZE/4),
+                             int(self.cfg.CENTERDETECT.IMAGE_SIZE/4)],
+                            [int(self.cfg.CENTERDETECT.IMAGE_SIZE/2),
+                             int(self.cfg.CENTERDETECT.IMAGE_SIZE/2)]]
             for output_size in output_sizes:
                 self.heatmap_generators.append(HeatmapGenerator(
-                                [height*scale,width*scale], output_size,
+                                [self.cfg.CENTERDETECT.IMAGE_SIZE,
+                                self.cfg.CENTERDETECT.IMAGE_SIZE], output_size,
                                 cfg.CENTERDETECT.NUM_JOINTS, sigma = -2))
 
         elif self.mode == 'KeypointDetect':
@@ -83,8 +87,12 @@ class Dataset2D(BaseDataset):
         if self.mode == 'CenterDetect':
             img = self._load_image(0)
             width, height = img.shape[1], img.shape[0]
-            scale = 1./self.cfg.CENTERDETECT.DOWNSAMPLING_FACTOR
-            augmentors.append(iaa.Resize(scale,  interpolation='linear'))
+            scale = 1./self.cfg.CENTERDETECT.IMAGE_SIZE
+            self.scale_width = float(width)/self.cfg.CENTERDETECT.IMAGE_SIZE
+            self.scale_height = float(height)/self.cfg.CENTERDETECT.IMAGE_SIZE
+
+            augmentors.append(iaa.Resize(self.cfg.CENTERDETECT.IMAGE_SIZE,
+                        interpolation='linear'))
 
         if not (self.mode == 'CenterDetect' and self.set_name == 'val'):
             cfg = self.cfg.AUGMENTATION
@@ -130,8 +138,11 @@ class Dataset2D(BaseDataset):
         img = self._load_image(idx)
         bboxs, keypoints = self._load_annotations(idx)
 
-        center_y = (bboxs[0][1]+int(bboxs[0][3]))/2
-        center_x = (bboxs[0][0]+int(bboxs[0][2]))/2
+        #center_x = np.mean(np.array(keypoints[:,::3]))
+        #center_y = np.mean(np.array(keypoints[:,1::3]))
+        animal_size = np.max([bboxs[0][3]-bboxs[0][1], bboxs[0][2]-bboxs[0][0]])
+        center_y = (bboxs[0][1]+bboxs[0][3])/2
+        center_x = (bboxs[0][0]+bboxs[0][2])/2
 
         if bboxs[0][4]  != -1:
             center = np.array([[center_x,center_y,1]])
@@ -140,7 +151,7 @@ class Dataset2D(BaseDataset):
         keypoints = center
         keypoints_iaa = KeypointsOnImage(
                     [Keypoint(x=center[0][0], y=center[0][1])],
-                    shape=(1024,1280,3))
+                    shape=(self.height,self.width,3))
         img, keypoints_aug = self.augpipe(image=img, keypoints = keypoints_iaa)
         center[0][0] = keypoints_aug[0].x
         center[0][1] = keypoints_aug[0].y
@@ -152,7 +163,7 @@ class Dataset2D(BaseDataset):
             joints_list = [joints.copy() for _ in range(2)]
         target_list = list()
         for scale_id in range(2):
-            target_t = self.heatmap_generators[scale_id](joints_list[scale_id])
+            target_t = self.heatmap_generators[scale_id](joints_list[scale_id], animal_size)
             target_list.append(target_t.astype(np.float32))
         sample = [img, target_list, keypoints]
         return self.transform(sample)
@@ -161,7 +172,7 @@ class Dataset2D(BaseDataset):
     def _get_item_keypoints(self, idx):
         img = self._load_image(idx)
         bboxs, keypoints = self._load_annotations(idx)
-
+        animal_size = np.max([bboxs[0][3]-bboxs[0][1], bboxs[0][2]-bboxs[0][0]])
         bbox_hw = int(self.cfg.KEYPOINTDETECT.BOUNDING_BOX_SIZE/2)
         center_y = min(max(bbox_hw, int((bboxs[0][1]+int(bboxs[0][3]))/2)),
                     img.shape[0]-bbox_hw)
@@ -186,17 +197,27 @@ class Dataset2D(BaseDataset):
                 keypoints[0,i*3] = point.x
                 keypoints[0,i*3+1] = point.y
 
+        keypoints_new = np.empty_like(keypoints)
+        for i,keypoint in enumerate(keypoints.reshape((-1,3))):
+            if keypoint[0] < 0 or keypoint[1] < 0 \
+                    or keypoint[0] >= self.cfg.KEYPOINTDETECT.BOUNDING_BOX_SIZE \
+                    or keypoint[1] >= self.cfg.KEYPOINTDETECT.BOUNDING_BOX_SIZE:
+                keypoints_new[:,i*3:i*3+2] = 0
+            else:
+                keypoints_new[:,i*3:i*3+2] = keypoints[:,i*3:i*3+2]
+        keypoints = keypoints_new
+
         joints = np.zeros((1,self.num_keypoints[0], 3))
         joints[0, :self.num_keypoints[0], :3] = np.array(
                     keypoints[0]).reshape([-1, 3])
         joints_list = [joints.copy() for _ in range(2)]
         target_list = list()
         for scale_id in range(2):
-            target_t = self.heatmap_generators[scale_id](joints_list[scale_id])
+            target_t = self.heatmap_generators[scale_id](joints_list[scale_id], animal_size)
             target_list.append(target_t.astype(np.float32))
         sample = [img, target_list, keypoints]
-        return self.transform(sample)
-
+        sample =  self.transform(sample)
+        return sample
 
     def __len__(self):
         return len(self.image_ids)
@@ -263,9 +284,11 @@ class HeatmapGenerator():
         self.num_joints = num_joints
         self.scale_factor = float(output_res[0])/float(original_res[0])
         if sigma == -1:
-            sigma = 2*self.output_res[0]/64
+            sigma = 1.5*self.output_res[0]/64
+            self.fact = 1.0
         elif sigma == -2:
             sigma = 1*self.output_res[0]/64
+            self.fact = 0.5
         self.sigma = sigma
         size = 6*sigma + 3
         x = np.arange(0, size, 1, float)
@@ -273,10 +296,17 @@ class HeatmapGenerator():
         x0, y0 = 3*sigma + 1, 3*sigma + 1
         self.g = 255.0*np.exp(- ((x-x0)**2 + (y-y0)**2) / (2*sigma**2))
 
-    def __call__(self, joints):
+    def __call__(self, joints, size):
         hms = np.zeros((self.num_joints, self.output_res[0],
                     self.output_res[1]), dtype=np.float32)
+
+        #sigma = self.fact*size/64.0
         sigma = self.sigma
+        size = 6*sigma + 3
+        xx = np.arange(0, size, 1, float)
+        yy = xx[:, np.newaxis]
+        x0, y0 = 3*sigma + 1, 3*sigma + 1
+        self.g = 255.0*np.exp(- ((xx-x0)**2 + (yy-y0)**2) / (2*sigma**2))
         for p in joints:
             for idx, pt in enumerate(p):
                 if pt[2] > 0:
@@ -309,12 +339,13 @@ class HeatmapGenerator():
 if __name__ == "__main__":
     from lib.config.project_manager import ProjectManager
     project = ProjectManager()
-    project.load('Example_Project')
+    project.load('Example')
     cfg = project.get_cfg()
     print (cfg.DATASET.DATASET_2D)
 
-    training_set = Dataset2D(cfg = cfg, set='train', mode='CenterDetect')
+    training_set = Dataset2D(cfg = cfg, set='val', mode='KeypointDetect')
     print (len(training_set.image_ids))
-    for i in range(0,len(training_set.image_ids),10):
+    for i in range(0,len(training_set.image_ids),1):
         training_set.visualize_sample(i)
-    #training_set.__getitem__(0)
+        #print (i)
+        #training_set.__getitem__(i)
