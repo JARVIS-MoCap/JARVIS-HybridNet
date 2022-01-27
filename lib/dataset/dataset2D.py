@@ -67,7 +67,6 @@ class Dataset2D(BaseDataset):
                                 cfg.CENTERDETECT.NUM_JOINTS, sigma = -2))
 
         elif self.mode == 'KeypointDetect':
-            cfg.KEYPOINTDETECT.NUM_JOINTS = self.num_keypoints[0]
             self.heatmap_generators = []
             output_sizes = [int(cfg.KEYPOINTDETECT.BOUNDING_BOX_SIZE/4),
                             int(cfg.KEYPOINTDETECT.BOUNDING_BOX_SIZE/2)]

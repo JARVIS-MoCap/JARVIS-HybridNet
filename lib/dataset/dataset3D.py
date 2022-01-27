@@ -53,25 +53,7 @@ class Dataset3D(BaseDataset):
             self.num_cameras = self.reproTools[calibParams].num_cameras
             self.reproTools[calibParams].resolution = [width,height]
 
-        cfg.DATASET.NUM_CAMERAS = self.num_cameras
-
-        # self.cameraMatrices = {}
-        # self.intrinsicMatrices = {}
-        # self.distortionCoefficients = {}
-        #
-        # for calibParams in self.coco.dataset['calibrations']:
-        #     cameraMatrices = torch.zeros(self.num_cameras, 4,3)
-        #     intrinsicMatrices = torch.zeros(self.num_cameras, 3,3)
-        #     distortionCoefficients = torch.zeros(self.num_cameras, 1,5)
-        #     cameras = self.reproTools[calibParams].cameras
-        #     for i,cam in enumerate(cameras):
-        #         cameraMatrices[i] =  torch.from_numpy(
-        #                     cameras[cam].cameraMatrix).transpose(0,1)
-        #         intrinsicMatrices[i] = torch.from_numpy(cameras[cam].intrinsicMatrix)
-        #         distortionCoefficients[i] = torch.from_numpy(cameras[cam].distortionCoeffccients)
-        #     self.cameraMatrices[calibParams] = cameraMatrices
-        #     self.intrinsicMatrices[calibParams] = intrinsicMatrices
-        #     self.distortionCoefficients[calibParams] = distortionCoefficients
+        cfg.HYBRIDNET.NUM_CAMERAS = self.num_cameras
 
         self.image_ids_all = self.image_ids
         self.image_ids = []
@@ -239,7 +221,7 @@ class Dataset3D(BaseDataset):
                             + np.power((keypoints3D_crop[i][2]-zz)/(exponent),2)))
         sample = [img_l, keypoints3D, centerHM, center3D, heatmap3D,
                     self.reproTools[datasetName].cameraMatrices,
-                    self.reproTools[datasetName].intrinsicMatrices, 
+                    self.reproTools[datasetName].intrinsicMatrices,
                     self.reproTools[datasetName].distortionCoefficients]
 
         return self.transform(sample)

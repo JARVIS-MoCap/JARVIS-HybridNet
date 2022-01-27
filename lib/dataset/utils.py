@@ -32,6 +32,7 @@ class ReprojectionTool:
             self.distortionCoefficients[i] = torch.from_numpy(
                         self.cameras[cam].distortionCoeffccients)
 
+
     def reprojectPoint(self,point3D):
         pointsRepro = np.zeros((self.num_cameras, 2))
         for i,cam in enumerate(self.camera_list):
@@ -46,6 +47,7 @@ class ReprojectionTool:
             pointRepro[1] = pointRepro[1] * cam.intrinsicMatrix[1,1] + cam.intrinsicMatrix[2,1];
             pointsRepro[i] = pointRepro
         return pointsRepro
+
 
     def reconstructPoint(self,points, camsToUse = None):
         if camsToUse == None:

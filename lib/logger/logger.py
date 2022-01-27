@@ -17,12 +17,13 @@ class NetLogger(object):
         used to update loss
     :type losses: list
     """
-    def __init__(self, log_dir, losses = None):
+    def __init__(self, log_dir, hyperParams = None, losses = None):
         self.trainig_loss_steps = 0
         self.validation_loss_steps = 0
         self.trainig_acc_steps = 0
         self.validation_acc_steps = 0
-        self.writer = SummaryWriter(log_dir=log_dir)
+        self.learning_rate_steps = 0
+        self.writer = SummaryWriter(log_dir=log_dir, flush_secs=10)
         if losses == None:
             self.losses = ['Loss']
         else:
@@ -65,7 +66,7 @@ class NetLogger(object):
 
     def update_train_accuracy (self, acc):
         """
-        Update training accuracy tesnorboard log.
+        Update training accuracy tensorboard log.
 
         :param acc: current accuracy
         :type acc: float
@@ -76,7 +77,7 @@ class NetLogger(object):
 
     def update_val_accuracy(self, acc):
         """
-        Update validation accuracy tesnorboard log.
+        Update validation accuracy tensorboard log.
 
         :param acc: current accuracy
         :type acc: float
@@ -85,7 +86,16 @@ class NetLogger(object):
                                self.validation_acc_steps)
         self.validation_acc_steps += 1
 
+    def update_learning_rate(self, lr):
+        """
+        Update learning rate tensorboard log.
 
+        :param acc: current learning rate
+        :type acc: float
+        """
+        self.writer.add_scalar('Learning Rate', lr,
+                               self.learning_rate_steps)
+        self.learning_rate_steps += 1
 
 class AverageMeter():
     """

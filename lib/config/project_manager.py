@@ -166,6 +166,7 @@ class ProjectManager:
         q = 'Enter custom Bounding Box size, make sure it is divisible by 64:'
         bbox_size = self._get_number_from_user(q, suggested_bbox_size, 64)
         self.cfg.KEYPOINTDETECT.BOUNDING_BOX_SIZE = bbox_size
+        self.cfg.KEYPOINTDETECT.NUM_JOINTS = dataset2D.num_keypoints[0]
 
 
     def _init_dataset3D(self):
@@ -184,6 +185,7 @@ class ProjectManager:
                     bounds = [0,4])
         self.cfg.HYBRIDNET.ROI_CUBE_SIZE = bbox_size
         self.cfg.HYBRIDNET.GRID_SPACING = resolution
+        self.cfg.HYBRIDNET.NUM_CAMERAS = dataset3D.num_cameras
 
 
     def _init_config(self, name):
