@@ -8,9 +8,9 @@ import torch
 from torch import nn
 from torchvision.ops.boxes import nms as nms_torch
 
-from lib.hybridnet.efficienttrack.efficientnet import EfficientNet as EffNet
+from .efficientnet import EfficientNet as EffNet
 from .utils import MaxPool2dStaticSamePadding
-from lib.utils.utils import Swish, MemoryEfficientSwish
+from jarvis.utils.utils import Swish, MemoryEfficientSwish
 
 import torch.nn.functional as F
 import torch.nn.init as init

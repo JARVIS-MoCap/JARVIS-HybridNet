@@ -8,7 +8,7 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 
-from lib.utils.utils import Swish, MemoryEfficientSwish
+from jarvis.utils.utils import Swish, MemoryEfficientSwish
 from .utils import (
     round_filters,
     round_repeats,

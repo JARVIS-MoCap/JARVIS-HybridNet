@@ -4,10 +4,6 @@ import torch
 import torch.nn as nn
 from joblib import Parallel, delayed
 
-from mpl_toolkits import mplot3d
-import matplotlib.pyplot as plt
-import matplotlib.colors as mcolorsf
-
 
 class ReprojectionLayer(nn.Module):
     def __init__(self, cfg, num_cameras = None):
@@ -20,12 +16,11 @@ class ReprojectionLayer(nn.Module):
         self.boxsize = torch.tensor(self.cfg.HYBRIDNET.ROI_CUBE_SIZE)
         self.grid_size = torch.tensor(self.cfg.HYBRIDNET.ROI_CUBE_SIZE
                     / self.cfg.HYBRIDNET.GRID_SPACING).int()
-        self.img_size = torch.tensor(cfg.DATASET.IMAGE_SIZE)
 
         if num_cameras:
             self.num_cameras = torch.tensor(num_cameras)
         else:
-            self.num_cameras = torch.tensor(self.cfg.DATASET.NUM_CAMERAS)
+            self.num_cameras = torch.tensor(self.cfg.HYBRIDNET.NUM_CAMERAS)
 
         self.ii,self.xx,self.yy,self.zz = torch.meshgrid(
                     torch.arange(self.num_cameras).cuda(),
@@ -82,7 +77,8 @@ class ReprojectionLayer(nn.Module):
         return outs
 
 
-    def forward(self, heatmaps, center, cameraMatrices, intrinsicMatrices, distortionCoefficients):
+    def forward(self, img_size, heatmaps, center, cameraMatrices, intrinsicMatrices, distortionCoefficients):
+        self.img_size = img_size
         heatmaps3D = torch.cuda.FloatTensor(heatmaps.shape[0],
                     heatmaps.shape[2], self.grid_size, self.grid_size,
                     self.grid_size)

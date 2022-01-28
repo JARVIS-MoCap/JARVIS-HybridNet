@@ -22,9 +22,9 @@ current_dir = os.path.dirname(os.path.abspath(inspect.getfile(
 parent_dir = os.path.dirname(os.path.dirname(current_dir))
 sys.path.insert(0, parent_dir)
 
-from lib.dataset.datasetBase import BaseDataset
-from lib.dataset.utils import ReprojectionTool
-from lib.dataset.utils import SetupVisualizer
+from jarvis.dataset.datasetBase import BaseDataset
+from jarvis.dataset.utils import ReprojectionTool
+#from lib.dataset.utils import SetupVisualizer
 
 class Dataset3D(BaseDataset):
     """
@@ -46,10 +46,10 @@ class Dataset3D(BaseDataset):
         cfg.DATASET.IMAGE_SIZE = [width,height]
 
         self.reproTools = {}
-        for calibParams in self.coco.dataset['calibrations']:
+        for calibParams in self.dataset['calibrations']:
             self.reproTools[calibParams] = ReprojectionTool(
                         self.root_dir,
-                        self.coco.dataset['calibrations'][calibParams])
+                        self.dataset['calibrations'][calibParams])
             self.num_cameras = self.reproTools[calibParams].num_cameras
             self.reproTools[calibParams].resolution = [width,height]
 
@@ -60,17 +60,16 @@ class Dataset3D(BaseDataset):
         self.keypoints3D = []
         cfg.KEYPOINTDETECT.NUM_JOINTS = self.num_keypoints[0]
 
-        for set in self.coco.dataset['framesets']:
+        for set in self.dataset['framesets']:
             keypoints3D_cam = np.zeros((cfg.KEYPOINTDETECT.NUM_JOINTS, 3))
             keypoints3D_bb = []
-            image_info = self.coco.loadImgs(
-                        self.coco.dataset['framesets'][set]['frames'][0])[0]
-            info_split = image_info['file_name'].split("/")
+            file_name = self.imgs[self.dataset['framesets'][set]['frames'][0]]['file_name']
+            info_split = file_name.split("/")
             if (len(info_split) == 4):
-                frameset_ids = self.coco.dataset['framesets'][info_split[0] + "/"
+                frameset_ids = self.dataset['framesets'][info_split[0] + "/"
                             + info_split[1] + "/" + info_split[3].split(".")[0]]['frames']
             elif (len(info_split) == 5):
-                frameset_ids = self.coco.dataset['framesets'][info_split[0] + "/"
+                frameset_ids = self.dataset['framesets'][info_split[0] + "/"
                             + info_split[1] + "/" + info_split[2] + "/" + info_split[4].split(".")[0]]['frames']
             keypoints_l = []
             for i,img_id in enumerate(frameset_ids):
@@ -84,7 +83,7 @@ class Dataset3D(BaseDataset):
                     if keypoints_l[cam][i][0] != 0 or keypoints_l[cam][i][1] != 0:
                         points2D[cam] = keypoints_l[cam][i][:2]
                         camsToUse.append(cam)
-                keypoints3D_cam[i] = self.reproTools[self.coco.dataset['framesets'][set]['datasetName']].reconstructPoint(
+                keypoints3D_cam[i] = self.reproTools[self.dataset['framesets'][set]['datasetName']].reconstructPoint(
                             points2D.transpose(), camsToUse)
                 if len(camsToUse) > 1 or len(keypoints3D_bb) == 0:
                     keypoints3D_bb.append(keypoints3D_cam[i])
@@ -106,11 +105,11 @@ class Dataset3D(BaseDataset):
                                     y_cube_size_min,
                                     z_cube_size_min])
             if ((self.cfg.HYBRIDNET.ROI_CUBE_SIZE == None) or min_cube_size <= self.cfg.HYBRIDNET.ROI_CUBE_SIZE) and len(keypoints3D_bb) >1:
-                self.image_ids.append(self.coco.dataset['framesets'][set]['frames'][0])
+                self.image_ids.append(self.dataset['framesets'][set]['frames'][0])
                 self.keypoints3D.append(keypoints3D_cam)
             else:
                 print ("Not adding the following frame to the set:")
-                print (image_info['file_name'])
+                print (file_name)
                 print (min_cube_size)
 
         self.transform = transforms.Compose(
@@ -146,16 +145,17 @@ class Dataset3D(BaseDataset):
     def __getitem__(self, idx):
         grid_spacing = self.cfg.HYBRIDNET.GRID_SPACING
         grid_size = self.cfg.HYBRIDNET.ROI_CUBE_SIZE
-        image_info = self.coco.loadImgs(self.image_ids[idx])[0]
-        info_split = image_info['file_name'].split("/")
+        file_name = self.imgs[self.image_ids[idx]]['file_name']
+
+        info_split = file_name.split("/")
         if (len(info_split) == 4):
-            frameset_ids = self.coco.dataset['framesets'][info_split[0] + "/"
+            frameset_ids = self.dataset['framesets'][info_split[0] + "/"
                         + info_split[1] + "/" + info_split[3].split(".")[0]]['frames']
         elif (len(info_split) == 5):
-            frameset_ids = self.coco.dataset['framesets'][info_split[0] + "/"
+            frameset_ids = self.dataset['framesets'][info_split[0] + "/"
                         + info_split[1] + "/" + info_split[2] + "/" + info_split[4].split(".")[0]]['frames']
 
-        datasetName = self.coco.dataset['framesets'][info_split[0] + "/"
+        datasetName = self.dataset['framesets'][info_split[0] + "/"
                     + info_split[1] + "/" + info_split[2] + "/" + info_split[4].split(".")[0]]['datasetName']
 
         img_l = np.zeros((self.num_cameras,
@@ -262,18 +262,18 @@ class Dataset3D(BaseDataset):
             'resolution': resolution_suggestion,
         }
 
-        if show_visualization:
-            figure = plt.figure()
-            axes = figure.gca(projection='3d')
-            visualizer = SetupVisualizer(
-                        self.coco.dataset['calibration']['primary_camera'],
-                        self.root_dir,
-                        self.coco.dataset['calibration']['intrinsics'],
-                        self.coco.dataset['calibration']['extrinsics'])
-            visualizer.plot_cameras(axes)
-            visualizer.plot_tracking_area(tracking_area, axes)
-            visualizer.plot_datapoints(self.keypoints3D[0], axes)
-            plt.show()
+        # if show_visualization:
+        #     figure = plt.figure()
+        #     axes = figure.gca(projection='3d')
+        #     visualizer = SetupVisualizer(
+        #                 self.dataset['calibration']['primary_camera'],
+        #                 self.root_dir,
+        #                 self.dataset['calibration']['intrinsics'],
+        #                 self.dataset['calibration']['extrinsics'])
+        #     visualizer.plot_cameras(axes)
+        #     visualizer.plot_tracking_area(tracking_area, axes)
+        #     visualizer.plot_datapoints(self.keypoints3D[0], axes)
+        #     plt.show()
 
         return suggested_parameters
 

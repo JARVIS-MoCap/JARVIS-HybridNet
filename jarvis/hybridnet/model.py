@@ -16,11 +16,11 @@ import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 from matplotlib import cm
 
-from lib.hybridnet.repro_layer import ReprojectionLayer
-from lib.dataset.dataset3D import Dataset3D
-from lib.hybridnet.efficienttrack.model import EfficientTrackBackbone
-import lib.hybridnet.efficienttrack.darkpose as darkpose
-from lib.hybridnet.v2vnet import V2VNet
+from .repro_layer import ReprojectionLayer
+from jarvis.dataset.dataset3D import Dataset3D
+from jarvis.efficienttrack.model import EfficientTrackBackbone
+import jarvis.efficienttrack.darkpose as darkpose
+from .v2vnet import V2VNet
 
 # self.starter, self.ender = torch.cuda.Event(enable_timing=True),
 #         torch.cuda.Event(enable_timing=True)
@@ -44,9 +44,6 @@ class HybridNetBackbone(nn.Module):
                         strict = True)
 
         self.reproLayer = ReprojectionLayer(cfg)
-        img_size = self.cfg.DATASET.IMAGE_SIZE
-        self.heatmap_size = torch.tensor([int(img_size[0]/2),
-                    int(img_size[1]/2)])
         self.v2vNet = V2VNet(cfg.KEYPOINTDETECT.NUM_JOINTS,
                              cfg.KEYPOINTDETECT.NUM_JOINTS)
         self.softplus = nn.Softplus()
@@ -57,8 +54,10 @@ class HybridNetBackbone(nn.Module):
         self.last_time = 0
 
 
-    def forward(self, imgs, centerHM, center3D, cameraMatrices, intrinsicMatrices, distortionCoefficients):
+    def forward(self, imgs, img_size, centerHM, center3D,cameraMatrices, intrinsicMatrices, distortionCoefficients):
         batch_size = imgs.shape[0]
+        self.heatmap_size = torch.tensor([int(img_size[0]/2),
+                    int(img_size[1]/2)])
         heatmaps_batch = self.effTrack(
                 imgs.reshape(-1,imgs.shape[2], imgs.shape[3], imgs.shape[4]))[1]
 
@@ -94,7 +93,8 @@ class HybridNetBackbone(nn.Module):
                           + heatmap.shape[-1]/2+rand2[1]).int()),
                      mode='constant', value=0)
 
-        heatmaps3D = self.reproLayer(heatmaps_padded, center3D, cameraMatrices, intrinsicMatrices, distortionCoefficients)
+        heatmaps3D = self.reproLayer(img_size,heatmaps_padded, center3D,
+                    cameraMatrices, intrinsicMatrices, distortionCoefficients)
         heatmap_final = self.v2vNet(((heatmaps3D/255.)))
         heatmap_final = self.softplus(heatmap_final)
         #heatmap_final = heatmaps_gt

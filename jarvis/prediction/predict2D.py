@@ -13,9 +13,9 @@ import cv2
 import matplotlib.pyplot as plt
 from tqdm.autonotebook import tqdm
 
-from lib.hybridnet.efficienttrack.efficienttrack import EfficientTrack
-import lib.hybridnet.efficienttrack.darkpose as darkpose
-import lib.prediction.prediction_utils as utils
+from jarvis.efficienttrack.efficienttrack import EfficientTrack
+import jarvis.efficienttrack.darkpose as darkpose
+import jarvis.prediction.prediction_utils as utils
 
 
 def predictPosesVideo(keypointDetect, centerDetect, video_path,
@@ -39,14 +39,12 @@ def predictPosesVideo(keypointDetect, centerDetect, video_path,
                 print ("Please enter either yes or no!")
     os.makedirs(output_dir, exist_ok = True)
 
-
     cap = cv2.VideoCapture(video_path)
     cap.set(1,frameStart)
     img_size  = [int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)),
                  int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))]
     frameRate = cap.get(cv2.CAP_PROP_FPS)
 
-    os.makedirs(os.path.join(output_dir), exist_ok = True)
     if make_video:
         out = cv2.VideoWriter(os.path.join(output_dir,
                     video_path.split('/')[-1].split(".")[0] + ".avi"),

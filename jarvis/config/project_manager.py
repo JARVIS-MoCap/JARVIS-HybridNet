@@ -8,9 +8,9 @@ import ruamel.yaml
 import shutil
 from yacs.config import CfgNode as CN
 
-from lib.config import cfg
-from lib.dataset.dataset2D import Dataset2D
-from lib.dataset.dataset3D import Dataset3D
+from jarvis.config import cfg
+from jarvis.dataset.dataset2D import Dataset2D
+from jarvis.dataset.dataset3D import Dataset3D
 
 class ProjectManager:
     """

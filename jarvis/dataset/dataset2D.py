@@ -22,7 +22,7 @@ current_dir = os.path.dirname(os.path.abspath(
 parent_dir = os.path.dirname(os.path.dirname(current_dir))
 sys.path.insert(0, parent_dir)
 
-from lib.dataset.datasetBase import BaseDataset
+from jarvis.dataset.datasetBase import BaseDataset
 
 
 class Dataset2D(BaseDataset):
@@ -239,9 +239,8 @@ class Dataset2D(BaseDataset):
         y_sizes = bboxs[:,0,3]-bboxs[:,0,1]
         bbox_min_size = np.max([np.max(x_sizes), np.max(y_sizes)])
         ind = np.argmax(x_sizes)
-        image_info = self.coco.loadImgs(self.image_ids[self.image_ids[ind]])[0]
-        path = os.path.join(self.root_dir, self.set_name,
-                    image_info['file_name'])
+        file_name = self.imgs[self.image_ids[ind]]['file_name']
+        path = os.path.join(self.root_dir, self.set_name,file_name)
 
         final_bbox_suggestion = int(np.ceil((bbox_min_size*1.02)/64)*64)
         return final_bbox_suggestion
@@ -338,7 +337,7 @@ class HeatmapGenerator():
 if __name__ == "__main__":
     from lib.config.project_manager import ProjectManager
     project = ProjectManager()
-    project.load('Example')
+    project.load('Example_Project')
     cfg = project.get_cfg()
     print (cfg.DATASET.DATASET_2D)
 

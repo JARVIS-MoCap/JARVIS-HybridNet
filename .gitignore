@@ -1,7 +1,13 @@
 *.pyc
 *.pyo
+*.egg-info
 
+PosePredictions/
+PosePredictions_3D/
+Example_Recording/
 docs/build/
+build/
+dist/
 .ipynb_checkpoints/
 __pycache__/
 *.onnx

@@ -16,11 +16,11 @@ import itertools
 from joblib import Parallel, delayed
 from tqdm.autonotebook import tqdm
 
-from lib.hybridnet.efficienttrack.efficienttrack import EfficientTrack
-from lib.hybridnet.hybridnet import HybridNet
-from lib.dataset.utils import ReprojectionTool
-import lib.hybridnet.efficienttrack.darkpose as darkpose
-import lib.prediction.prediction_utils as utils
+from jarvis.efficienttrack.efficienttrack import EfficientTrack
+import jarvis.efficienttrack.darkpose as darkpose
+from jarvis.hybridnet.hybridnet import HybridNet
+from jarvis.dataset.utils import ReprojectionTool
+import jarvis.prediction.prediction_utils as utils
 
 
 def load_reprojection_tools(cfg):
