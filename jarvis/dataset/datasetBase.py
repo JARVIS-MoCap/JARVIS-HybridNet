@@ -35,7 +35,11 @@ class BaseDataset(Dataset):
     """
     def __init__(self, cfg, dataset_name,set='train'):
         self.cfg = cfg
-        self.root_dir = os.path.join(cfg.DATASET.DATASET_ROOT_DIR, dataset_name)
+        if os.path.isabs(dataset_name):
+            self.root_dir = dataset_name
+        else:
+            self.root_dir = os.path.join(cfg.PARENT_DIR, cfg.DATASET.DATASET_ROOT_DIR, dataset_name)
+
         self.set_name = set
 
         dataset_file = open(os.path.join(self.root_dir, 'annotations',

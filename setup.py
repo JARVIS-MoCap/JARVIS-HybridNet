@@ -16,17 +16,23 @@ setuptools.setup(
         "Operating System :: OS Independent",
     ],
     install_requires=[
-    "opencv-python",
-    "matplotlib",
-    "tqdm",
-    "yacs",
-    "ruamel.yaml",
-    "imgaug==0.4.0",
-    "tensorboard",
-    "ipywidgets",
-    "joblib"
+        "opencv-python",
+        "matplotlib",
+        "tqdm",
+        "yacs",
+        "ruamel.yaml",
+        "imgaug==0.4.0",
+        "tensorboard",
+        "ipywidgets",
+        "joblib",
+        "pandas",
+        "Click",
+        "streamlit",
+        "streamlit_option_menu"
     ],
     entry_points={
-    "console_scripts": []
+        'console_scripts': [
+            'jarvis = jarvis.cli:cli',
+        ],
     }
 )

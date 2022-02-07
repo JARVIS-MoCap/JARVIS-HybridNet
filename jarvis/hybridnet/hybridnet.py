@@ -57,8 +57,6 @@ class HybridNet:
                         run_name))
             self.lossMeter = AverageMeter()
             self.accuracyMeter = AverageMeter()
-            self.valLossMeter = AverageMeter()
-            self.valAccuracyMeter = AverageMeter()
 
             self.load_weights(weights)
 
@@ -67,10 +65,10 @@ class HybridNet:
 
             if self.cfg.HYBRIDNET.OPTIMIZER == 'adamw':
                 self.optimizer = torch.optim.AdamW(self.model.parameters(),
-                            self.cfg.HYBRIDNET.LEARNING_RATE)
+                            self.cfg.HYBRIDNET.MAX_LEARNING_RATE)
             else:
                 self.optimizer = torch.optim.SGD(self.model.parameters(),
-                            self.cfg.HYBRIDNET.LEARNING_RATE,
+                            self.cfg.HYBRIDNET.MAX_LEARNING_RATE,
                             momentum=0.9, nesterov=True)
 
             self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
@@ -86,16 +84,36 @@ class HybridNet:
 
 
     def load_weights(self, weights_path = None):
+        if weights_path == 'latest':
+            weights_path =  self.get_latest_weights()
         if weights_path is not None:
-            state_dict = torch.load(weights_path)
-            self.model.load_state_dict(state_dict, strict=True)
-            print(f'[Info] loaded weights: {os.path.basename(weights_path)}')
+            if os.path.isfile(weights_path):
+                state_dict = torch.load(weights_path)
+                self.model.load_state_dict(state_dict, strict=True)
+                print(f'[Info] loaded weights: {weights_path}')
+                return True
+            else:
+                return False
+
         else:
-            print('[Info] initializing weights...')
-            #utils.init_weights(self.model)
+            return True
+
+    def get_latest_weights(self):
+        search_path = os.path.join(self.cfg.PARENT_DIR, 'projects',
+                                   self.cfg.PROJECT_NAME, 'models', 'HybridNet')
+        dirs = os.listdir(search_path)
+        dirs = [os.path.join(search_path, d) for d in dirs] # add path to each file
+        dirs.sort(key=lambda x: os.path.getmtime(x))
+        dirs.reverse()
+        for weights_dir in dirs:
+            weigths_path = os.path.join(weights_dir,
+                        f'HybridNet-d{self.cfg.KEYPOINTDETECT.COMPOUND_COEF}_final.pth')
+            if os.path.isfile(weigths_path):
+                return weigths_path
+        return None
 
 
-    def train(self, training_set, validation_set, num_epochs, start_epoch = 0):
+    def train(self, training_set, validation_set, num_epochs, start_epoch = 0, streamlitWidgets = None):
         """
         Function to train the network on a given dataset for a set number of
         epochs. Most of the training parameters can be set in the config file.
@@ -125,13 +143,34 @@ class HybridNet:
                     num_workers =  self.cfg.DATALOADER_NUM_WORKERS,
                     pin_memory = True)
         epoch = start_epoch
-        best_loss = 1e5
-        best_epoch = 0
         self.model.train()
+
+        latest_train_loss = 0
+        latest_train_acc = 0
+        latest_val_loss = 0
+        latest_val_acc = 0
+
+        train_losses = []
+        train_accs = []
+        val_losses = []
+        val_accs = []
+
+        if streamlitWidgets != None:
+            streamlitWidgets[2].markdown(f"Epoch {1}/{num_epochs}")
+
+        if (self.cfg.HYBRIDNET.USE_ONECYLCLE):
+            self.scheduler = torch.optim.lr_scheduler.OneCycleLR(self.optimizer,
+                        self.cfg.HYBRIDNET.MAX_LEARNING_RATE,
+                        steps_per_epoch=len(training_generator),
+                        epochs=num_epochs, div_factor=100)
+        else:
+            self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+                        self.optimizer, patience=3, verbose=True,
+                        min_lr=0.00005, factor = 0.2)
 
         for epoch in range(num_epochs):
             progress_bar = tqdm(training_generator)
-            for data in progress_bar:
+            for counter, data in enumerate(progress_bar):
                 imgs = data[0].permute(0,1,4,2,3).float()
                 keypoints = data[1]
                 centerHM = data[2]
@@ -175,6 +214,8 @@ class HybridNet:
 
                 loss.backward()
                 self.optimizer.step()
+                if self.cfg.HYBRIDNET.USE_ONECYLCLE:
+                    self.scheduler.step()
 
                 self.lossMeter.update(loss.item())
                 self.accuracyMeter.update(acc.item())
@@ -183,19 +224,28 @@ class HybridNet:
                     'Epoch: {}/{}. Loss: {:.4f}. Acc: {:.2f}'.format(
                         epoch, num_epochs, self.lossMeter.read(),
                         self.accuracyMeter.read()))
+                if streamlitWidgets != None:
+                    streamlitWidgets[1].progress(float(counter+1)/float(len(training_generator)))
 
-
+            latest_train_loss = self.lossMeter.read()
+            train_losses.append(latest_train_loss)
+            latest_train_acc = self.accuracyMeter.read()
+            train_accs.append(latest_train_acc)
             self.logger.update_train_loss(self.lossMeter.read())
             self.logger.update_train_accuracy(self.accuracyMeter.read())
-            self.scheduler.step(self.lossMeter.read())
+
+            if not self.cfg.HYBRIDNET.USE_ONECYLCLE:
+                self.scheduler.step(self.lossMeter.read())
 
             self.lossMeter.reset()
             self.accuracyMeter.reset()
 
-            if (epoch % self.cfg.HYBRIDNET.CHECKPOINT_SAVE_INTERVAL == 0
-                        and epoch > 0):
-                self.save_checkpoint(f'HybridNet-d_{epoch}.pth')
-                print('checkpoint...')
+            if (epoch + 1) % self.cfg.HYBRIDNET.CHECKPOINT_SAVE_INTERVAL == 0:
+                if epoch + 1 < num_epochs:
+                    self.save_checkpoint(f'HybridNet-d{self.cfg.KEYPOINTDETECT.COMPOUND_COEF}_Epoch_{epoch+1}.pth')
+                    print('checkpoint...')
+            if epoch + 1 == num_epochs:
+                self.save_checkpoint(f'HybridNet-d{self.cfg.KEYPOINTDETECT.COMPOUND_COEF}_final.pth')
 
             if epoch % self.cfg.HYBRIDNET.VAL_INTERVAL == 0:
                 self.model.eval()
@@ -241,33 +291,34 @@ class HybridNet:
                                     count += 1
                         acc = acc/count
 
-                        self.valLossMeter.update(loss.item())
-                        self.valAccuracyMeter.update(acc.item())
+                        self.lossMeter.update(loss.item())
+                        self.accuracyMeter.update(acc.item())
 
             print(
                 'Val. Epoch: {}/{}. Loss: {:.3f}. Acc: {:.2f}'.format(
-                    epoch, num_epochs, self.valLossMeter.read(),
-                    self.valAccuracyMeter.read()))
+                    epoch+1, num_epochs, self.lossMeter.read(),
+                    self.accuracyMeter.read()))
 
-
-            self.logger.update_val_loss(self.valLossMeter.read())
-            self.logger.update_val_accuracy(self.valAccuracyMeter.read())
-            self.valLossMeter.reset()
-            self.valAccuracyMeter.reset()
-
-            if (loss + self.cfg.HYBRIDNET.EARLY_STOPPING_MIN_DELTA < best_loss
-                        and self.cfg.HYBRIDNET.USE_EARLY_STOPPING):
-                best_loss = loss
-                best_epoch = epoch
-
+            latest_val_loss = self.lossMeter.read()
+            val_losses.append(latest_val_loss)
+            latest_val_acc = self.accuracyMeter.read()
+            val_accs.append(latest_val_acc)
+            self.logger.update_val_loss(self.lossMeter.read())
+            self.logger.update_val_accuracy(self.accuracyMeter.read())
+            self.lossMeter.reset()
+            self.accuracyMeter.reset()
             self.model.train()
+            if streamlitWidgets != None:
+                streamlitWidgets[0].progress(float(epoch+1)/float(num_epochs))
+                streamlitWidgets[2].markdown(f"Epoch {epoch+1}/{num_epochs}")
+                streamlitWidgets[3].line_chart({'Train Loss': train_losses, 'Val Loss': val_losses})
+                streamlitWidgets[4].line_chart({'Train Accuracy [mm]': train_accs, 'Val Accuracy [mm]': val_accs})
 
-            # Early stopping
-            if (epoch-best_epoch > self.cfg.HYBRIDNET.EARLY_STOPPING_PATIENCE > 0
-                        and self.cfg.HYBRIDNET.USE_EARLY_STOPPING):
-                print('[Info] Stop training at epoch {}. The lowest loss '
-                      'achieved is {}'.format(epoch, best_loss))
-                break
+        final_results = {'train_loss': latest_train_loss,
+                         'train_acc': latest_train_acc,
+                         'val_loss': latest_val_loss,
+                         'val_acc': latest_val_acc}
+        return final_results
 
 
     def save_checkpoint(self, name):

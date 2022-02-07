@@ -14,7 +14,7 @@ import time
 import csv
 import itertools
 import matplotlib
-
+import pandas as pd
 
 import torch
 from torch import nn
@@ -67,7 +67,7 @@ class EfficientTrack:
             self.lossMeter = AverageMeter()
             self.accuracyMeter = AverageMeter()
 
-            self.load_weights(weights)
+            self.found_weights = self.load_weights(weights)
 
             self.criterion = HeatmapLoss(self.cfg, self.mode)
             self.model = self.model.cuda()
@@ -84,7 +84,7 @@ class EfficientTrack:
 
         elif mode == 'KeypointDetectInference' or 'CenterDetectInference':
             self.model.requires_grad_(False)
-            self.model.load_state_dict(torch.load(weights))
+            self.load_weights(weights)
             self.model.requires_grad_(False)
             self.model.eval()
             self.model = self.model.cuda()
@@ -100,32 +100,50 @@ class EfficientTrack:
 
 
     def load_weights(self, weights_path = None):
+        if weights_path == 'latest':
+            weights_path =  self.get_latest_weights()
         if weights_path is not None:
-            pretrained_dict = torch.load(weights_path)
-            #pretrained_dict = {k: v for k, v in pretrained_dict.items() if not k in ['final_conv1.weight', 'final_conv2.weight', 'first_conv.pointwise_conv.bias', 'first_conv.gn.weight', 'first_conv.gn.bias', 'first_conv.pointwise_conv.weight']}
-            #pretrained_dict = {k: v for k, v in pretrained_dict.items() if not k in ['final_conv1.weight', 'final_conv2.weight']}
-            self.model.load_state_dict(pretrained_dict, strict=False)
-            print(f'Successfully loaded weights: {os.path.basename(weights_path)}')
+            if os.path.isfile(weights_path):
+                pretrained_dict = torch.load(weights_path)
+                #pretrained_dict = {k: v for k, v in pretrained_dict.items() if not k in ['final_conv1.weight', 'final_conv2.weight']}
+                self.model.load_state_dict(pretrained_dict, strict=False)
+                print(f'Successfully loaded weights: {weights_path}')
+                return True
+            else:
+                return False
         else:
-            print('Initializing weights...')
             utils.init_weights(self.model)
+            return True
 
-    def get_lates_weights(self):
+    def load_ecoset_pretrain(self):
+        weights_path = os.path.join(self.main_cfg.PARENT_DIR, 'pretrained', 'EcoSet', f'EfficientTrack-d{self.cfg.COMPOUND_COEF}.pth')
+        if os.path.isfile(weights_path):
+            pretrained_dict = torch.load(weights_path)
+            pretrained_dict = {k: v for k, v in pretrained_dict.items() if not k in ['final_conv1.weight', 'final_conv2.weight', 'first_conv.pointwise_conv.bias', 'first_conv.gn.weight', 'first_conv.gn.bias', 'first_conv.pointwise_conv.weight']}
+            self.model.load_state_dict(pretrained_dict, strict=False)
+            print(f'Successfully loaded EcoSet weights: {weights_path}')
+            return True
+        else:
+            return False
+
+
+    def get_latest_weights(self):
         model_dir = ''
         if self.mode == 'CenterDetect' or self.mode == 'CenterDetectInference':
             model_dir = 'CenterDetect'
         else:
             model_dir = 'KeypointDetect'
-        search_path = os.path.join(self.main_cfg.PROJECTS_ROOT_PATH,
+        search_path = os.path.join(self.main_cfg.PARENT_DIR, 'projects',
                                    self.main_cfg.PROJECT_NAME, 'models', model_dir)
         dirs = os.listdir(search_path)
         dirs = [os.path.join(search_path, d) for d in dirs] # add path to each file
         dirs.sort(key=lambda x: os.path.getmtime(x))
-        #dirs = dirs.reverse()
+        dirs.reverse()
         for weights_dir in dirs:
             weigths_path = os.path.join(weights_dir,
                         f'EfficientTrack-d{self.cfg.COMPOUND_COEF}_final.pth')
             if os.path.isfile(weigths_path):
+                print (weigths_path)
                 return weigths_path
         return None
 
@@ -146,7 +164,7 @@ class EfficientTrack:
                     param.requires_grad = False
 
 
-    def train(self, training_set, validation_set, num_epochs, start_epoch = 0):
+    def train(self, training_set, validation_set, num_epochs, start_epoch = 0, streamlitWidgets = None):
         """
         Function to train the network on a given dataset for a set number of
         epochs. Most of the training parameters can be set in the config file.
@@ -176,10 +194,16 @@ class EfficientTrack:
                     pin_memory = True,
                     drop_last = True)
 
-        epoch = start_epoch
-        best_loss = 1e5
-        best_epoch = 0
+        epoch = start_epoch #TODO: actually use this and make it work properly with onecylce
         self.model.train()
+
+        latest_train_loss = 0
+        latest_val_loss = 0
+        latest_val_acc = 0
+
+        train_losses = []
+        val_losses = []
+        val_accs = []
 
         if (self.cfg.USE_ONECYLCLE):
             self.scheduler = torch.optim.lr_scheduler.OneCycleLR(self.optimizer,
@@ -191,9 +215,12 @@ class EfficientTrack:
                         self.optimizer, patience=3, verbose=True,
                         min_lr=0.00005, factor = 0.2)
 
+        if streamlitWidgets != None:
+            streamlitWidgets[2].markdown(f"Epoch {1}/{num_epochs}")
+
         for epoch in range(num_epochs):
             progress_bar = tqdm(training_generator)
-            for data in progress_bar:
+            for count,data in enumerate(progress_bar):
                 imgs = data[0].permute(0, 3, 1, 2).float()
                 heatmaps = data[1]
 
@@ -218,23 +245,26 @@ class EfficientTrack:
                 progress_bar.set_description(
                     'Epoch: {}/{}. Loss: {:.5f}'.format(
                         epoch+1, num_epochs, self.lossMeter.read()))
-
+                if streamlitWidgets != None:
+                    streamlitWidgets[1].progress(float(count+1)/float(len(training_generator)))
 
             if not self.cfg.USE_ONECYLCLE:
                 self.scheduler.step(self.lossMeter.read())
 
             self.logger.update_learning_rate(self.optimizer.param_groups[0]['lr'])
             self.logger.update_train_loss(self.lossMeter.read())
+            latest_train_loss = self.lossMeter.read()
+            train_losses.append(latest_train_loss)
             self.lossMeter.reset()
 
-            if (epoch+1) % self.cfg.CHECKPOINT_SAVE_INTERVAL == 0:
-                if epoch +1 < num_epochs:
+            if (epoch + 1) % self.cfg.CHECKPOINT_SAVE_INTERVAL == 0:
+                if epoch + 1 < num_epochs:
                     self.save_checkpoint(f'EfficientTrack-d{self.cfg.COMPOUND_COEF}_Epoch_{epoch+1}.pth')
                     print('checkpoint...')
-                else:
-                    self.save_checkpoint(f'EfficientTrack-d{self.cfg.COMPOUND_COEF}_final.pth')
+            if epoch + 1 == num_epochs:
+                self.save_checkpoint(f'EfficientTrack-d{self.cfg.COMPOUND_COEF}_final.pth')
 
-            if (epoch+1) % self.cfg.VAL_INTERVAL == 0:
+            if (epoch + 1) % self.cfg.VAL_INTERVAL == 0:
                 self.model.eval()
                 for data in val_generator:
                     with torch.no_grad():
@@ -267,12 +297,27 @@ class EfficientTrack:
                         epoch+1, num_epochs, self.lossMeter.read(),
                         self.accuracyMeter.read()))
 
+                latest_val_loss = self.lossMeter.read()
+                val_losses.append(latest_val_loss)
+                latest_val_acc = self.accuracyMeter.read()
+                val_accs.append(latest_val_acc)
                 self.logger.update_val_loss(self.lossMeter.read())
                 self.logger.update_val_accuracy(self.accuracyMeter.read())
                 self.lossMeter.reset()
                 self.accuracyMeter.reset()
 
                 self.model.train()
+                if streamlitWidgets != None:
+                    streamlitWidgets[0].progress(float(epoch+1)/float(num_epochs))
+                    streamlitWidgets[2].markdown(f"Epoch {epoch+1}/{num_epochs}")
+                    streamlitWidgets[3].line_chart({'Train Loss': train_losses, 'Val Loss': val_losses})
+                    streamlitWidgets[4].line_chart({'Val Accuracy [px]': val_accs})
+
+
+        final_results = {'train_loss': latest_train_loss,
+                         'val_loss': latest_val_loss,
+                         'val_acc': latest_val_acc}
+        return final_results
 
 
     def calculate_accuracy(self, outs, gt):

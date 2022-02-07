@@ -12,6 +12,8 @@ import torch
 import cv2
 import matplotlib.pyplot as plt
 from tqdm.autonotebook import tqdm
+import streamlit as st
+
 
 from jarvis.efficienttrack.efficienttrack import EfficientTrack
 import jarvis.efficienttrack.darkpose as darkpose
@@ -20,9 +22,8 @@ import jarvis.prediction.prediction_utils as utils
 
 def predictPosesVideo(keypointDetect, centerDetect, video_path,
             output_dir, frameStart = 0, numberFrames = -1,
-            make_video = True, skeletonPreset = None):
-
-    if os.path.exists(output_dir):
+            make_video = True, skeletonPreset = None, progressBar = None):
+    if os.path.exists(output_dir) and progressBar == None:
         print ("Output directory already exists! Override? (Y)es/(N)o")
         valid_accepts = ['yes', 'Yes', 'y', 'Y']
         valid_declines = ['no', 'No', 'n', 'N']
@@ -72,7 +73,7 @@ def predictPosesVideo(keypointDetect, centerDetect, video_path,
         if (numberFrames == -1):
             numberFrames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
 
-        for i in tqdm(range(numberFrames)):
+        for frame_num in tqdm(range(numberFrames)):
             ret, img_orig = cap.read()
             image_size_center = centerDetect.cfg.IMAGE_SIZE
             img_downsampled_shape = (image_size_center, image_size_center)
@@ -129,10 +130,14 @@ def predictPosesVideo(keypointDetect, centerDetect, video_path,
 
             if make_video:
                 out.write(img_orig)
+            if progressBar != None:
+                progressBar.progress(float(frame_num+1)/float(numberFrames))
 
         if make_video:
             out.release()
         cap.release()
+        del centerDetect
+        del keypointDetect
 
 
 def create_header(writer, skeletonPreset, num_keypoints):

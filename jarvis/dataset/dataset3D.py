@@ -48,7 +48,7 @@ class Dataset3D(BaseDataset):
         self.reproTools = {}
         for calibParams in self.dataset['calibrations']:
             self.reproTools[calibParams] = ReprojectionTool(
-                        self.root_dir,
+                        os.path.join(cfg.PARENT_DIR, self.root_dir),
                         self.dataset['calibrations'][calibParams])
             self.num_cameras = self.reproTools[calibParams].num_cameras
             self.reproTools[calibParams].resolution = [width,height]
@@ -70,7 +70,8 @@ class Dataset3D(BaseDataset):
                             + info_split[1] + "/" + info_split[3].split(".")[0]]['frames']
             elif (len(info_split) == 5):
                 frameset_ids = self.dataset['framesets'][info_split[0] + "/"
-                            + info_split[1] + "/" + info_split[2] + "/" + info_split[4].split(".")[0]]['frames']
+                            + info_split[1] + "/" + info_split[2] + "/" +
+                            info_split[4].split(".")[0]]['frames']
             keypoints_l = []
             for i,img_id in enumerate(frameset_ids):
                 _, keypoints = self._load_annotations(img_id, is_id = True)
@@ -107,10 +108,10 @@ class Dataset3D(BaseDataset):
             if ((self.cfg.HYBRIDNET.ROI_CUBE_SIZE == None) or min_cube_size <= self.cfg.HYBRIDNET.ROI_CUBE_SIZE) and len(keypoints3D_bb) >1:
                 self.image_ids.append(self.dataset['framesets'][set]['frames'][0])
                 self.keypoints3D.append(keypoints3D_cam)
-            else:
-                print ("Not adding the following frame to the set:")
-                print (file_name)
-                print (min_cube_size)
+            # else:
+            #     print ("Not adding the following frame to the set:")
+            #     print (file_name)
+            #     print (min_cube_size)
 
         self.transform = transforms.Compose(
                     [Normalizer(mean=cfg.DATASET.MEAN, std=cfg.DATASET.STD)])
@@ -148,16 +149,22 @@ class Dataset3D(BaseDataset):
         file_name = self.imgs[self.image_ids[idx]]['file_name']
 
         info_split = file_name.split("/")
-        if (len(info_split) == 4):
-            frameset_ids = self.dataset['framesets'][info_split[0] + "/"
-                        + info_split[1] + "/" + info_split[3].split(".")[0]]['frames']
-        elif (len(info_split) == 5):
-            frameset_ids = self.dataset['framesets'][info_split[0] + "/"
-                        + info_split[1] + "/" + info_split[2] + "/" + info_split[4].split(".")[0]]['frames']
-
-        datasetName = self.dataset['framesets'][info_split[0] + "/"
-                    + info_split[1] + "/" + info_split[2] + "/" + info_split[4].split(".")[0]]['datasetName']
-
+        key = info_split[0]
+        for i in range(1,len(info_split)-2):
+            key = key + "/" + info_split[i]
+        key = key + "/" + info_split[-1].split(".")[0]
+        frameset_ids = self.dataset['framesets'][key]['frames']
+        datasetName = self.dataset['framesets'][key]['datasetName']
+        # if (len(info_split) == 4):
+        # frameset_ids = self.dataset['framesets'][info_split[0] + "/"
+        #             + info_split[1] + "/" + info_split[3].split(".")[0]]['frames']
+        # datasetName = self.dataset['framesets'][info_split[0] + "/"
+        #             + info_split[1] + "/" + info_split[3].split(".")[0]]['datasetName']
+        # elif (len(info_split) == 5):
+        #     frameset_ids = self.dataset['framesets'][info_split[0] + "/"
+        #                 + info_split[1] + "/" + info_split[2] + "/" + info_split[4].split(".")[0]]['frames']
+        #     datasetName = self.dataset['framesets'][info_split[0] + "/"
+        #                 + info_split[1] + "/" + info_split[2] + "/" + info_split[4].split(".")[0]]['datasetName']
         img_l = np.zeros((self.num_cameras,
                           self.cfg.KEYPOINTDETECT.BOUNDING_BOX_SIZE,
                           self.cfg.KEYPOINTDETECT.BOUNDING_BOX_SIZE,3))
@@ -245,16 +252,16 @@ class Dataset3D(BaseDataset):
         y_range = [np.min(keypoints3D[:,:,1]), np.max(keypoints3D[:,:,1])]
         z_range = [np.min(keypoints3D[:,:,2]), np.max(keypoints3D[:,:,2])]
         tracking_area = np.array([x_range, y_range, z_range])
-        x_cube_size_min = np.max(np.max(keypoints3D[:,:,0], axis = 1)
-                        - np.min(keypoints3D[:,:,0],axis = 1))
-        y_cube_size_min = np.max(np.max(keypoints3D[:,:,1], axis = 1)
-                        - np.min(keypoints3D[:,:,1],axis = 1))
-        z_cube_size_min = np.max(np.max(keypoints3D[:,:,2], axis = 1)
-                        - np.min(keypoints3D[:,:,2],axis = 1))
+        x_cube_size_min = np.percentile(np.max(keypoints3D[:,:,0], axis = 1)
+                        - np.min(keypoints3D[:,:,0],axis = 1),98)
+        y_cube_size_min = np.percentile(np.max(keypoints3D[:,:,1], axis = 1)
+                        - np.min(keypoints3D[:,:,1],axis = 1),98)
+        z_cube_size_min = np.percentile(np.max(keypoints3D[:,:,2], axis = 1)
+                        - np.min(keypoints3D[:,:,2],axis = 1),98)
         min_cube_size = np.max([x_cube_size_min,
                                 y_cube_size_min,
                                 z_cube_size_min])
-        final_bbox_suggestion = int(np.ceil((min_cube_size*1.1)/8)*8)
+        final_bbox_suggestion = int(np.ceil((min_cube_size*1.2)/8)*8)
         resolution_suggestion = int(np.floor((final_bbox_suggestion/100.)))
 
         suggested_parameters = {

@@ -11,6 +11,7 @@ import numpy as np
 import torch
 import cv2
 import matplotlib.pyplot as plt
+import matplotlib
 import json
 import itertools
 from joblib import Parallel, delayed
@@ -24,7 +25,7 @@ import jarvis.prediction.prediction_utils as utils
 
 
 def load_reprojection_tools(cfg):
-    dataset_dir = os.path.join(cfg.DATASET.DATASET_ROOT_DIR, cfg.DATASET.DATASET_3D)
+    dataset_dir = os.path.join(cfg.PARENT_DIR, cfg.DATASET.DATASET_ROOT_DIR, cfg.DATASET.DATASET_3D)
     dataset_json = open(os.path.join(dataset_dir, 'annotations',
                 'instances_val.json'))
     data = json.load(dataset_json)
@@ -42,13 +43,14 @@ def get_videos_from_recording_path(recording_path, reproTool):
     video_paths = []
     for i, camera in enumerate(reproTool.cameras):
         for video in videos:
-            if camera in video:
+            if camera == video.split('.')[0]:
                 video_paths.append(os.path.join(recording_path, video))
         assert (len(video_paths) == i+1), "Missing Recording for camera " + camera
     return video_paths
 
+
 def predictPosesVideos(hybridNet, centerDetect, reproTool, recording_path,
-        output_dir, frameStart = 0, numberFrames = -1, make_videos = True, skeletonPreset = None):
+        output_dir, frameStart = 0, numberFrames = -1, make_videos = True, skeletonPreset = None, progressBar =None):
 
     img_downsampled_shape = centerDetect.cfg.IMAGE_SIZE
     def read_images(cap):
@@ -61,7 +63,7 @@ def predictPosesVideos(hybridNet, centerDetect, reproTool, recording_path,
         img = cv2.resize(img, (img_downsampled_shape,img_downsampled_shape))
         return img
 
-    if os.path.exists(output_dir):
+    if os.path.exists(output_dir) and progressBar == None:
         print ("Output directory already exists! Override? (Y)es/(N)o")
         valid_accepts = ['yes', 'Yes', 'y', 'Y']
         valid_declines = ['no', 'No', 'n', 'N']
@@ -127,8 +129,7 @@ def predictPosesVideos(hybridNet, centerDetect, reproTool, recording_path,
 
         if (numberFrames == -1):
             numberFrames = int(caps[0].get(cv2.CAP_PROP_FRAME_COUNT))
-
-        for i in tqdm(range(numberFrames)):
+        for frame_num in tqdm(range(numberFrames)):
             imgs = []
             imgs_orig = []
             centerHMs = []
@@ -166,21 +167,25 @@ def predictPosesVideos(hybridNet, centerDetect, reproTool, recording_path,
                         camsToUse.append(i)
                 center3D = torch.from_numpy(reproTool.reconstructPoint((preds.reshape(num_cameras,2)*downsampling_scale*2).transpose(), camsToUse))
                 reproPoints = reproTool.reprojectPoint(center3D)
-            imgs = []
-            bbox_hw = int(hybridNet.cfg.KEYPOINTDETECT.BOUNDING_BOX_SIZE/2)
-            for idx,reproPoint in enumerate(reproPoints):
-                reproPoint = reproPoint.astype(int)
-                reproPoints[idx][0] = min(max(reproPoint[0], bbox_hw), img_size[0]-1-bbox_hw)
-                reproPoints[idx][1] = min(max(reproPoint[1], bbox_hw), img_size[1]-1-bbox_hw)
-                reproPoint[0] = reproPoints[idx][0]
-                reproPoint[1] = reproPoints[idx][1]
-                img = imgs_orig[idx][reproPoint[1]-bbox_hw:reproPoint[1]+bbox_hw, reproPoint[0]-bbox_hw:reproPoint[0]+bbox_hw, :]
-                img = ((cv2.cvtColor(img, cv2.COLOR_BGR2RGB).astype(np.float32)/255.0-hybridNet.cfg.DATASET.MEAN)/hybridNet.cfg.DATASET.STD)
-                imgs.append(img)
+                imgs = []
+                bbox_hw = int(hybridNet.cfg.KEYPOINTDETECT.BOUNDING_BOX_SIZE/2)
+                for idx,reproPoint in enumerate(reproPoints):
+                    reproPoint = reproPoint.astype(int)
+                    reproPoints[idx][0] = min(max(reproPoint[0], bbox_hw), img_size[0]-1-bbox_hw)
+                    reproPoints[idx][1] = min(max(reproPoint[1], bbox_hw), img_size[1]-1-bbox_hw)
+                    reproPoint[0] = reproPoints[idx][0]
+                    reproPoint[1] = reproPoints[idx][1]
+                    img = imgs_orig[idx][reproPoint[1]-bbox_hw:reproPoint[1]+bbox_hw, reproPoint[0]-bbox_hw:reproPoint[0]+bbox_hw, :]
+                    #cv2.imshow("", img)
+                    #cv2.waitKey(0)
+                    img = ((cv2.cvtColor(img, cv2.COLOR_BGR2RGB).astype(np.float32)/255.0-hybridNet.cfg.DATASET.MEAN)/hybridNet.cfg.DATASET.STD)
+                    imgs.append(img)
 
-            imgs = torch.from_numpy(np.array(imgs))
-            imgs = imgs.permute(0,3,1,2).view(1,num_cameras,3,hybridNet.cfg.KEYPOINTDETECT.BOUNDING_BOX_SIZE,hybridNet.cfg.KEYPOINTDETECT.BOUNDING_BOX_SIZE).cuda().float()
-            centerHMs = np.array(reproPoints).astype(int)
+
+                imgs = torch.from_numpy(np.array(imgs))
+                imgs = imgs.permute(0,3,1,2).view(1,num_cameras,3,hybridNet.cfg.KEYPOINTDETECT.BOUNDING_BOX_SIZE,hybridNet.cfg.KEYPOINTDETECT.BOUNDING_BOX_SIZE).cuda().float()
+                centerHMs = np.array(reproPoints).astype(int)
+
             if len(camsToUse) >= 2:
                 center3D = center3D.int().cuda()
                 centerHMs = torch.from_numpy(centerHMs).cuda()
@@ -217,6 +222,8 @@ def predictPosesVideos(hybridNet, centerDetect, reproTool, recording_path,
             if make_videos:
                 for i,out in enumerate(outs):
                     out.write(imgs_orig[i])
+                if progressBar != None:
+                    progressBar.progress(float(frame_num+1)/float(numberFrames))
 
         if make_videos:
             for out in outs:

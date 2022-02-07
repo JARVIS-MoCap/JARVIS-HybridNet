@@ -173,7 +173,6 @@ class EfficientTrackBackbone(nn.Module):
         res2 = self.deconv1(res1)
         res2 = self.gn1(res2)
         res2 = self.swish(res2)
-
         res1 = self.final_conv1(res1)
         res2 = self.final_conv2(res2)
 

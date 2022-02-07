@@ -92,7 +92,6 @@ class HybridNetBackbone(nn.Module):
                           self.heatmap_size[1]-(((centerHM[batch,i,1])/2)
                           + heatmap.shape[-1]/2+rand2[1]).int()),
                      mode='constant', value=0)
-
         heatmaps3D = self.reproLayer(img_size,heatmaps_padded, center3D,
                     cameraMatrices, intrinsicMatrices, distortionCoefficients)
         heatmap_final = self.v2vNet(((heatmaps3D/255.)))
