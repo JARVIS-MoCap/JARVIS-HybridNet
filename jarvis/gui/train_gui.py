@@ -7,7 +7,6 @@ import jarvis.predict_interface as predict
 import jarvis.visualize_interface as visualize
 import time
 import jarvis.train_interface as train
-from streamlit_tensorboard import st_tensorboard
 
 def train_all_gui(project, cfg):
     st.header("Train Full Network")

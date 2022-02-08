@@ -15,6 +15,7 @@ import csv
 import itertools
 import matplotlib
 import pandas as pd
+import streamlit as st
 
 import torch
 from torch import nn
@@ -312,6 +313,10 @@ class EfficientTrack:
                     streamlitWidgets[2].markdown(f"Epoch {epoch+1}/{num_epochs}")
                     streamlitWidgets[3].line_chart({'Train Loss': train_losses, 'Val Loss': val_losses})
                     streamlitWidgets[4].line_chart({'Val Accuracy [px]': val_accs})
+                    st.session_state[self.mode + '/' + 'Train Loss'] = train_losses
+                    st.session_state[self.mode + '/' + 'Val Loss'] = val_losses
+                    st.session_state[self.mode + '/' + 'Val Accuracy'] = val_accs
+                    st.session_state['results_available'] = True
 
 
         final_results = {'train_loss': latest_train_loss,

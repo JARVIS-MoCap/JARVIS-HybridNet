@@ -11,6 +11,7 @@ from tqdm.autonotebook import tqdm
 import time
 import cv2
 import matplotlib
+import streamlit as st
 
 import torch
 from torch import nn
@@ -313,6 +314,11 @@ class HybridNet:
                 streamlitWidgets[2].markdown(f"Epoch {epoch+1}/{num_epochs}")
                 streamlitWidgets[3].line_chart({'Train Loss': train_losses, 'Val Loss': val_losses})
                 streamlitWidgets[4].line_chart({'Train Accuracy [mm]': train_accs, 'Val Accuracy [mm]': val_accs})
+                st.session_state['HybridNet/' + self.training_mode + '/Train Loss'] = train_losses
+                st.session_state['HybridNet/' + self.training_mode + '/Val Loss'] = val_losses
+                st.session_state['HybridNet/' + self.training_mode + '/Train Accuracy'] = train_accs
+                st.session_state['HybridNet/' + self.training_mode + '/Val Accuracy'] = val_accs
+                st.session_state['results_available'] = True
 
         final_results = {'train_loss': latest_train_loss,
                          'train_acc': latest_train_acc,
@@ -335,6 +341,7 @@ class HybridNet:
                                     2D network will be trained
                      '3D_only': Only the 3D network will be trained
         """
+        self.training_mode = mode
         if mode == 'all':
             self.model.effTrack.requires_grad_(True)
         elif mode == 'bifpn':

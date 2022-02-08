@@ -71,7 +71,7 @@ def train_efficienttrack(mode, project_name, num_epochs, weights,
                 num_epochs = project.cfg.KEYPOINTDETECT.NUM_EPOCHS
         print (f'Training {mode} on project {project_name} for '
                     f'{num_epochs} epochs!')
-        training_set = Dataset2D(project.cfg, set='train', mode = mode)
+        training_set = Dataset2D(project.cfg, set='val', mode = mode)
         val_set = Dataset2D(project.cfg, set='val',mode = mode)
         efficientTrack = EfficientTrack(mode, project.cfg)
 
@@ -123,7 +123,7 @@ def train_hybridnet(project_name, num_epochs, weights_keypoint_detect, weights,
             num_epochs = project.cfg.HYBRIDNET.NUM_EPOCHS
         print (f'Training HybridNet on project {project_name} for {num_epochs}'
                     f' epochs!')
-        training_set = Dataset3D(project.cfg, set='train')
+        training_set = Dataset3D(project.cfg, set='val')
         val_set = Dataset3D(project.cfg, set='val')
         hybridNet = HybridNet('train', project.cfg)
         effTrack = hybridNet.model.effTrack

@@ -88,6 +88,14 @@ def create_project(project_name, dataset2d, dataset3d):
 @click.argument('project_name')
 def train_center_detect(project_name, num_epochs, weights, gpu):
     set_gpu_environ(gpu)
+    if num_epochs == None:
+        pass
+    elif num_epochs.isdigit() and int(num_epochs) > 0:
+        num_epochs = int(num_epochs)
+    else:
+        click.echo(f'{CLIColors.FAIL}Make sure num_epochs is a positive '
+                    f'integer!{CLIColors.ENDC}')
+        return
     train_interface.train_efficienttrack('CenterDetect', project_name,
                 num_epochs, weights)
 
@@ -105,6 +113,14 @@ def train_center_detect(project_name, num_epochs, weights, gpu):
 @click.argument('project_name')
 def train_keypoint_detect(project_name, num_epochs, weights, gpu):
     set_gpu_environ(gpu)
+    if num_epochs == None:
+        pass
+    elif num_epochs.isdigit() and int(num_epochs) > 0:
+        num_epochs = int(num_epochs)
+    else:
+        click.echo(f'{CLIColors.FAIL}Make sure num_epochs is a positive '
+                    f'integer!{CLIColors.ENDC}')
+        return
     train_interface.train_efficienttrack('KeypointDetect', project_name,
                 num_epochs, weights)
 
@@ -134,7 +150,7 @@ def train_keypoint_detect(project_name, num_epochs, weights, gpu):
             'network will be trained\n'
             '\'3D_only\': Only the 3D network will be trained')
 @click.option('--gpu', default=None, help='Number of the GPU to be used')
-@click.option('--finetune', default=True, help='If True the whole network stack '
+@click.option('--finetune', default=False, help='If True the whole network stack '
             'will be finetuned jointly. Might not fit into GPU Memory, '
             'depending on GPU model')
 @click.argument('project_name')
@@ -142,17 +158,25 @@ def train_hybridnet(project_name, num_epochs, weights_keypoint_detect, weights,
             mode, gpu, finetune):
     """Train the full HybridNet on the project specified as PROJECT_NAME."""
     set_gpu_environ(gpu)
+    if num_epochs == None:
+        pass
+    elif num_epochs.isdigit() and int(num_epochs) > 0:
+        num_epochs = int(num_epochs)
+    else:
+        click.echo(f'{CLIColors.FAIL}Make sure num_epochs is a positive '
+                    f'integer!{CLIColors.ENDC}')
+        return
     train_interface.train_hybridnet(project_name, num_epochs,
                 weights_keypoint_detect, weights, mode, finetune)
 
 
 
 @click.command()
-@click.option('--num_epochs_center', default=50, help='Number of Epochs for '
+@click.option('--num_epochs_center', default=None, help='Number of Epochs for '
             'CenterDetect, try 100 or more for very small datasets.')
-@click.option('--num_epochs_keypoint', default=100, help='Number of Epochs '
+@click.option('--num_epochs_keypoint', default=None, help='Number of Epochs '
             'for KeypointDetect, try 200 or more for very small datasets.')
-@click.option('--num_epochs_hybridnet', default=50, help='Number of Epochs '
+@click.option('--num_epochs_hybridnet', default=None, help='Number of Epochs '
             'for HybridNet, try 100 or more for very small datasets.')
 @click.option('--finetune', default=True, help='If True the whole network '
             'stack will be finetuned jointly. Might not fit into GPU Memory, '
@@ -162,26 +186,50 @@ def train_hybridnet(project_name, num_epochs, weights_keypoint_detect, weights,
 def train(project_name, num_epochs_center, num_epochs_keypoint,
             num_epochs_hybridnet, finetune, gpu):
     set_gpu_environ(gpu)
+    if num_epochs_center == None:
+        pass
+    elif num_epochs_center.isdigit() and int(num_epochs_center) > 0:
+        num_epochs_center = int(num_epochs_center)
+    else:
+        click.echo(f'{CLIColors.FAIL}Make sure num_epochs_center is a positive '
+                    f'integer!{CLIColors.ENDC}')
+        return
+    if num_epochs_keypoint == None:
+        pass
+    elif num_epochs_keypoint.isdigit() and int(num_epochs_keypoint) > 0:
+        num_epochs_keypoint = int(num_epochs_keypoint)
+    else:
+        click.echo(f'{CLIColors.FAIL}Make sure num_epochs_keypoint is a positive '
+                    f'integer!{CLIColors.ENDC}')
+        return
+    if num_epochs_hybridnet == None:
+        pass
+    elif num_epochs_hybridnet.isdigit() and int(num_epochs_hybridnet) > 0:
+        num_epochs_hybridnet = int(num_epochs_hybridnet)
+    else:
+        click.echo(f'{CLIColors.FAIL}Make sure num_epochs_hybridnet is a positive '
+                    f'integer!{CLIColors.ENDC}')
+        return
     click.echo(f'Training all newtorks for project {project_name} for '
                 f'{num_epochs_center} epochs!')
     click.echo(f'First training CenterDetect for {num_epochs_center} epochs...')
     train_interface.train_efficienttrack('CenterDetect', project_name,
                 num_epochs_center, 'ecoset')
-    click.echo(f'Training KeypointDetect for {num_epochs_center} epochs...')
+    click.echo(f'Training KeypointDetect for {num_epochs_keypoint} epochs...')
     train_interface.train_efficienttrack('KeypointDetect', project_name,
                 num_epochs_keypoint, 'ecoset')
-    click.echo(f'Training 3D section of HybridNet for {num_epochs_center} '
+    click.echo(f'Training 3D section of HybridNet for {num_epochs_hybridnet} '
                 f'epochs...')
     train_interface.train_hybridnet(project_name, num_epochs_hybridnet,
                 'latest', None, '3D_only')
     if finetune:
-        click.echo(f'Finetuning complete HybridNet for {num_epochs_center} '
+        click.echo(f'Finetuning complete HybridNet for {num_epochs_hybridnet} '
                     f'epochs...')
         train_interface.train_hybridnet(project_name, num_epochs_hybridnet,
                     None, 'latest', 'all', finetune = True)
         click.echo()
         click.echo(f'{CLIColors.OKGREEN}Training finished! You networks are '
-                    'ready for prediction, have fun :){CLIColors.ENDC}')
+                    f'ready for prediction, have fun :){CLIColors.ENDC}')
 
 
 

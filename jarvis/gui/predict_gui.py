@@ -19,10 +19,14 @@ def predict2D_gui(project):
         col3, col4 = st.columns(2)
         with col3:
             weights_center_detect = st.text_input("Weights for CenterDetect:",
-                        value = 'latest')
+                        value = 'latest',
+                        help = "Use 'latest' to load you last saved weights, or "
+                                    "specify the path to a '.pth' file.")
         with col4:
             weights_keypoint_detect = st.text_input("Weights for KeypointDetect:",
-                        value = 'latest')
+                        value = 'latest',
+                        help = "Use 'latest' to load you last saved weights, or "
+                                    "specify the path to a '.pth' file.")
         skeleton_preset = st.selectbox('Skeleton Preset',
                     ['None', 'Hand', 'HumanBody', 'RodentBody'])
         make_video = st.checkbox("Make Video overlayed with predictions?",
@@ -42,8 +46,8 @@ def predict2D_gui(project):
         if output_dir == "":
             st.error("Please enter a valid ouput directory!")
             return
-        if skeletonPreset == "None":
-            skeletonPreset = None
+        if skeleton_preset == "None":
+            skeleton_preset = None
         st.subheader("Prediction Progress:")
         my_bar = st.progress(0)
         predict.predict2D(project, video_path, weights_center_detect,
@@ -65,10 +69,14 @@ def predict3D_gui(project):
         col3, col4 = st.columns(2)
         with col3:
             weights_center_detect = st.text_input("Weights for CenterDetect:",
-                        value = "latest")
+                        value = "latest",
+                        help = "Use 'latest' to load you last saved weights, or "
+                                    "specify the path to a '.pth' file.")
         with col4:
             weights_hybridnet = st.text_input("Weights for HybridNet:",
-                        value = "latest")
+                        value = "latest",
+                        help = "Use 'latest' to load you last saved weights, or "
+                                    "specify the path to a '.pth' file.")
         skeleton_preset = st.selectbox('Skeleton Preset',
                     ['None', 'Hand', 'HumanBody', 'RodentBody'])
         make_videos = st.checkbox("Make Videos overlayed with predictions?",

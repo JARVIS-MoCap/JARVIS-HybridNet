@@ -2,7 +2,7 @@
 
 ## Install Instructions
 
-- Clone the repository with 
+- Clone the repository with
 ```
 git clone https://github.com/JARVIS-MoCap/JARVIS-HybridNet.git
 cd JARVIS-HybridNet
@@ -17,8 +17,7 @@ conda activate jarvis
 ```
 
 - Make sure your setuptools package is up to date \
-  `pip install -U setuptools`
+  `pip install -U setuptools==59.5.0`
 
 - Install JARVIS
   `pip install -e .`
-
