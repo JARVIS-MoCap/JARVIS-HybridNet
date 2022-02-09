@@ -44,7 +44,9 @@ def predict3D(project_name, recording_path, weights_center_detect,
                 weights_center_detect)
     if output_dir == None:
         output_dir = 'PosePredictions'
-    reproTools = load_reprojection_tools(project.cfg)
+
+    camera_list = {'Camera_T', 'Camera_RBT', 'Camera_LBT'}
+    reproTools = load_reprojection_tools(project.cfg, camera_list)
     if len(reproTools) == 1:
         reproTool = reproTools[list(reproTools.keys())[0]]
     elif len(reproTools) > 1:

@@ -24,16 +24,20 @@ from jarvis.dataset.utils import ReprojectionTool
 import jarvis.prediction.prediction_utils as utils
 
 
-def load_reprojection_tools(cfg):
+def load_reprojection_tools(cfg, cameras_to_use = None):
+    print (cameras_to_use)
     dataset_dir = os.path.join(cfg.PARENT_DIR, cfg.DATASET.DATASET_ROOT_DIR, cfg.DATASET.DATASET_3D)
     dataset_json = open(os.path.join(dataset_dir, 'annotations',
                 'instances_val.json'))
     data = json.load(dataset_json)
     reproTools = {}
     for calibParams in data['calibrations']:
+        calibPaths = {}
+        for cam in data['calibrations'][calibParams]:
+            if cameras_to_use == None or cam in cameras_to_use:
+                calibPaths[cam] = data['calibrations'][calibParams][cam]
         reproTools[calibParams] = ReprojectionTool(
-                    dataset_dir,
-                    data['calibrations'][calibParams])
+                    dataset_dir,calibPaths)
     dataset_json.close()
     return reproTools
 

@@ -30,6 +30,10 @@ def set_gpu_environ(gpu):
         return
     os.environ["CUDA_VISIBLE_DEVICES"]= str(gpu)
 
+@click.command()
+def hello():
+    click.echo(f'{CLIColors.OKGREEN}Hi! JARVIS installed successfully and is '
+                f'ready for training!\nRun \'jarvis --help\' to list all available commands.{CLIColors.ENDC}')
 
 @click.command()
 def launch():
@@ -288,7 +292,7 @@ def plot_time_slices(csv_file, filename, start_frame, num_frames, skip_number,
                 skeleton_preset, plot_azim,plot_elev)
 
 
-
+cli.add_command(hello)
 cli.add_command(create_project)
 cli.add_command(train_center_detect)
 cli.add_command(train_keypoint_detect)

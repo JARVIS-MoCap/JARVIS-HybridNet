@@ -72,9 +72,6 @@ class HybridNet:
                             self.cfg.HYBRIDNET.MAX_LEARNING_RATE,
                             momentum=0.9, nesterov=True)
 
-            self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-                        self.optimizer, patience=3, verbose=True,
-                        min_lr=0.00005, factor = 0.2)
             self.set_training_mode('all')
 
         elif mode == 'inference':

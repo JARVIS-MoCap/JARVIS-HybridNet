@@ -13,6 +13,7 @@ from jarvis.dataset.dataset3D import Dataset3D
 from jarvis.efficienttrack.efficienttrack import EfficientTrack
 from jarvis.hybridnet.hybridnet import HybridNet
 
+
 def launch_tensorboard(logdir):
     tb = program.TensorBoard()
     tb.configure(argv=[None, '--load_fast' ,'true','--logdir', logdir])
@@ -51,7 +52,13 @@ def get_latest_weights_efficienttrack(cfg, mode):
 
 
 def train_efficienttrack(mode, project_name, num_epochs, weights,
-            streamlitWidgets = None):
+            streamlitWidgets = None, **kwargs):
+    camera_list = None
+    run_name = None
+    if 'cameras_to_use' in kwargs:
+        camera_list = kwargs['cameras_to_use']
+    if 'run_name' in kwargs:
+        run_name = kwargs['run_name']
     with ExitStack() as stack:
         if streamlitWidgets != None:
             gs = stack.enter_context(st.spinner('Preparing Model for training...'))
@@ -71,9 +78,10 @@ def train_efficienttrack(mode, project_name, num_epochs, weights,
                 num_epochs = project.cfg.KEYPOINTDETECT.NUM_EPOCHS
         print (f'Training {mode} on project {project_name} for '
                     f'{num_epochs} epochs!')
-        training_set = Dataset2D(project.cfg, set='val', mode = mode)
-        val_set = Dataset2D(project.cfg, set='val',mode = mode)
-        efficientTrack = EfficientTrack(mode, project.cfg)
+
+        training_set = Dataset2D(project.cfg, set='train', mode = mode, cameras_to_use = camera_list)
+        val_set = Dataset2D(project.cfg, set='val',mode = mode, cameras_to_use = camera_list)
+        efficientTrack = EfficientTrack(mode, project.cfg, run_name = run_name)
 
         if weights == "latest":
             weights = efficientTrack.get_latest_weights()
@@ -105,7 +113,14 @@ def train_efficienttrack(mode, project_name, num_epochs, weights,
 
 
 def train_hybridnet(project_name, num_epochs, weights_keypoint_detect, weights,
-            mode, finetune = False, streamlitWidgets = None):
+            mode, finetune = False, streamlitWidgets = None, **kwargs):
+    camera_list = None
+    run_name = None
+    if 'cameras_to_use' in kwargs:
+        camera_list = kwargs['cameras_to_use']
+    if 'run_name' in kwargs:
+        run_name = kwargs['run_name']
+    dataset_name = cfg.DATASET.DATASET_3D
     with ExitStack() as stack:
         if streamlitWidgets != None:
             gs = stack.enter_context(st.spinner('Preparing Model for training...'))
@@ -123,9 +138,10 @@ def train_hybridnet(project_name, num_epochs, weights_keypoint_detect, weights,
             num_epochs = project.cfg.HYBRIDNET.NUM_EPOCHS
         print (f'Training HybridNet on project {project_name} for {num_epochs}'
                     f' epochs!')
-        training_set = Dataset3D(project.cfg, set='val')
-        val_set = Dataset3D(project.cfg, set='val')
-        hybridNet = HybridNet('train', project.cfg)
+
+        training_set = Dataset3D(project.cfg, set='train', cameras_to_use = camera_list)
+        val_set = Dataset3D(project.cfg, set='val', cameras_to_use = camera_list)
+        hybridNet = HybridNet('train', project.cfg, run_name = run_name)
         effTrack = hybridNet.model.effTrack
 
         if weights_keypoint_detect == "latest":

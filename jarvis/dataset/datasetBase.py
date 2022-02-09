@@ -33,7 +33,10 @@ class BaseDataset(Dataset):
                 to training split.
     :type set: string
     """
-    def __init__(self, cfg, dataset_name,set='train'):
+    def __init__(self, cfg, dataset_name,set='train', **kwargs):
+        self.cameras_to_use = None
+        if 'cameras_to_use' in kwargs:
+            self.cameras_to_use = kwargs['cameras_to_use']
         self.cfg = cfg
         if os.path.isabs(dataset_name):
             self.root_dir = dataset_name
@@ -49,7 +52,10 @@ class BaseDataset(Dataset):
         self.num_keypoints = []
         for category in self.dataset['categories']:
             self.num_keypoints.append(category['num_keypoints'])
-        self.image_ids = [img["id"] for img in self.dataset["images"]]
+        if self.cameras_to_use != None:
+            self.image_ids = [img["id"] for img in self.dataset["images"] if img['file_name'].split("/")[-2] in self.cameras_to_use]
+        else:
+            self.image_ids = [img["id"] for img in self.dataset["images"]]
 
         self.annotations,self.categories,self.imgs = dict(),dict(),dict()
         self.imgToAnns = defaultdict(list)
@@ -75,7 +81,7 @@ class BaseDataset(Dataset):
         return len(self.image_ids)
 
 
-    def _load_image(self, image_index, is_id = True):
+    def _load_image(self, image_index, is_id = False):
         if is_id:
             file_name = self.imgs[image_index]['file_name']
         else:

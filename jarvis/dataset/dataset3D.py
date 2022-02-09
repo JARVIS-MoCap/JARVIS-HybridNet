@@ -37,9 +37,12 @@ class Dataset3D(BaseDataset):
                 split.
     :type set: string
     """
-    def __init__(self, cfg, set='train'):
+    def __init__(self, cfg, set='train', **kwargs):
+        self.cameras_to_use = None
+        if 'cameras_to_use' in kwargs:
+            self.cameras_to_use = kwargs['cameras_to_use']
         dataset_name = cfg.DATASET.DATASET_3D
-        super().__init__(cfg, dataset_name, set)
+        super().__init__(cfg, dataset_name, set, **kwargs)
 
         img = self._load_image(0)
         width, height = img.shape[1], img.shape[0]
@@ -47,9 +50,12 @@ class Dataset3D(BaseDataset):
 
         self.reproTools = {}
         for calibParams in self.dataset['calibrations']:
+            calibPaths = {}
+            for cam in self.dataset['calibrations'][calibParams]:
+                if self.cameras_to_use == None or cam in self.cameras_to_use:
+                    calibPaths[cam] = self.dataset['calibrations'][calibParams][cam]
             self.reproTools[calibParams] = ReprojectionTool(
-                        os.path.join(cfg.PARENT_DIR, self.root_dir),
-                        self.dataset['calibrations'][calibParams])
+                        os.path.join(cfg.PARENT_DIR, self.root_dir), calibPaths)
             self.num_cameras = self.reproTools[calibParams].num_cameras
             self.reproTools[calibParams].resolution = [width,height]
 
@@ -60,18 +66,32 @@ class Dataset3D(BaseDataset):
         self.keypoints3D = []
         cfg.KEYPOINTDETECT.NUM_JOINTS = self.num_keypoints[0]
 
+        if self.cameras_to_use != None:
+            all_camera_names = [cam for cam in list(self.dataset['calibrations'].values())[0]]
+            camera_names = [cam for cam in list(self.reproTools.values())[0].cameras]
+            self.use_idxs = [i for i,cam in enumerate(all_camera_names) if cam in camera_names]
+
+
+
         for set in self.dataset['framesets']:
             keypoints3D_cam = np.zeros((cfg.KEYPOINTDETECT.NUM_JOINTS, 3))
             keypoints3D_bb = []
             file_name = self.imgs[self.dataset['framesets'][set]['frames'][0]]['file_name']
             info_split = file_name.split("/")
-            if (len(info_split) == 4):
-                frameset_ids = self.dataset['framesets'][info_split[0] + "/"
-                            + info_split[1] + "/" + info_split[3].split(".")[0]]['frames']
-            elif (len(info_split) == 5):
-                frameset_ids = self.dataset['framesets'][info_split[0] + "/"
-                            + info_split[1] + "/" + info_split[2] + "/" +
-                            info_split[4].split(".")[0]]['frames']
+            key = info_split[0]
+            for i in range(1,len(info_split)-2):
+                key = key + "/" + info_split[i]
+            key = key + "/" + info_split[-1].split(".")[0]
+            frameset_ids = self.dataset['framesets'][key]['frames']
+            if self.cameras_to_use != None:
+                frameset_ids = [frameset_ids[i] for i in self.use_idxs]
+            # if (len(info_split) == 4):
+            #     frameset_ids = self.dataset['framesets'][info_split[0] + "/"
+            #                 + info_split[1] + "/" + info_split[3].split(".")[0]]['frames']
+            # elif (len(info_split) == 5):
+            #     frameset_ids = self.dataset['framesets'][info_split[0] + "/"
+            #                 + info_split[1] + "/" + info_split[2] + "/" +
+            #                 info_split[4].split(".")[0]]['frames']
             keypoints_l = []
             for i,img_id in enumerate(frameset_ids):
                 _, keypoints = self._load_annotations(img_id, is_id = True)
@@ -154,17 +174,9 @@ class Dataset3D(BaseDataset):
             key = key + "/" + info_split[i]
         key = key + "/" + info_split[-1].split(".")[0]
         frameset_ids = self.dataset['framesets'][key]['frames']
+        if self.cameras_to_use != None:
+            frameset_ids = [frameset_ids[i] for i in self.use_idxs]
         datasetName = self.dataset['framesets'][key]['datasetName']
-        # if (len(info_split) == 4):
-        # frameset_ids = self.dataset['framesets'][info_split[0] + "/"
-        #             + info_split[1] + "/" + info_split[3].split(".")[0]]['frames']
-        # datasetName = self.dataset['framesets'][info_split[0] + "/"
-        #             + info_split[1] + "/" + info_split[3].split(".")[0]]['datasetName']
-        # elif (len(info_split) == 5):
-        #     frameset_ids = self.dataset['framesets'][info_split[0] + "/"
-        #                 + info_split[1] + "/" + info_split[2] + "/" + info_split[4].split(".")[0]]['frames']
-        #     datasetName = self.dataset['framesets'][info_split[0] + "/"
-        #                 + info_split[1] + "/" + info_split[2] + "/" + info_split[4].split(".")[0]]['datasetName']
         img_l = np.zeros((self.num_cameras,
                           self.cfg.KEYPOINTDETECT.BOUNDING_BOX_SIZE,
                           self.cfg.KEYPOINTDETECT.BOUNDING_BOX_SIZE,3))
@@ -346,14 +358,14 @@ class Dataset3D(BaseDataset):
 
 
         keypoins3D = sample[1]
-        print (np.linalg.norm(keypoins3D[2]-keypoins3D[3]))
+        #print (np.linalg.norm(keypoins3D[2]-keypoins3D[3]))
         for i, point in enumerate(keypoins3D):
             if i != 99:
                 if (point[0] != 0):
                     axes.scatter(point[0], point[1], point[2], color = colors[i])
-        print ("Lengths:")
+        #print ("Lengths:")
         for line in line_idxs:
-            print (np.linalg.norm(keypoins3D[line[0]]-keypoins3D[line[1]]))
+            #print (np.linalg.norm(keypoins3D[line[0]]-keypoins3D[line[1]]))
             axes.plot([keypoins3D[line[0]][0], keypoins3D[line[1]][0]],
                       [keypoins3D[line[0]][1], keypoins3D[line[1]][1]],
                       [keypoins3D[line[0]][2], keypoins3D[line[1]][2]],
@@ -387,19 +399,18 @@ class Normalizer(object):
 
 
 if __name__ == "__main__":
-    from lib.config.project_manager import ProjectManager
+    from jarvis.config.project_manager import ProjectManager
 
     project = ProjectManager()
-    project.load('DeMoDiag')
+    project.load('Hand')
 
     cfg = project.get_cfg()
     idx = 0
-    training_set = Dataset3D(cfg = cfg, set='train')
+    training_set = Dataset3D(cfg = cfg, set='train')#, cameras_to_use = ['Camera_T', 'Camera_B', 'Camera_LBB'])
     #training_set.get_dataset_config(True)
     #print (len(training_set))
     for i in range(100):
         training_set.visualize_sample(i)
-        image_info = training_set.coco.loadImgs(training_set.image_ids[i])[0]
         print (image_info)
     # frameNames = []
     # for i in range(len(training_set.image_ids)):

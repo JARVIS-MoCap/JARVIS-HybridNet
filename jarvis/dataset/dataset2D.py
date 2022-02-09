@@ -39,9 +39,9 @@ class Dataset2D(BaseDataset):
                  annotations ('keypoints') will be loaded.
     :type mode: string
     """
-    def __init__(self, cfg, set='train', mode = 'CenterDetect'):
+    def __init__(self, cfg, set='train', mode = 'CenterDetect', **kwargs):
         dataset_name = cfg.DATASET.DATASET_2D
-        super().__init__(cfg, dataset_name,set)
+        super().__init__(cfg, dataset_name,set, **kwargs)
         self.mode = mode
         assert cfg.KEYPOINTDETECT.BOUNDING_BOX_SIZE % 64 == 0, \
                     "Bounding Box size has to be divisible by 64!"
@@ -340,11 +340,11 @@ class HeatmapGenerator():
 if __name__ == "__main__":
     from jarvis.config.project_manager import ProjectManager
     project = ProjectManager()
-    project.load('Rat')
+    project.load('Hand')
     cfg = project.get_cfg()
     print (cfg.DATASET.DATASET_2D)
 
-    training_set = Dataset2D(cfg = cfg, set='val', mode='KeypointDetect')
+    training_set = Dataset2D(cfg = cfg, set='val', mode='KeypointDetect')#, cameras_to_use = ['Camera_T', 'Camera_B'])
     print (len(training_set.image_ids))
     for i in range(0,len(training_set.image_ids),1):
         training_set.visualize_sample(i)
