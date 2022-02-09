@@ -120,7 +120,6 @@ def train_hybridnet(project_name, num_epochs, weights_keypoint_detect, weights,
         camera_list = kwargs['cameras_to_use']
     if 'run_name' in kwargs:
         run_name = kwargs['run_name']
-    dataset_name = cfg.DATASET.DATASET_3D
     with ExitStack() as stack:
         if streamlitWidgets != None:
             gs = stack.enter_context(st.spinner('Preparing Model for training...'))
