@@ -17,6 +17,7 @@ import jarvis.visualize_interface as visualize
 from jarvis.gui.predict_gui import predict2D_gui, predict3D_gui
 from jarvis.gui.train_gui import train_all_gui, train_center_detect_gui, \
 		train_keypoint_detect_gui, train_hybridnet_gui
+from jarvis.gui.visualize_gui import visualize2D_gui, visualize3D_gui
 
 
 st.set_page_config(
@@ -173,9 +174,13 @@ elif project_box != 'Select...':
 			predict2D_gui(project_box)
 	else:
 		with st.sidebar:
-			vis_mode = option_menu("Visualizations", ['Test', 'Test2'],
+			vis_mode = option_menu("Visualizations", ['Dataset2D', 'Dataset3D'],
 						menu_icon="graph-up", default_index=0)
-		st.title("Coming Soon :)")
+		st.title('Visualization')
+		if vis_mode == 'Dataset2D':
+			visualize2D_gui(project_box)
+		elif vis_mode == "Dataset3D":
+			visualize3D_gui(project_box)
 
 	with st.container():
 		st.header('Project Info')
