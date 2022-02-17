@@ -149,7 +149,7 @@ class ProjectManager:
         with st.form("config_form"):
             bbox_size = st.number_input("2D bounding box size (has to be divisible by 64):", value = suggested_bbox_size, min_value=64, max_value=6400, step=64)
             if dataset3D_path != None:
-                bbox_size_3D = st.number_input("3D tracking Volume size (has to be divisible by 8):", value = suggestions["bbox"], min_value=8, max_value=1024, step=8)
+                bbox_size_3D = st.number_input("3D tracking Volume size (has to be divisible by 8):", value = suggestions["bbox"], min_value=8, step=8)
                 grid_spacing = st.number_input("Grid spacing:", value = int(np.floor((bbox_size_3D/100.))), min_value=1, max_value=1024, step=1)
             submitted2 = st.form_submit_button("Confirm")
         if submitted2:

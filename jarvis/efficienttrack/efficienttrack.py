@@ -291,7 +291,8 @@ class EfficientTrack:
                     acc = self.calculate_accuracy(outs, keypoints)
 
                     self.lossMeter.update(loss.item())
-                    self.accuracyMeter.update(acc)
+                    if (acc != -1):
+                        self.accuracyMeter.update(acc)
 
                 print(
                     'Val. Epoch: {}/{}. Loss: {:1.5f}. Acc: {:1.3f}'.format(
@@ -301,6 +302,8 @@ class EfficientTrack:
                 latest_val_loss = self.lossMeter.read()
                 val_losses.append(latest_val_loss)
                 latest_val_acc = self.accuracyMeter.read()
+                if np.isnan(latest_val_acc):
+                    latest_val_acc = 0
                 val_accs.append(latest_val_acc)
                 self.logger.update_val_loss(self.lossMeter.read())
                 self.logger.update_val_accuracy(self.accuracyMeter.read())
@@ -331,7 +334,9 @@ class EfficientTrack:
         masked = np.ma.masked_where(mask == 0,
                     np.linalg.norm((preds+0.5)*2-gt,
                     axis = 2))
-        return np.mean(masked)
+        if (masked.mask.all()):
+            return -1
+        return np.nanmean(masked)
 
 
     def save_checkpoint(self, name):

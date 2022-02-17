@@ -13,6 +13,7 @@ import cv2
 import matplotlib.pyplot as plt
 from tqdm.autonotebook import tqdm
 import streamlit as st
+import matplotlib
 
 
 from jarvis.efficienttrack.efficienttrack import EfficientTrack
