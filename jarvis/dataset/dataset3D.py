@@ -106,8 +106,10 @@ class Dataset3D(BaseDataset):
                         camsToUse.append(cam)
                 keypoints3D_cam[i] = self.reproTools[self.dataset['framesets'][set]['datasetName']].reconstructPoint(
                             points2D.transpose(), camsToUse)
-                if len(camsToUse) > 1 or len(keypoints3D_bb) == 0:
+                if len(camsToUse) > 1:
                     keypoints3D_bb.append(keypoints3D_cam[i])
+            if len(keypoints3D_bb) == 0:
+                keypoints3D_bb.append([0,0,0])
             keypoints3D_bb = np.array(keypoints3D_bb)
             x_range = [np.min(keypoints3D_bb[:,0]),
                        np.max(keypoints3D_bb[:,0])]
@@ -346,7 +348,7 @@ class Dataset3D(BaseDataset):
              'orange', 'orange','orange','orange', 'y','y','y','y',
              'purple', 'purple','purple']
         #colors = ['r', 'r', 'b','b','b', 'b', 'gray', 'y','y', 'purple', 'purple', 'orange']
-        #colors = ['r', 'r','r', 'gray', 'b', 'b', 'b', 'b', 'g', 'g','g','g', 'gray', 'y', 'y','y', 'purple', 'purple','purple', 'orange', 'orange', 'orange']
+        colors = ['r', 'r','r', 'gray', 'b', 'b', 'b', 'b', 'g', 'g','g','g', 'gray', 'y', 'y','y', 'purple', 'purple','purple', 'orange', 'orange', 'orange']
         #colors = ['r', 'r','r', 'r', 'gray', 'b', 'b', 'b', 'b', 'g', 'g','g','g', 'gray', 'y', 'y','y','y', 'purple', 'purple','purple','purple', 'orange', 'orange', 'orange']
         line_idxs = [[0,1], [1,2], [2,3], [4,5], [5,6], [6,7], [8,9], [9,10],
                      [10,11], [12,13], [13,14], [14,15], [16,17], [17,18],
@@ -354,7 +356,7 @@ class Dataset3D(BaseDataset):
                      [15,22],[21,22], [18,15], [19,22]]
         #line_idxs = [[0,1], [1,2], [0,2], [2,3], [0,3], [1,3]]
         #line_idxs = [[4,5], [5,6], [6,7], [7,8], [4,9], [9,10], [10,11], [11,12],
-        #             [4,13],[13,14], [14,15], [15,16], [16,17], [13,18], [18,19], [19,20], [20,21]]
+        #             [4,13],[13,14], [14,15], [15,16], [16,17], [13,18], [18,19]]
 
 
         keypoins3D = sample[1]
@@ -366,10 +368,11 @@ class Dataset3D(BaseDataset):
         #print ("Lengths:")
         for line in line_idxs:
             #print (np.linalg.norm(keypoins3D[line[0]]-keypoins3D[line[1]]))
-            axes.plot([keypoins3D[line[0]][0], keypoins3D[line[1]][0]],
-                      [keypoins3D[line[0]][1], keypoins3D[line[1]][1]],
-                      [keypoins3D[line[0]][2], keypoins3D[line[1]][2]],
-                      c = 'gray')
+            if (keypoins3D[line[0]][0] != 0 and keypoins3D[line[1]][0] != 0):
+                axes.plot([keypoins3D[line[0]][0], keypoins3D[line[1]][0]],
+                          [keypoins3D[line[0]][1], keypoins3D[line[1]][1]],
+                          [keypoins3D[line[0]][2], keypoins3D[line[1]][2]],
+                          c = 'gray')
 
         cube = np.array(list(itertools.product(*zip([-200,-200,-200],[200,200,200]))))
         cube = cube + center3D
@@ -402,7 +405,7 @@ if __name__ == "__main__":
     from jarvis.config.project_manager import ProjectManager
 
     project = ProjectManager()
-    project.load('Hand')
+    project.load('Pancake')
 
     cfg = project.get_cfg()
     idx = 0
@@ -411,7 +414,6 @@ if __name__ == "__main__":
     #print (len(training_set))
     for i in range(100):
         training_set.visualize_sample(i)
-        print (image_info)
     # frameNames = []
     # for i in range(len(training_set.image_ids)):
     #     image_info = training_set.coco.loadImgs(training_set.image_ids[i])[0]

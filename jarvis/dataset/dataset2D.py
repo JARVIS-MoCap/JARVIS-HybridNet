@@ -310,7 +310,7 @@ class HeatmapGenerator():
         self.g = 255.0*np.exp(- ((xx-x0)**2 + (yy-y0)**2) / (2*sigma**2))
         for p in joints:
             for idx, pt in enumerate(p):
-                if pt[2] > 0:
+                if pt[0] != 0 or pt[1] != 0:
                     x, y = (int(pt[0]*self.scale_factor),
                            int(pt[1]*self.scale_factor))
                     if x < 0 or y < 0 or \
@@ -340,11 +340,11 @@ class HeatmapGenerator():
 if __name__ == "__main__":
     from jarvis.config.project_manager import ProjectManager
     project = ProjectManager()
-    project.load('Hand')
+    project.load('Pancake')
     cfg = project.get_cfg()
     print (cfg.DATASET.DATASET_2D)
 
-    training_set = Dataset2D(cfg = cfg, set='val', mode='KeypointDetect')#, cameras_to_use = ['Camera_T', 'Camera_B'])
+    training_set = Dataset2D(cfg = cfg, set='train', mode='KeypointDetect')#, cameras_to_use = ['Camera_T', 'Camera_B'])
     print (len(training_set.image_ids))
     for i in range(0,len(training_set.image_ids),1):
         training_set.visualize_sample(i)

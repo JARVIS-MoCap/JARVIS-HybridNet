@@ -130,7 +130,7 @@ def train_center_detect_gui(project, cfg):
         if weights == "":
             weights = None
         elif weights != "latest" and (not os.path.isfile(weights)
-                    or weights.split(".") != "pth"):
+                    or weights.split(".")[-1] != "pth"):
             st.error("Weights is not a valid file!")
             return
         train.train_efficienttrack('CenterDetect', project,
@@ -169,7 +169,7 @@ def train_keypoint_detect_gui(project, cfg):
         if weights == "":
             weights = None
         elif weights != "latest" and (not os.path.isfile(weights)
-                    or weights.split(".") != "pth"):
+                    or weights.split(".")[-1] != "pth"):
             st.error("Weights is not a valid file!")
             return
         train.train_efficienttrack('KeypointDetect', project,
@@ -215,13 +215,13 @@ def train_hybridnet_gui(project, cfg):
         if weights == "":
             weights = None
         elif weights != "latest" and (not os.path.isfile(weights)
-                    or weights.split(".") != "pth"):
+                    or weights.split(".")[-1] != "pth"):
             st.error("Weights is not a valid file!")
             return
         if weights_keypoint == "":
             weights_keypoint = None
         elif weights_keypoint != "latest" and (not os.path.isfile(weights_keypoint)
-                    or weights_keypoint.split(".") != "pth"):
+                    or weights_keypoint.split(".")[-1] != "pth"):
             st.error("Weights KeypointDetect is not a valid file!")
             return
         train.train_hybridnet(project, num_epochs, weights_keypoint, weights,
