@@ -177,7 +177,6 @@ class Dataset2D(BaseDataset):
                     img.shape[0]-bbox_hw)
         center_x = min(max(bbox_hw, int((bboxs[0][0]+int(bboxs[0][2]))/2)),
                     img.shape[1]-bbox_hw)
-
         img = img[center_y-bbox_hw:center_y+bbox_hw,
                   center_x-bbox_hw:center_x+bbox_hw, :]
         for i in range(0, keypoints.shape[1],3):
@@ -340,11 +339,11 @@ class HeatmapGenerator():
 if __name__ == "__main__":
     from jarvis.config.project_manager import ProjectManager
     project = ProjectManager()
-    project.load('Pancake')
+    project.load('Open_Monkey_Pretraining')
     cfg = project.get_cfg()
     print (cfg.DATASET.DATASET_2D)
 
-    training_set = Dataset2D(cfg = cfg, set='train', mode='KeypointDetect')#, cameras_to_use = ['Camera_T', 'Camera_B'])
+    training_set = Dataset2D(cfg = cfg, set='val', mode='KeypointDetect')#, cameras_to_use = ['Camera_T', 'Camera_B'])
     print (len(training_set.image_ids))
     for i in range(0,len(training_set.image_ids),1):
         training_set.visualize_sample(i)

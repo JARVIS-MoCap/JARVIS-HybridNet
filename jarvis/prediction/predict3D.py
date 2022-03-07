@@ -131,8 +131,11 @@ def predictPosesVideos(hybridNet, centerDetect, reproTool, recording_path,
                         cmap(float(i)/hybridNet.cfg.KEYPOINTDETECT.NUM_JOINTS)) *
                         255).astype(int)[:3]).tolist())
 
+        assert frameStart < caps[0].get(cv2.CAP_PROP_FRAME_COUNT), "frameStart bigger than total framecount!"
         if (numberFrames == -1):
-            numberFrames = int(caps[0].get(cv2.CAP_PROP_FRAME_COUNT))
+            numberFrames = int(caps[0].get(cv2.CAP_PROP_FRAME_COUNT))-frameStart
+        else:
+            assert frameStart+numberFrames <= caps[0].get(cv2.CAP_PROP_FRAME_COUNT), "make sure your selected segment is not longer that the total video!"
         for frame_num in tqdm(range(numberFrames)):
             imgs = []
             imgs_orig = []
@@ -220,7 +223,7 @@ def predictPosesVideos(hybridNet, centerDetect, reproTool, recording_path,
 
             else:
                 row = []
-                for i in range(23*3):
+                for i in range(hybridNet.cfg.KEYPOINTDETECT.NUM_JOINTS*3):
                     row = row + ['NaN']
                 writer.writerow(row)
             if make_videos:

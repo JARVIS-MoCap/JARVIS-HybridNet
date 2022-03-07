@@ -106,7 +106,8 @@ class EfficientTrack:
         if weights_path is not None:
             if os.path.isfile(weights_path):
                 pretrained_dict = torch.load(weights_path)
-                #pretrained_dict = {k: v for k, v in pretrained_dict.items() if not k in ['final_conv1.weight', 'final_conv2.weight']}
+                if self.mode == "KeypointDetect" and pretrained_dict['final_conv1.weight'].shape[0] != self.cfg.NUM_JOINTS:
+                    pretrained_dict = {k: v for k, v in pretrained_dict.items() if not k in ['final_conv1.weight', 'final_conv2.weight']}
                 self.model.load_state_dict(pretrained_dict, strict=False)
                 print(f'Successfully loaded weights: {weights_path}')
                 return True

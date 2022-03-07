@@ -85,13 +85,6 @@ class Dataset3D(BaseDataset):
             frameset_ids = self.dataset['framesets'][key]['frames']
             if self.cameras_to_use != None:
                 frameset_ids = [frameset_ids[i] for i in self.use_idxs]
-            # if (len(info_split) == 4):
-            #     frameset_ids = self.dataset['framesets'][info_split[0] + "/"
-            #                 + info_split[1] + "/" + info_split[3].split(".")[0]]['frames']
-            # elif (len(info_split) == 5):
-            #     frameset_ids = self.dataset['framesets'][info_split[0] + "/"
-            #                 + info_split[1] + "/" + info_split[2] + "/" +
-            #                 info_split[4].split(".")[0]]['frames']
             keypoints_l = []
             for i,img_id in enumerate(frameset_ids):
                 _, keypoints = self._load_annotations(img_id, is_id = True)
@@ -131,9 +124,7 @@ class Dataset3D(BaseDataset):
                 self.image_ids.append(self.dataset['framesets'][set]['frames'][0])
                 self.keypoints3D.append(keypoints3D_cam)
             # else:
-            #     print ("Not adding the following frame to the set:")
-            #     print (file_name)
-            #     print (min_cube_size)
+            #      print (min_cube_size)
 
         self.transform = transforms.Compose(
                     [Normalizer(mean=cfg.DATASET.MEAN, std=cfg.DATASET.STD)])
@@ -261,22 +252,29 @@ class Dataset3D(BaseDataset):
                                    configuration and tracking volume
         :type show_visualization: string
         """
-        keypoints3D = np.array(self.keypoints3D)
-        x_range = [np.min(keypoints3D[:,:,0]), np.max(keypoints3D[:,:,0])]
-        y_range = [np.min(keypoints3D[:,:,1]), np.max(keypoints3D[:,:,1])]
-        z_range = [np.min(keypoints3D[:,:,2]), np.max(keypoints3D[:,:,2])]
-        tracking_area = np.array([x_range, y_range, z_range])
-        x_cube_size_min = np.percentile(np.max(keypoints3D[:,:,0], axis = 1)
-                        - np.min(keypoints3D[:,:,0],axis = 1),98)
-        y_cube_size_min = np.percentile(np.max(keypoints3D[:,:,1], axis = 1)
-                        - np.min(keypoints3D[:,:,1],axis = 1),98)
-        z_cube_size_min = np.percentile(np.max(keypoints3D[:,:,2], axis = 1)
-                        - np.min(keypoints3D[:,:,2],axis = 1),98)
+        #keypoints3D = np.array(self.keypoints3D)
+        tracking_areas = []
+        for i,keypoints in enumerate(self.keypoints3D):
+            keypoints3D_filtered = []
+            for keypoint in keypoints:
+                if keypoint[0] != 0 or keypoint[1] != 0 or keypoint[2] != 0:
+                    keypoints3D_filtered.append(keypoint)
+            keypoints3D = np.array(keypoints3D_filtered)
+            x_range = [np.min(keypoints3D[:,0]), np.max(keypoints3D[:,0])]
+            y_range = [np.min(keypoints3D[:,1]), np.max(keypoints3D[:,1])]
+            z_range = [np.min(keypoints3D[:,2]), np.max(keypoints3D[:,2])]
+            tracking_area = np.array([x_range, y_range, z_range])
+            tracking_areas.append(tracking_area)
+        tracking_areas = np.array(tracking_areas)
+        x_cube_size_min = np.percentile(tracking_areas[:,0,1] - tracking_areas[:,0,0],95)
+        y_cube_size_min = np.percentile(tracking_areas[:,1,1] - tracking_areas[:,1,0],95)
+        z_cube_size_min = np.percentile(tracking_areas[:,2,1] - tracking_areas[:,2,0],95)
         min_cube_size = np.max([x_cube_size_min,
                                 y_cube_size_min,
                                 z_cube_size_min])
-        final_bbox_suggestion = int(np.ceil((min_cube_size*1.2)/8)*8)
-        resolution_suggestion = int(np.floor((final_bbox_suggestion/100.)))
+        rough_bbox_suggestion = min_cube_size*1.25
+        resolution_suggestion = max(1,int(np.round_((rough_bbox_suggestion/85.))))
+        final_bbox_suggestion = int(np.ceil((min_cube_size*1.25)/(resolution_suggestion*8))*resolution_suggestion*8)
 
         suggested_parameters = {
             'bbox': final_bbox_suggestion,
@@ -354,6 +352,7 @@ class Dataset3D(BaseDataset):
                      [10,11], [12,13], [13,14], [14,15], [16,17], [17,18],
                      [18,19], [3,7], [7,11], [11,15], [3,21], [7,21],[11,22],
                      [15,22],[21,22], [18,15], [19,22]]
+        line_idxs = []
         #line_idxs = [[0,1], [1,2], [0,2], [2,3], [0,3], [1,3]]
         #line_idxs = [[4,5], [5,6], [6,7], [7,8], [4,9], [9,10], [10,11], [11,12],
         #             [4,13],[13,14], [14,15], [15,16], [16,17], [13,18], [18,19]]
@@ -405,11 +404,11 @@ if __name__ == "__main__":
     from jarvis.config.project_manager import ProjectManager
 
     project = ProjectManager()
-    project.load('Pancake')
+    project.load('ExR_Feeder')
 
     cfg = project.get_cfg()
     idx = 0
-    training_set = Dataset3D(cfg = cfg, set='train')#, cameras_to_use = ['Camera_T', 'Camera_B', 'Camera_LBB'])
+    training_set = Dataset3D(cfg = cfg, set='val')#, cameras_to_use = ['Camera_T', 'Camera_B', 'Camera_LBB'])
     #training_set.get_dataset_config(True)
     #print (len(training_set))
     for i in range(100):
