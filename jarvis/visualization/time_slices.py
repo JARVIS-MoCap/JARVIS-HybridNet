@@ -35,7 +35,7 @@ def set_axes_equal(ax):
 
 def plot_slices(csv_file, filename, start_frame, num_frames, skip_number, skeleton_preset, plot_azim, plot_elev):
     if not os.path.isfile(csv_file):
-        print ('EROOOR')
+        print ('3D Coordinate CSV file does not exist!')
         return
     data = np.genfromtxt(csv_file, delimiter=',')[1:] #TODO make this work depending on header is 1 or 2 lines long
     data = data.reshape([data.shape[0], -1, 3])
@@ -54,6 +54,8 @@ def plot_slices(csv_file, filename, start_frame, num_frames, skip_number, skelet
 
     cid = fig.canvas.mpl_connect('button_release_event', on_click)
     for i, point in enumerate(data[start_frame]):
+        print (i, point)
+        print (colors[i], len(colors))
         ax.scatter(point[0], point[1], point[2], color = colors[i], s = 10)
     for line in line_idxs:
         ax.plot([data[start_frame][line[0]][0], data[start_frame][line[1]][0]],

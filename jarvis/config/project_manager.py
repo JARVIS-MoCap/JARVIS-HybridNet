@@ -147,21 +147,22 @@ class ProjectManager:
             suggestions = dataset3D.get_dataset_config()
         st.title("Project Configuration")
         with st.form("config_form"):
-            bbox_size = st.number_input("2D bounding box size (has to be divisible by 64):", value = suggested_bbox_size, min_value=64, max_value=6400, step=64)
+            bbox_size = st.number_input("2D bounding box size (has to be divisible by 64):", value = suggested_bbox_size, min_value=64, step=64)
             if dataset3D_path != None:
-                bbox_size_3D = st.number_input("3D tracking Volume size (has to be divisible by 8):", value = suggestions["bbox"], min_value=8, max_value=1024, step=8)
-                grid_spacing = st.number_input("Grid spacing:", value = int(np.floor((bbox_size_3D/100.))), min_value=1, max_value=1024, step=1)
+                bbox_size_3D = st.number_input("3D tracking Volume size (has to be divisible by 4*grid_spacing):", value = suggestions["bbox"], min_value=4, step=4)
+                grid_spacing = st.number_input("Grid spacing:", value = suggestions["resolution"], min_value=1, max_value=1024, step=1)
             submitted2 = st.form_submit_button("Confirm")
         if submitted2:
             if bbox_size % 64 != 0:
                 st.error("2D bounding box size has to be divisible by 64.")
                 return
-            if bbox_size_3D % 8 != 0:
-                st.error("3D bounding box size has to be divisible by 8.")
-                return
-            if grid_spacing > bbox_size_3D:
-                st.error("Grid spacing can not be bigger than bounding box.")
-                return
+            if dataset3D_path != None:
+                if bbox_size_3D % 8*grid_spacing != 0:
+                    st.error("3D bounding box size has to be divisible by 4*grid_spacing.")
+                    return
+                if grid_spacing > bbox_size_3D:
+                    st.error("Grid spacing can not be bigger than bounding box.")
+                    return
             os.makedirs(os.path.join(self.parent_dir, cfg.PROJECTS_ROOT_PATH, name), exist_ok=True)
             self.cfg.KEYPOINTDETECT.BOUNDING_BOX_SIZE = bbox_size
             self.cfg.KEYPOINTDETECT.NUM_JOINTS = dataset2D.num_keypoints[0]
@@ -266,7 +267,7 @@ class ProjectManager:
         q = 'Enter custom 3D Bounding Box size, make sure it is divisible by 8:'
         bbox_size = suggestions["bbox"]
         bbox_size = self._get_number_from_user(q, suggestions["bbox"], 8)
-        resolution_suggestion = int(np.floor((bbox_size/100.)))
+        resolution_suggestion = int(np.round_((bbox_size/85.)))
 
         print (f'Use suggested grid spacing of {resolution_suggestion} '
                'mm? (yes/no)')

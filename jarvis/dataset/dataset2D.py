@@ -177,7 +177,6 @@ class Dataset2D(BaseDataset):
                     img.shape[0]-bbox_hw)
         center_x = min(max(bbox_hw, int((bboxs[0][0]+int(bboxs[0][2]))/2)),
                     img.shape[1]-bbox_hw)
-
         img = img[center_y-bbox_hw:center_y+bbox_hw,
                   center_x-bbox_hw:center_x+bbox_hw, :]
         for i in range(0, keypoints.shape[1],3):
@@ -310,7 +309,7 @@ class HeatmapGenerator():
         self.g = 255.0*np.exp(- ((xx-x0)**2 + (yy-y0)**2) / (2*sigma**2))
         for p in joints:
             for idx, pt in enumerate(p):
-                if pt[2] > 0:
+                if pt[0] != 0 or pt[1] != 0:
                     x, y = (int(pt[0]*self.scale_factor),
                            int(pt[1]*self.scale_factor))
                     if x < 0 or y < 0 or \
@@ -340,7 +339,7 @@ class HeatmapGenerator():
 if __name__ == "__main__":
     from jarvis.config.project_manager import ProjectManager
     project = ProjectManager()
-    project.load('Hand')
+    project.load('Open_Monkey_Pretraining')
     cfg = project.get_cfg()
     print (cfg.DATASET.DATASET_2D)
 

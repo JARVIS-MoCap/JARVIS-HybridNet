@@ -114,7 +114,6 @@ class EncoderDecorder(nn.Module):
         x = self.encoder_res2(x)
 
         x = self.mid_res(x)
-
         x = self.decoder_res2(x)
         x = self.decoder_upsample2(x)
         x = x + skip_x2

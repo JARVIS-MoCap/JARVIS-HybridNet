@@ -28,7 +28,7 @@ def predict2D_gui(project):
                         help = "Use 'latest' to load you last saved weights, or "
                                     "specify the path to a '.pth' file.")
         skeleton_preset = st.selectbox('Skeleton Preset',
-                    ['None', 'Hand', 'HumanBody', 'RodentBody'])
+                    ['None', 'Hand', 'HumanBody', 'MonkeyBody','RodentBody'])
         make_video = st.checkbox("Make Video overlayed with predictions?",
                     value = True)
         col1, col2 = st.columns(2)
@@ -40,11 +40,20 @@ def predict2D_gui(project):
                         value = -1, min_value = -1)
         submitted = st.form_submit_button("Predict")
     if submitted:
+        projectManager = ProjectManager.ProjectManager()
+        projectManager.load(project)
+        cfg = projectManager.cfg
         if not os.path.isfile(video_path):
             st.error("Video File does not exist!")
             return
         if output_dir == "":
             st.error("Please enter a valid ouput directory!")
+            return
+        if not (weights_center_detect == "latest" or (os.path.isfile(weights_center_detect) and weights_center_detect.split(".")[-1] == "pth")):
+            st.error("CenterDetect weights do not exist!")
+            return
+        if not (weights_keypoint_detect == "latest" or (os.path.isfile(weights_keypoint_detect) and weights_center_detect.split(".")[-1] == "pth")):
+            st.error("KeypointDetect weights do not exist!")
             return
         if skeleton_preset == "None":
             skeleton_preset = None
@@ -78,7 +87,7 @@ def predict3D_gui(project):
                         help = "Use 'latest' to load you last saved weights, or "
                                     "specify the path to a '.pth' file.")
         skeleton_preset = st.selectbox('Skeleton Preset',
-                    ['None', 'Hand', 'HumanBody', 'RodentBody'])
+                    ['None', 'Hand', 'HumanBody', 'MonkeyBody', 'RodentBody'])
         make_videos = st.checkbox("Make Videos overlayed with predictions?",
                     value = True)
         col1, col2 = st.columns(2)
@@ -95,6 +104,12 @@ def predict3D_gui(project):
             return
         if output_dir == "":
             st.error("Please enter a valid ouput directory!")
+            return
+        if not (weights_center_detect == "latest" or (os.path.isfile(weights_center_detect) and weights_center_detect.split(".")[-1] == "pth")):
+            st.error("CenterDetect weights do not exist!")
+            return
+        if not (weights_hybridnet == "latest" or (os.path.isfile(weights_hybridnet) and weights_hybridnet.split(".")[-1] == "pth")):
+            st.error("HybridNet weights do not exist!")
             return
         if skeleton_preset == "None":
             skeleton_preset = None

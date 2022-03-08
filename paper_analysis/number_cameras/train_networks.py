@@ -3,11 +3,11 @@ import os
 
 import jarvis.train_interface as train
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "3"
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 
 camera_names = ['Camera_B', 'Camera_LBB', 'Camera_LBT', 'Camera_LC', 'Camera_LFB', 'Camera_LFT', 'Camera_RBB', 'Camera_RBT', 'Camera_RC', 'Camera_RFB', 'Camera_RFT', 'Camera_T']
 
-num_cameras = 5
+num_cameras = 7
 assert num_cameras > 1 and num_cameras < 12, "Please select a number of cameras between 2 and 11!"
 
 sets = np.genfromtxt(os.path.join('camera_sets', f'Set_{num_cameras}.csv'), delimiter=',').astype(int)

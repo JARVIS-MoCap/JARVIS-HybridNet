@@ -70,7 +70,6 @@ class HybridNetBackbone(nn.Module):
                 imgs.shape[0], imgs.shape[1], heatmaps_batch.shape[2],
                 self.heatmap_size[1], self.heatmap_size[0])
         heatmaps_padded.fill_(0)
-
         for i in range(imgs.shape[1]):
             heatmaps = heatmaps_batch[:,i]
             for batch, heatmap in enumerate(heatmaps):
@@ -78,6 +77,7 @@ class HybridNetBackbone(nn.Module):
                 rand2 = torch.normal(0.0,heatmap.shape[-1]*0.1,(2,))
                 if rand < 0.75 or (not self.training):
                     rand2 = rand2*0
+
                 min_shift_1 = -(((centerHM[batch,i,0])/2)-heatmap.shape[-1]/2).int()+1
                 max_shift_1 = self.heatmap_size[0]-(centerHM[batch,i,0]/2)-1
                 rand2[0]=torch.max(min_shift_1,torch.min(max_shift_1, rand2[0])).int()

@@ -29,6 +29,8 @@ def train_all_gui(project, cfg):
         finetune = st.checkbox("Finetune Network", value = True)
         submitted = st.form_submit_button("Train")
     if submitted:
+        if not check_config_all(project, cfg):
+            return
         with st.expander("Expand CenterDetect Training", expanded=True):
             st.header("Training CenterDetect")
             col_center1, col_center2 = st.columns([1,5])
@@ -115,6 +117,8 @@ def train_center_detect_gui(project, cfg):
                                 "specify the path to a '.pth' file.")
         submitted = st.form_submit_button("Train")
     if submitted:
+        if not check_config_center_detect(project, cfg):
+            return
         st.header("Training CenterDetect")
         col_center1, col_center2 = st.columns([1,5])
         with col_center1:
@@ -130,7 +134,7 @@ def train_center_detect_gui(project, cfg):
         if weights == "":
             weights = None
         elif weights != "latest" and (not os.path.isfile(weights)
-                    or weights.split(".") != "pth"):
+                    or weights.split(".")[-1] != "pth"):
             st.error("Weights is not a valid file!")
             return
         train.train_efficienttrack('CenterDetect', project,
@@ -140,6 +144,7 @@ def train_center_detect_gui(project, cfg):
         st.balloons()
         time.sleep(1)
         st.experimental_rerun()
+
 
 def train_keypoint_detect_gui(project, cfg):
     st.header("Train KeypointDetect Network")
@@ -154,6 +159,8 @@ def train_keypoint_detect_gui(project, cfg):
                                 "specify the path to a '.pth' file.")
         submitted = st.form_submit_button("Train")
     if submitted:
+        if not check_config_keypoint_detect(project, cfg):
+            return
         st.header("Training KeypointDetect")
         col_center1, col_center2 = st.columns([1,5])
         with col_center1:
@@ -169,7 +176,7 @@ def train_keypoint_detect_gui(project, cfg):
         if weights == "":
             weights = None
         elif weights != "latest" and (not os.path.isfile(weights)
-                    or weights.split(".") != "pth"):
+                    or weights.split(".")[-1] != "pth"):
             st.error("Weights is not a valid file!")
             return
         train.train_efficienttrack('KeypointDetect', project,
@@ -200,6 +207,8 @@ def train_hybridnet_gui(project, cfg):
                     help = "")
         submitted = st.form_submit_button("Train")
     if submitted:
+        if not check_config_hybridnet(project, cfg):
+            return
         st.header("Training HybridNet")
         col_center1, col_center2 = st.columns([1,5])
         with col_center1:
@@ -215,13 +224,13 @@ def train_hybridnet_gui(project, cfg):
         if weights == "":
             weights = None
         elif weights != "latest" and (not os.path.isfile(weights)
-                    or weights.split(".") != "pth"):
+                    or weights.split(".")[-1] != "pth"):
             st.error("Weights is not a valid file!")
             return
         if weights_keypoint == "":
             weights_keypoint = None
         elif weights_keypoint != "latest" and (not os.path.isfile(weights_keypoint)
-                    or weights_keypoint.split(".") != "pth"):
+                    or weights_keypoint.split(".")[-1] != "pth"):
             st.error("Weights KeypointDetect is not a valid file!")
             return
         train.train_hybridnet(project, num_epochs, weights_keypoint, weights,
@@ -231,3 +240,136 @@ def train_hybridnet_gui(project, cfg):
         st.balloons()
         time.sleep(1)
         st.experimental_rerun()
+
+
+def check_config_all(project, cfg):
+    if not check_dataset2D(project, cfg):
+        return False
+    if not check_dataset3D(project, cfg):
+        return False
+    if not check_center_detect(project, cfg):
+        return False
+    if not check_keypoint_detect(project, cfg):
+        return False
+    if not check_hybridnet(project, cfg):
+        return False
+    return True
+
+
+def check_config_center_detect(project, cfg):
+    if not check_dataset2D(project, cfg):
+        return False
+    if not check_center_detect(project, cfg):
+        return False
+    return True
+
+
+def check_config_keypoint_detect(project, cfg):
+    if not check_dataset2D(project, cfg):
+        return False
+    if not check_keypoint_detect(project, cfg):
+        return False
+    return True
+
+
+def check_config_hybridnet(project, cfg):
+    if not check_dataset3D(project, cfg):
+        return False
+    if not check_hybridnet(project, cfg):
+        return False
+    return True
+
+
+def check_dataset2D(project, cfg):
+    if os.path.isabs(cfg.DATASET.DATASET_2D):
+        dataset2D_path = cfg.DATASET.DATASET_2D
+    else:
+        dataset2D_path = os.path.join(cfg.PARENT_DIR, cfg.DATASET.DATASET_ROOT_DIR, cfg.DATASET.DATASET_2D)
+    if not os.path.isdir(dataset2D_path):
+        st.error("Dataset2D does not exist, please check path!")
+        return False
+    return True
+
+def check_dataset3D(project, cfg):
+    if os.path.isabs(cfg.DATASET.DATASET_3D):
+        dataset3D_path = cfg.DATASET.DATASET_3D
+    else:
+        dataset3D_path = os.path.join(cfg.PARENT_DIR, cfg.DATASET.DATASET_ROOT_DIR, cfg.DATASET.DATASET_3D)
+    if not os.path.isdir(dataset3D_path):
+        st.error("Dataset3D does not exist, please check path!")
+        return False
+    return True
+
+def check_center_detect(project, cfg):
+    if cfg.CENTERDETECT.COMPOUND_COEF < 0 or cfg.CENTERDETECT.COMPOUND_COEF > 8:
+        st.error("CenterDetect Compound Coefficient has to be in valid range of 0-8!")
+        return False
+    if cfg.CENTERDETECT.BATCH_SIZE <= 0:
+        st.error("CenterDetect Batch Size has to be bigger than 0!")
+        return False
+    if cfg.CENTERDETECT.MAX_LEARNING_RATE <= 0:
+        st.error("CenterDetect Learning Rate has to be bigger than 0!")
+        return False
+    if cfg.CENTERDETECT.NUM_EPOCHS <= 0:
+        st.error("CenterDetect Number of Epochs has to be bigger than 0!")
+        return False
+    if cfg.CENTERDETECT.CHECKPOINT_SAVE_INTERVAL <= 0:
+        st.error("CenterDetect Checkpoint Save Interval has to be bigger than 0!")
+        return False
+    if cfg.CENTERDETECT.IMAGE_SIZE <= 0 or cfg.CENTERDETECT.IMAGE_SIZE % 64 != 0:
+        st.error("CenterDetect Image Size has to be bigger than 0 and divisible by 64!")
+        return False
+    return True
+
+
+def check_keypoint_detect(project, cfg):
+    if cfg.KEYPOINTDETECT.COMPOUND_COEF < 0 or cfg.KEYPOINTDETECT.COMPOUND_COEF > 8:
+        st.error("KeypointDetect Compound Coefficient has to be in valid range of 0-8!")
+        return False
+    if cfg.KEYPOINTDETECT.BATCH_SIZE <= 0:
+        st.error("KeypointDetect Batch Size has to be bigger than 0!")
+        return False
+    if cfg.KEYPOINTDETECT.MAX_LEARNING_RATE <= 0:
+        st.error("KeypointDetect Learning Rate has to be bigger than 0!")
+        return False
+    if cfg.KEYPOINTDETECT.NUM_EPOCHS <= 0:
+        st.error("KeypointDetect Number of Epochs has to be bigger than 0!")
+        return False
+    if cfg.KEYPOINTDETECT.CHECKPOINT_SAVE_INTERVAL <= 0:
+        st.error("KeypointDetect Checkpoint Save Interval has to be bigger than 0!")
+        return False
+    if cfg.KEYPOINTDETECT.BOUNDING_BOX_SIZE <= 0 or cfg.KEYPOINTDETECT.BOUNDING_BOX_SIZE % 64 != 0:
+        st.error("KeypointDetect Bounding Box Size has to be bigger than 0 and divisible by 64!")
+        return False
+    if cfg.KEYPOINTDETECT.NUM_JOINTS <= 0:
+        st.error("KeypointDetect Number of JOints has to be bigger than 0!")
+        return False
+    return True
+
+
+def check_hybridnet(project, cfg):
+    if cfg.HYBRIDNET.BATCH_SIZE <= 0:
+        st.error("HybridNet Batch Size has to be bigger than 0!")
+        return False
+    if cfg.HYBRIDNET.MAX_LEARNING_RATE <= 0:
+        st.error("HybridNet Learning Rate has to be bigger than 0!")
+        return False
+    if cfg.HYBRIDNET.NUM_EPOCHS <= 0:
+        st.error("HybridNet Number of Epochs has to be bigger than 0!")
+        return False
+    if cfg.HYBRIDNET.CHECKPOINT_SAVE_INTERVAL <= 0:
+        st.error("HybridNet Checkpoint Save Interval has to be bigger than 0!")
+        return False
+    if cfg.HYBRIDNET.NUM_CAMERAS < 2:
+        st.error("HybridNet Number of Cameras has to be at least 2!")
+        return False
+    if cfg.HYBRIDNET.ROI_CUBE_SIZE <= 0:
+        st.error("HybridNet ROI Cube Size has to be bigger than 0!")
+        return False
+    if cfg.HYBRIDNET.GRID_SPACING <= 0:
+        st.error("HybridNet Grid Spacing has to be bigger than 0!")
+        return False
+    if cfg.HYBRIDNET.ROI_CUBE_SIZE % (cfg.HYBRIDNET.GRID_SPACING*8) != 0:
+        st.error("HybirdNet ROI_CUBE_SIZE has to be divisible by 4 * GRID_SPACING!")
+        return False
+    return True

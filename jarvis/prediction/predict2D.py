@@ -71,8 +71,11 @@ def predictPosesVideo(keypointDetect, centerDetect, video_path,
                         cmap(float(i)/keypointDetect.main_cfg.KEYPOINTDETECT.NUM_JOINTS)) *
                         255).astype(int)[:3]).tolist())
 
+        assert frameStart < cap.get(cv2.CAP_PROP_FRAME_COUNT), "frameStart bigger than total framecount!"
         if (numberFrames == -1):
-            numberFrames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+            numberFrames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))-frameStart
+        else:
+            assert frameStart+numberFrames <= cap.get(cv2.CAP_PROP_FRAME_COUNT), "make sure your selected segment is not longer that the total video!"
 
         for frame_num in tqdm(range(numberFrames)):
             ret, img_orig = cap.read()
