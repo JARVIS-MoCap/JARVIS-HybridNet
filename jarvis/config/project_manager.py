@@ -117,7 +117,7 @@ class ProjectManager:
         if dataset3D_path != None:
             self._init_dataset3D()
         self._init_config(name)
-        print (f'{CLIColors.OKGREEN}Project created succesfully.{CLIColors.ENDC}')
+        print (f'{CLIColors.OKGREEN}Project {name} created succesfully.{CLIColors.ENDC}')
         return True
 
 

@@ -339,7 +339,7 @@ class HeatmapGenerator():
 if __name__ == "__main__":
     from jarvis.config.project_manager import ProjectManager
     project = ProjectManager()
-    project.load('Open_Monkey_Pretraining')
+    project.load('Rat_Full')
     cfg = project.get_cfg()
     print (cfg.DATASET.DATASET_2D)
 

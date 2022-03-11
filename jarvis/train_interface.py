@@ -83,6 +83,7 @@ def train_efficienttrack(mode, project_name, num_epochs, weights,
         val_set = Dataset2D(project.cfg, set='val',mode = mode, cameras_to_use = camera_list)
         efficientTrack = EfficientTrack(mode, project.cfg, run_name = run_name)
 
+        pose_pretrain_list = ['MonkeyHand', 'HumanHand', 'HumanBody','RatBody', 'MouseBody']
         if weights == "latest":
             weights = efficientTrack.get_latest_weights()
             if weights == None:
@@ -91,14 +92,16 @@ def train_efficienttrack(mode, project_name, num_epochs, weights,
             found_weights = efficientTrack.load_weights(weights)
         elif weights == "None" or weights == None:
             found_weights = True
-        elif weights == "ecoset":
+        elif weights == "ecoset" or weights == "EcoSet":
             found_weights = efficientTrack.load_ecoset_pretrain()
+        elif weights in pose_pretrain_list:
+            found_weights = efficientTrack.load_pose_pretrain(weights)
         else:
             found_weights = efficientTrack.load_weights(weights)
         if not found_weights:
             print (f'{CLIColors.FAIL}Could not load weights from specified '
                         f'path...{CLIColors.ENDC}')
-            return
+            return False
     if streamlitWidgets == None:
         tb = launch_tensorboard(logdir = project_path)
     train_results = efficientTrack.train(training_set, val_set, num_epochs,
@@ -110,6 +113,7 @@ def train_efficienttrack(mode, project_name, num_epochs, weights,
     print (f'Validation Accuracy [px]: {train_results["val_acc"]}')
     print ()
     del efficientTrack
+    return True
 
 
 def train_hybridnet(project_name, num_epochs, weights_keypoint_detect, weights,
