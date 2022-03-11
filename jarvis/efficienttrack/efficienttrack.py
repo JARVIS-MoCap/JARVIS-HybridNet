@@ -126,8 +126,25 @@ class EfficientTrack:
             print(f'Successfully loaded EcoSet weights: {weights_path}')
             return True
         else:
+            print(f'Could not load EcoSet weights: {weights_path}')
             return False
 
+    def load_pose_pretrain(self, pose):
+        if self.mode == 'CenterDetect' or self.mode == 'CenterDetectInference':
+            weights_name = "EfficientTrack_Center.pth"
+        else:
+            weights_name = "EfficientTrack_Keypoints.pth"
+        weights_path = os.path.join(self.main_cfg.PARENT_DIR, 'pretrained', 'PosePretrains', pose, weights_name)
+        if os.path.isfile(weights_path):
+            pretrained_dict = torch.load(weights_path)
+            if self.mode == "KeypointDetect" and pretrained_dict['final_conv1.weight'].shape[0] != self.cfg.NUM_JOINTS:
+                pretrained_dict = {k: v for k, v in pretrained_dict.items() if not k in ['final_conv1.weight', 'final_conv2.weight']}
+            self.model.load_state_dict(pretrained_dict, strict=False)
+            print(f'Successfully loaded {pose} weights: {weights_path}')
+            return True
+        else:
+            print(f'Could not load {pose} weights: {weights_path}')
+            return False
 
     def get_latest_weights(self):
         model_dir = ''

@@ -29,6 +29,7 @@ setuptools.setup(
         "Click",
         "streamlit",
         "streamlit_option_menu"
+        "inquirer==2.8.0"
     ],
     entry_points={
         'console_scripts': [

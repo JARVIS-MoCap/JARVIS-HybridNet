@@ -26,6 +26,8 @@ def train_all_gui(project, cfg):
             num_epochs_hybridnet = st.number_input("Epochs HybridNet:",
                         value = cfg.HYBRIDNET.NUM_EPOCHS,
                         min_value = 1, max_value = 1000)
+        pretrain = st.selectbox('Pretraining to use',
+                    ['None', 'EcoSet', 'MonkeyHand', 'HumanHand', 'HumanBody','RatBody', 'MouseBody'])
         finetune = st.checkbox("Finetune Network", value = True)
         submitted = st.form_submit_button("Train")
     if submitted:
@@ -44,10 +46,14 @@ def train_all_gui(project, cfg):
             plot_loss1 = st.empty()
             st.subheader("Accuracy Monitor")
             plot_acc1 = st.empty()
-            train.train_efficienttrack('CenterDetect', project,
-                        num_epochs_center, 'ecoset',
+            trained = train.train_efficienttrack('CenterDetect', project,
+                        num_epochs_center, pretrain,
                         streamlitWidgets = [progressBar_epoch1, progressBar_total1,
                                             epoch_counter1, plot_loss1, plot_acc1])
+            if not trained:
+                st.error("Could not find pretraining weights, aborting training!")#
+                return
+
         with st.expander("Expand KeypointDetect Training", expanded=True):
             st.header("Training KeypointDetect")
             col_keypoint1, col_keypoint2 = st.columns([1,5])
@@ -61,10 +67,14 @@ def train_all_gui(project, cfg):
             plot_loss2 = st.empty()
             st.subheader("Accuracy Monitor")
             plot_acc2 = st.empty()
-            train.train_efficienttrack('KeypointDetect', project,
-                        num_epochs_keypoint, 'ecoset',
+            trained = train.train_efficienttrack('KeypointDetect', project,
+                        num_epochs_keypoint, pretrain,
                         streamlitWidgets = [progressBar_epoch2,progressBar_total2,
                                             epoch_counter2, plot_loss2, plot_acc2])
+            if not trained:
+                st.error("Could not find pretraining weights, aborting training!")#
+                return
+
         with st.expander("Expand HybridNet Training", expanded=True):
             st.header("Training HybridNet")
             col_hybrid1, col_hybrid2 = st.columns([1,5])
@@ -184,8 +194,8 @@ def train_keypoint_detect_gui(project, cfg):
                     streamlitWidgets = [progressBar_epoch, progressBar_total,
                                         epoch_counter, plot_loss, plot_acc])
         st.balloons()
-        time.sleep(1)
-        st.experimental_rerun()
+        #time.sleep(1)
+        #st.experimental_rerun()
 
 def train_hybridnet_gui(project, cfg):
     st.header("Train Hybridnet")
