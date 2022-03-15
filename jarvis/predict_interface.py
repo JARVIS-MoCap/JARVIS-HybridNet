@@ -14,7 +14,7 @@ from jarvis.visualization.time_slices import plot_slices
 
 
 def predict2D(project_name, video_path, weights_center_detect,
-            weights_keypoint_detect, output_dir, frame_start, number_frames,
+            weights_keypoint_detect, frame_start, number_frames,
             make_video, skeleton_preset, progressBar = None):
     project = ProjectManager()
     if not project.load(project_name):
@@ -23,12 +23,10 @@ def predict2D(project_name, video_path, weights_center_detect,
                 weights_center_detect)
     keypointDetect = EfficientTrack('KeypointDetectInference', project.cfg,
                 weights_keypoint_detect)
-    if output_dir == None:
-        output_dir = 'PosePredictions'
     predictPosesVideo(keypointDetect, centerDetect, video_path,
-                output_dir = output_dir, frameStart = frame_start,
-                numberFrames = number_frames, make_video = make_video,
-                skeletonPreset = skeleton_preset, progressBar = progressBar)
+                frameStart = frame_start, numberFrames = number_frames,
+                make_video = make_video, skeletonPreset = skeleton_preset,
+                progressBar = progressBar)
     del centerDetect
     del keypointDetect
 

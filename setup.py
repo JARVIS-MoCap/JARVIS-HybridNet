@@ -28,12 +28,12 @@ setuptools.setup(
         "pandas",
         "Click",
         "streamlit",
-        "streamlit_option_menu"
+        "streamlit_option_menu",
         "inquirer==2.8.0"
     ],
     entry_points={
         'console_scripts': [
-            'jarvis = jarvis.cli:cli',
+            'jarvis = jarvis.ui.jarvis:cli',
         ],
     }
 )

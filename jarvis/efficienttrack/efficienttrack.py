@@ -73,7 +73,6 @@ class EfficientTrack:
             self.criterion = HeatmapLoss(self.cfg, self.mode)
             self.model = self.model.cuda()
 
-
             if self.cfg.OPTIMIZER == 'adamw':
                 self.optimizer = torch.optim.AdamW(self.model.parameters(),
                             self.cfg.MAX_LEARNING_RATE)
@@ -84,11 +83,13 @@ class EfficientTrack:
 
 
         elif mode == 'KeypointDetectInference' or 'CenterDetectInference':
-            self.model.requires_grad_(False)
             self.load_weights(weights)
+            if torch.cuda.is_available():
+                self.model = self.model.cuda()
+            else:
+                print ("[Info] No GPU available, model is compiled on CPU.")
             self.model.requires_grad_(False)
             self.model.eval()
-            self.model = self.model.cuda()
 
         elif mode == 'export':
             self.model = EfficientTrackBackbone(
@@ -105,7 +106,10 @@ class EfficientTrack:
             weights_path =  self.get_latest_weights()
         if weights_path is not None:
             if os.path.isfile(weights_path):
-                pretrained_dict = torch.load(weights_path)
+                if torch.cuda.is_available():
+                    pretrained_dict = torch.load(weights_path)
+                else:
+                    pretrained_dict = torch.load(weights_path, map_location=torch.device('cpu'))
                 if self.mode == "KeypointDetect" and pretrained_dict['final_conv1.weight'].shape[0] != self.cfg.NUM_JOINTS:
                     pretrained_dict = {k: v for k, v in pretrained_dict.items() if not k in ['final_conv1.weight', 'final_conv2.weight']}
                 self.model.load_state_dict(pretrained_dict, strict=False)
@@ -120,7 +124,10 @@ class EfficientTrack:
     def load_ecoset_pretrain(self):
         weights_path = os.path.join(self.main_cfg.PARENT_DIR, 'pretrained', 'EcoSet', f'EfficientTrack-d{self.cfg.COMPOUND_COEF}.pth')
         if os.path.isfile(weights_path):
-            pretrained_dict = torch.load(weights_path)
+            if torch.cuda.is_available():
+                pretrained_dict = torch.load(weights_path)
+            else:
+                pretrained_dict = torch.load(weights_path, map_location=torch.device('cpu'))
             pretrained_dict = {k: v for k, v in pretrained_dict.items() if not k in ['final_conv1.weight', 'final_conv2.weight', 'first_conv.pointwise_conv.bias', 'first_conv.gn.weight', 'first_conv.gn.bias', 'first_conv.pointwise_conv.weight']}
             self.model.load_state_dict(pretrained_dict, strict=False)
             print(f'Successfully loaded EcoSet weights: {weights_path}')
@@ -136,7 +143,10 @@ class EfficientTrack:
             weights_name = "EfficientTrack_Keypoints.pth"
         weights_path = os.path.join(self.main_cfg.PARENT_DIR, 'pretrained', 'PosePretrains', pose, weights_name)
         if os.path.isfile(weights_path):
-            pretrained_dict = torch.load(weights_path)
+            if torch.cuda.is_available():
+                pretrained_dict = torch.load(weights_path)
+            else:
+                pretrained_dict = orch.load(weights_path, map_location=torch.device('cpu'))
             if self.mode == "KeypointDetect" and pretrained_dict['final_conv1.weight'].shape[0] != self.cfg.NUM_JOINTS:
                 pretrained_dict = {k: v for k, v in pretrained_dict.items() if not k in ['final_conv1.weight', 'final_conv2.weight']}
             self.model.load_state_dict(pretrained_dict, strict=False)

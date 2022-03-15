@@ -21,24 +21,12 @@ import jarvis.efficienttrack.darkpose as darkpose
 import jarvis.prediction.prediction_utils as utils
 
 
-def predictPosesVideo(keypointDetect, centerDetect, video_path,
-            output_dir, frameStart = 0, numberFrames = -1,
-            make_video = True, skeletonPreset = None, progressBar = None):
-    if os.path.exists(output_dir) and progressBar == None:
-        print ("Output directory already exists! Override? (Y)es/(N)o")
-        valid_accepts = ['yes', 'Yes', 'y', 'Y']
-        valid_declines = ['no', 'No', 'n', 'N']
-        got_valid_answer = False
-        while not got_valid_answer:
-            ans = input()
-            if ans in valid_declines:
-                got_valid_answer = True
-                print ("Aborting prediction!")
-                return
-            elif ans in valid_accepts:
-                got_valid_answer = True
-            else:
-                print ("Please enter either yes or no!")
+def predictPosesVideo(keypointDetect, centerDetect, video_path, frameStart = 0,
+            numberFrames = -1, make_video = True, skeletonPreset = None,
+            progressBar = None):
+    output_dir = os.path.join(projectManager.parent_dir,
+                projectManager.cfg.PROJECTS_ROOT_PATH, project_name,
+                'predictions', f'Predictions_2D_{time.strftime("%Y%m%d-%H%M%S")}')
     os.makedirs(output_dir, exist_ok = True)
 
     cap = cv2.VideoCapture(video_path)
@@ -87,8 +75,10 @@ def predictPosesVideo(keypointDetect, centerDetect, video_path,
             img = ((cv2.cvtColor(img_orig, cv2.COLOR_BGR2RGB).astype(np.float32)
                     / 255.0 - keypointDetect.main_cfg.DATASET.MEAN) / keypointDetect.main_cfg.DATASET.STD)
             img = cv2.resize(img, img_downsampled_shape)
-
-            img = torch.from_numpy(img.transpose(2,0,1)).cuda().float()
+            if torch.cuda.is_available():
+                img = torch.from_numpy(img.transpose(2,0,1)).cuda().float()
+            else:
+                img = torch.from_numpy(img.transpose(2,0,1)).float()
             outputs = centerDetect.model(torch.unsqueeze(img,0))
             center, maxval = darkpose.get_final_preds(
                         outputs[1].clamp(0,255).detach().cpu().numpy(), None)
@@ -104,9 +94,14 @@ def predictPosesVideo(keypointDetect, centerDetect, video_path,
                         255.0-keypointDetect.main_cfg.DATASET.MEAN)/keypointDetect.main_cfg.DATASET.STD)
 
             img = torch.from_numpy(img)
-            img = img.permute(2,0,1).view(1,3,
-                        keypointDetect.main_cfg.KEYPOINTDETECT.BOUNDING_BOX_SIZE,
-                        keypointDetect.main_cfg.KEYPOINTDETECT.BOUNDING_BOX_SIZE).cuda().float()
+            if torch.cuda.is_available():
+                img = img.permute(2,0,1).view(1,3,
+                            keypointDetect.main_cfg.KEYPOINTDETECT.BOUNDING_BOX_SIZE,
+                            keypointDetect.main_cfg.KEYPOINTDETECT.BOUNDING_BOX_SIZE).cuda().float()
+            else:
+                img = img.permute(2,0,1).view(1,3,
+                            keypointDetect.main_cfg.KEYPOINTDETECT.BOUNDING_BOX_SIZE,
+                            keypointDetect.main_cfg.KEYPOINTDETECT.BOUNDING_BOX_SIZE).float()
             if maxval >= 50:
                 outputs = keypointDetect.model(img)
                 preds, maxvals = darkpose.get_final_preds(

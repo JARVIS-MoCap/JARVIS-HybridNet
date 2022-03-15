@@ -14,8 +14,6 @@ def predict2D_gui(project):
     with st.form("predict_2D_form"):
         video_path = st.text_input("Path of Video:",
                     placeholder = "Please enter path...")
-        output_dir = st.text_input("Output Directory:",
-                    placeholder = "Please enter path...")
         col3, col4 = st.columns(2)
         with col3:
             weights_center_detect = st.text_input("Weights for CenterDetect:",
@@ -46,9 +44,6 @@ def predict2D_gui(project):
         if not os.path.isfile(video_path):
             st.error("Video File does not exist!")
             return
-        if output_dir == "":
-            st.error("Please enter a valid ouput directory!")
-            return
         if not (weights_center_detect == "latest" or (os.path.isfile(weights_center_detect) and weights_center_detect.split(".")[-1] == "pth")):
             st.error("CenterDetect weights do not exist!")
             return
@@ -60,7 +55,7 @@ def predict2D_gui(project):
         st.subheader("Prediction Progress:")
         my_bar = st.progress(0)
         predict.predict2D(project, video_path, weights_center_detect,
-                    weights_keypoint_detect, output_dir, frame_start,
+                    weights_keypoint_detect, frame_start,
                     number_frames, make_video, skeleton_preset, my_bar)
         st.balloons()
         time.sleep(1)

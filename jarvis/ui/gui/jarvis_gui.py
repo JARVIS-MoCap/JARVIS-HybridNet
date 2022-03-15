@@ -14,10 +14,10 @@ import json, yaml
 import jarvis.config.project_manager as ProjectManager
 import jarvis.train_interface as train
 import jarvis.visualize_interface as visualize
-from jarvis.gui.predict_gui import predict2D_gui, predict3D_gui
-from jarvis.gui.train_gui import train_all_gui, train_center_detect_gui, \
+from jarvis.ui.gui.predict_gui import predict2D_gui, predict3D_gui
+from jarvis.ui.gui.train_gui import train_all_gui, train_center_detect_gui, \
 		train_keypoint_detect_gui, train_hybridnet_gui
-from jarvis.gui.visualize_gui import visualize2D_gui, visualize3D_gui
+from jarvis.ui.gui.visualize_gui import visualize2D_gui, visualize3D_gui
 
 
 st.set_page_config(
