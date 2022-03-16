@@ -9,6 +9,7 @@ from jarvis.utils.utils import CLIColors
 import jarvis.ui.interactive_cli.train_cli as train_cli
 import jarvis.ui.interactive_cli.predict_cli as predict_cli
 import jarvis.ui.interactive_cli.visualize_cli as visualize_cli
+import jarvis.ui.interactive_cli.analyze_cli as analyze_cli
 
 
 
@@ -21,7 +22,7 @@ def launch_interactive_prompt():
     main_menu = [
       inq.List('menu',
             message=f"{CLIColors.OKGREEN}{CLIColors.BOLD}Main Menu{CLIColors.ENDC}",
-            choices=['Create Project', 'Train', 'Predict', 'Visualize', 'Exit'],
+            choices=['Create Project', 'Train', 'Predict', 'Visualize', 'Analyze', 'Exit'],
         )
     ]
     menu = inq.prompt(main_menu)['menu']
@@ -42,6 +43,10 @@ def launch_interactive_prompt():
     elif menu == "Visualize":
         cls()
         visualize_cli.launch_visualize_menu()
+        launch_interactive_prompt()
+    elif menu == "Analyze":
+        cls()
+        analyze_cli.launch_analyze_menu()
         launch_interactive_prompt()
 
 

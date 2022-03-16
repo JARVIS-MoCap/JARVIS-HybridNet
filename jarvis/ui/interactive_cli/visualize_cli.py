@@ -8,7 +8,6 @@ import matplotlib.pyplot as plt
 from jarvis.config.project_manager import ProjectManager
 from jarvis.utils.utils import CLIColors
 import jarvis.visualize_interface as vis_interface
-import jarvis.visualize_interface as visualize_interface
 from jarvis.dataset.dataset2D import Dataset2D
 from jarvis.dataset.dataset3D import Dataset3D
 
@@ -25,6 +24,7 @@ def on_press(event, cancel_3D):
 
 
 def launch_visualize_menu():
+    cls()
     training_menu = [
       inq.List('menu',
             message=f"{CLIColors.OKGREEN}{CLIColors.BOLD}Training Menu{CLIColors.ENDC}",

@@ -10,7 +10,6 @@ from jarvis.efficienttrack.efficienttrack import EfficientTrack
 from jarvis.hybridnet.hybridnet import HybridNet
 from jarvis.prediction.predict2D import predictPosesVideo
 from jarvis.prediction.predict3D import predictPosesVideos, load_reprojection_tools
-from jarvis.visualization.time_slices import plot_slices
 
 
 def predict2D(project_name, video_path, weights_center_detect,

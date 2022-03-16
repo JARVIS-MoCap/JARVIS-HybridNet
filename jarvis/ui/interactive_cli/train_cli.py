@@ -238,7 +238,8 @@ def train_all():
                     default = 50),
     ]
     settings = inq.prompt(questions)
-    check_gpus()
+    if not check_gpus():
+        return
 
     project_name = settings['project_name']
     num_epochs_center = int(settings['num_epochs_center'])

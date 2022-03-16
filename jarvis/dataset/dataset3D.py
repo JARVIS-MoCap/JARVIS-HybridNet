@@ -37,7 +37,8 @@ class Dataset3D(BaseDataset):
                 split.
     :type set: string
     """
-    def __init__(self, cfg, set='train', **kwargs):
+    def __init__(self, cfg, set='train', analysisMode = False, **kwargs):
+        self.analysisMode = analysisMode
         self.cameras_to_use = None
         if 'cameras_to_use' in kwargs:
             self.cameras_to_use = kwargs['cameras_to_use']
@@ -173,6 +174,10 @@ class Dataset3D(BaseDataset):
         img_l = np.zeros((self.num_cameras,
                           self.cfg.KEYPOINTDETECT.BOUNDING_BOX_SIZE,
                           self.cfg.KEYPOINTDETECT.BOUNDING_BOX_SIZE,3))
+        if self.analysisMode:
+            img = self._load_image(0)
+            img_l = np.zeros((self.num_cameras,img.shape[0],img.shape[1],3))
+
         centerHM = np.full((self.num_cameras, 2), 128, dtype = int)
         bbox_hw = int(self.cfg.KEYPOINTDETECT.BOUNDING_BOX_SIZE/2)
 
@@ -189,8 +194,9 @@ class Dataset3D(BaseDataset):
             center_y = min(max(bbox_hw, center_y), img_shape[0]-bbox_hw)
             center_x = min(max(bbox_hw, center_x), img_shape[1]-bbox_hw)
             centerHM[frame_idx] = np.array([center_x, center_y])
-            img = img[center_y-bbox_hw:center_y+bbox_hw,
-                      center_x-bbox_hw:center_x+bbox_hw, :]
+            if not self.analysisMode:
+                img = img[center_y-bbox_hw:center_y+bbox_hw,
+                          center_x-bbox_hw:center_x+bbox_hw, :]
             if self.set_name == 'train':
                 img = self.augpipe(image=img)
             img_l[frame_idx] = img
@@ -234,7 +240,7 @@ class Dataset3D(BaseDataset):
         sample = [img_l, keypoints3D, centerHM, center3D, heatmap3D,
                     self.reproTools[datasetName].cameraMatrices,
                     self.reproTools[datasetName].intrinsicMatrices,
-                    self.reproTools[datasetName].distortionCoefficients]
+                    self.reproTools[datasetName].distortionCoefficients, datasetName]
 
         return self.transform(sample)
 
@@ -396,7 +402,7 @@ class Normalizer(object):
 
     def __call__(self, sample):
         return [(sample[0].astype(np.float32) - self.mean) / self.std,
-                 sample[1], sample[2], sample[3], sample[4], sample[5], sample[6], sample[7]]
+                 sample[1], sample[2], sample[3], sample[4], sample[5], sample[6], sample[7], sample[8]]
 
 
 
