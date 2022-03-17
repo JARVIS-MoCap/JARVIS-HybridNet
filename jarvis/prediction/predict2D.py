@@ -21,12 +21,9 @@ import jarvis.efficienttrack.darkpose as darkpose
 import jarvis.prediction.prediction_utils as utils
 
 
-def predictPosesVideo(keypointDetect, centerDetect, video_path, frameStart = 0,
-            numberFrames = -1, make_video = True, skeletonPreset = None,
-            progressBar = None):
-    output_dir = os.path.join(projectManager.parent_dir,
-                projectManager.cfg.PROJECTS_ROOT_PATH, project_name,
-                'predictions', f'Predictions_2D_{time.strftime("%Y%m%d-%H%M%S")}')
+def predictPosesVideo(keypointDetect, centerDetect, video_path, output_dir,
+            frameStart = 0, numberFrames = -1, make_video = True,
+            skeletonPreset = None, progressBar = None):
     os.makedirs(output_dir, exist_ok = True)
 
     cap = cv2.VideoCapture(video_path)

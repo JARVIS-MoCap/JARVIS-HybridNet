@@ -68,8 +68,6 @@ def predict3D_gui(project):
     with st.form("predict_3D_form"):
         recording_path = st.text_input("Path of recording directory:",
                     placeholder = "Please enter path...")
-        output_dir = st.text_input("Output Directory:",
-                    placeholder = "Please enter path...")
         col3, col4 = st.columns(2)
         with col3:
             weights_center_detect = st.text_input("Weights for CenterDetect:",
@@ -92,13 +90,26 @@ def predict3D_gui(project):
             with col2:
                 number_frames = st.number_input("Number of Frames:",
                             value = -1, min_value = -1)
+        projectManager = ProjectManager.ProjectManager()
+        projectManager.load(project)
+        cfg = projectManager.cfg
+        dataset_name = cfg.DATASET.DATASET_3D
+        if os.path.isabs(dataset_name):
+            calib_root_path = os.path.join(dataset_name, 'calib_params')
+        else:
+            calib_root_path = os.path.join(cfg.PARENT_DIR,
+                        cfg.DATASET.DATASET_ROOT_DIR, dataset_name,
+                        'calib_params')
+        calibrations = os.listdir(calib_root_path)
+        if len(calibrations) != 1:
+            calibration_selection = st.selectbox('Select the CalibrationSet you want to use',
+                        calibrations)
+        else:
+            calibration_selection = None
         submitted = st.form_submit_button("Predict")
     if submitted:
         if not os.path.isdir(recording_path):
             st.error("Recording directory does not exist!")
-            return
-        if output_dir == "":
-            st.error("Please enter a valid ouput directory!")
             return
         if not (weights_center_detect == "latest" or (os.path.isfile(weights_center_detect) and weights_center_detect.split(".")[-1] == "pth")):
             st.error("CenterDetect weights do not exist!")
@@ -110,10 +121,9 @@ def predict3D_gui(project):
             skeleton_preset = None
         st.subheader("Prediction Progress:")
         my_bar = st.progress(0)
-        #TODO: make this work when there aremultiple calibration sets in a dataset
         predict.predict3D(project, recording_path, weights_center_detect,
-                    weights_hybridnet, output_dir, frame_start, number_frames,
-                    make_videos, skeleton_preset, None, my_bar)
+                    weights_hybridnet, frame_start, number_frames,
+                    make_videos, skeleton_preset, calibration_selection, my_bar)
         st.balloons()
         time.sleep(1)
         st.experimental_rerun()

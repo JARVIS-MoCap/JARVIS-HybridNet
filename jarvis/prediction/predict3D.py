@@ -25,7 +25,8 @@ import jarvis.prediction.prediction_utils as utils
 
 
 def load_reprojection_tools(cfg, cameras_to_use = None):
-    print (cameras_to_use)
+    if cameras_to_use != None:
+        print (f"Using subset of cameras: {cameras_to_use}.")
     dataset_dir = os.path.join(cfg.PARENT_DIR, cfg.DATASET.DATASET_ROOT_DIR, cfg.DATASET.DATASET_3D)
     dataset_json = open(os.path.join(dataset_dir, 'annotations',
                 'instances_val.json'))
