@@ -28,7 +28,7 @@ def train_all_gui(project, cfg):
                         min_value = 1, max_value = 1000)
         pretrain = st.selectbox('Pretraining to use',
                     ['None', 'EcoSet', 'MonkeyHand', 'HumanHand', 'HumanBody','RatBody', 'MouseBody'])
-        finetune = st.checkbox("Finetune Network", value = True)
+        finetune = st.checkbox("Finetune Network", value = False)
         submitted = st.form_submit_button("Train")
     if submitted:
         if not check_config_all(project, cfg):

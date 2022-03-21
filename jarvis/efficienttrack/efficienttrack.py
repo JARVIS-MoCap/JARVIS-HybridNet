@@ -80,8 +80,6 @@ class EfficientTrack:
                 self.optimizer = torch.optim.SGD(self.model.parameters(),
                             self.cfg.MAX_LEARNING_RATE, momentum=0.9, nesterov=True)
 
-
-
         elif mode == 'KeypointDetectInference' or 'CenterDetectInference':
             self.load_weights(weights)
             if torch.cuda.is_available():
@@ -98,7 +96,6 @@ class EfficientTrack:
                         onnx_export = True)
             self.load_weights(weights)
             self.model = self.model.cuda()
-
 
 
     def load_weights(self, weights_path = None):

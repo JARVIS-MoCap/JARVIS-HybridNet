@@ -16,8 +16,12 @@ import jarvis.train_interface as train
 import jarvis.visualize_interface as visualize
 from jarvis.ui.gui.predict_gui import predict2D_gui, predict3D_gui
 from jarvis.ui.gui.train_gui import train_all_gui, train_center_detect_gui, \
-		train_keypoint_detect_gui, train_hybridnet_gui
+			train_keypoint_detect_gui, train_hybridnet_gui
 from jarvis.ui.gui.visualize_gui import visualize2D_gui, visualize3D_gui
+from jarvis.ui.gui.analyze_gui import analyze_validation_set_gui, \
+			plot_error_histogram_gui, plot_errors_per_keypoint_gui
+
+
 
 
 st.set_page_config(
@@ -143,8 +147,8 @@ if 'results_available' in st.session_state:
 elif project_box != 'Select...':
 	projectManager.load(project_box)
 	with st.sidebar:
-		selected = option_menu("Menus", ['Training', 'Prediction', 'Visualization'],
-		icons=['gpu-card', 'layer-forward', 'graph-up'],
+		selected = option_menu("Menus", ['Training', 'Prediction', 'Visualization', 'Analysis'],
+		icons=['gpu-card', 'layer-forward', 'graph-up', 'bar-chart-fill'],
 		menu_icon="list", default_index=0)
 
 	if selected == "Training":
@@ -172,7 +176,7 @@ elif project_box != 'Select...':
 			predict3D_gui(project_box)
 		else:
 			predict2D_gui(project_box)
-	else:
+	elif selected == "Visualization":
 		with st.sidebar:
 			vis_mode = option_menu("Visualizations", ['Dataset2D', 'Dataset3D'],
 						menu_icon="graph-up", default_index=0)
@@ -181,6 +185,17 @@ elif project_box != 'Select...':
 			visualize2D_gui(project_box)
 		elif vis_mode == "Dataset3D":
 			visualize3D_gui(project_box)
+	else:
+		with st.sidebar:
+			analysis_mode = option_menu("Analysis", ['Analyse Validation Data', 'Plot Error Histogram', 'Plot Error per Keypoint'],
+						menu_icon="bar-chart-fill", default_index=0)
+		st.title('Analysis')
+		if analysis_mode == 'Analyse Validation Data':
+			analyze_validation_set_gui(project_box)
+		elif analysis_mode == 'Plot Error Histogram':
+			plot_error_histogram_gui(project_box)
+		elif analysis_mode == 'Plot Error per Keypoint':
+			plot_errors_per_keypoint_gui(project_box)
 
 	with st.container():
 		st.header('Project Info')

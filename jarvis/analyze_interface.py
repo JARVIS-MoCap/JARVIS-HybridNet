@@ -9,6 +9,8 @@ from joblib import Parallel, delayed
 import seaborn as sns
 import matplotlib.pyplot as plt
 import pandas as pd
+import streamlit as st
+
 
 
 from jarvis.config.project_manager import ProjectManager
@@ -77,7 +79,7 @@ def plot_error_histogram(path, additional_data = {}, cutoff = -1):
     plt.show()
 
 
-def plot_error_per_joint(path):
+def plot_error_per_keypoint(path):
     gt_path = os.path.join(path, 'points_GroundTruth.csv')
     net_path = os.path.join(path, 'points_HybridNet.csv')
 
@@ -114,7 +116,7 @@ def plot_error_per_joint(path):
 
 
 def analyze_validation_data(project_name, weights_center = 'latest',
-            weights_hybridnet = 'latest', cameras_to_use = None):
+            weights_hybridnet = 'latest', cameras_to_use = None, progress_bar = None):
     project = ProjectManager()
     project.load(project_name)
     cfg = project.get_cfg()
@@ -141,6 +143,8 @@ def analyze_validation_data(project_name, weights_center = 'latest',
     pointsGT = []
 
     for item in tqdm(range(len(dataset.image_ids))):
+        if progress_bar != None:
+            progress_bar.progress(float(item+1)/len(dataset.image_ids))
         sample = dataset.__getitem__(item)
         keypoints3D = sample[1]
         imgs_orig = sample[0]

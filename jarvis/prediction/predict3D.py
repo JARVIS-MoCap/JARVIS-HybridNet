@@ -27,7 +27,8 @@ import jarvis.prediction.prediction_utils as utils
 def load_reprojection_tools(cfg, cameras_to_use = None):
     if cameras_to_use != None:
         print (f"Using subset of cameras: {cameras_to_use}.")
-    dataset_dir = os.path.join(cfg.PARENT_DIR, cfg.DATASET.DATASET_ROOT_DIR, cfg.DATASET.DATASET_3D)
+    dataset_dir = os.path.join(cfg.PARENT_DIR, cfg.DATASET.DATASET_ROOT_DIR,
+                cfg.DATASET.DATASET_3D)
     dataset_json = open(os.path.join(dataset_dir, 'annotations',
                 'instances_val.json'))
     data = json.load(dataset_json)
@@ -55,7 +56,8 @@ def get_videos_from_recording_path(recording_path, reproTool):
 
 
 def predictPosesVideos(hybridNet, centerDetect, reproTool, recording_path,
-        output_dir, frameStart = 0, numberFrames = -1, make_videos = True, skeletonPreset = None, progressBar =None):
+        output_dir, frameStart = 0, numberFrames = -1, make_videos = True,
+        skeletonPreset = None, progressBar =None):
 
     img_downsampled_shape = centerDetect.cfg.IMAGE_SIZE
     def read_images(cap):

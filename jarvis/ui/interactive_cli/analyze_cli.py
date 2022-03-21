@@ -18,7 +18,7 @@ def cls():
 def launch_analyze_menu():
     cls()
     menu_items = ['Analyze Validation Data', 'Plot Error Histogram',
-                'Plot Error per Joint', 'Plot Joint Length Distribution',
+                'Plot Error per Keypoint', 'Plot Joint Length Distribution',
                 '<< back']
     menu = inq.list_input(f"{CLIColors.OKGREEN}{CLIColors.BOLD}Training "
                 f"Menu{CLIColors.ENDC}", choices = menu_items)
@@ -29,8 +29,8 @@ def launch_analyze_menu():
         analyze_validation_data()
     elif menu == "Plot Error Histogram":
         plot_error_histogram()
-    elif menu == "Plot Error per Joint":
-        plot_error_per_joint()
+    elif menu == "Plot Error per Keypoint":
+        plot_error_per_keypoint()
     elif menu == "Plot Joint Length Distribution":
         plot_joint_length_distribution()
 
@@ -127,10 +127,10 @@ def plot_error_histogram():
     launch_analyze_menu()
 
 
-def plot_error_per_joint():
+def plot_error_per_keypoint():
     cls()
     path = get_analysis_path()
-    analyze_interface.plot_error_per_joint(path)
+    analyze_interface.plot_error_per_keypoint(path)
     print ()
     input ("press Enter to continue")
     launch_analyze_menu()

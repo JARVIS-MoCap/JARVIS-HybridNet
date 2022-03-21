@@ -2,6 +2,7 @@ import click
 import os
 from pathlib import Path
 import shutil
+import collections
 import streamlit.cli
 
 from jarvis.config.project_manager import ProjectManager
@@ -9,36 +10,37 @@ import jarvis.ui.cli.cli as main_cli
 import jarvis.ui.cli.train_cli as train_cli
 import jarvis.ui.cli.predict_cli as predict_cli
 import jarvis.ui.cli.visualize_cli as visualize_cli
+import jarvis.ui.cli.analyze_cli as analyze_cli
 import jarvis.ui.interactive_cli.cli as interactive_cli
 
 
+class OrderedGroup(click.Group):
+    def __init__(self, name=None, commands=None, **attrs):
+        super(OrderedGroup, self).__init__(name, commands, **attrs)
+        #: the registered subcommands by their exported names.
+        self.commands = commands or collections.OrderedDict()
 
-@click.group()
+    def list_commands(self, ctx):
+        return self.commands
+
+
+@click.group(cls=OrderedGroup)
 def cli():
+    """
+    Welcome to JARVIS! There are 3 ways to interact with the toolbox:\n
+      1. The standard CLI, see this help for all available commands\n
+      2. The interactive CLI: run 'jarvis launch-cli' to open it here\n
+      3. The streamlit GUI: run 'jarvis launch' to open it in your browser
+    """
     pass
 
-@cli.group()
-def train():
-    pass
-
-@cli.group()
-def predict():
-    pass
-
-@cli.group()
-def visualize():
-    pass
-
-
-@click.command()
-def hello():
-    click.echo(f'{CLIColors.OKGREEN}Hi! JARVIS installed successfully and is '
-                f'ready for training!\nRun \'jarvis --help\' to list all '
-                f'available commands.{CLIColors.ENDC}')
 
 
 @click.command()
 def launch():
+    """
+    Launch the Streamlit GUI in your browser.
+    """
     project = ProjectManager()
     home = str(Path.home())
     os.makedirs(os.path.join(home, '.streamlit'), exist_ok = True)
@@ -57,17 +59,51 @@ def launch():
 
 @click.command()
 def launch_cli():
+    """
+    Launch the interactive CLI in this terminal.
+    """
     interactive_cli.launch_interactive_prompt()
 
 
-cli.add_command(hello)
 cli.add_command(launch)
 cli.add_command(launch_cli)
 cli.add_command(main_cli.create_project)
+
+@cli.group()
+def train():
+    """
+    Training commands, more info: 'jarvis train --help'.
+    """
+    pass
+
+@cli.group()
+def predict():
+    """
+    Prediction commands, more info: 'jarvis predict --help'.
+    """
+    pass
+
+@cli.group()
+def visualize():
+    """
+    Visualize commands, more info: 'jarvis visualize --help'.
+    """
+    pass
+
+@cli.group()
+def analyze():
+    """
+    Analysis commands, more info: 'jarvis analyze --help'.
+    """
+    pass
+
 train.add_command(train_cli.train_center_detect)
 train.add_command(train_cli.train_keypoint_detect)
 train.add_command(train_cli.train_hybridnet)
 train.add_command(train_cli.train_all)
-predict.add_command(predict_cli.predict_2D)
-predict.add_command(predict_cli.predict_3D)
+predict.add_command(predict_cli.predict2D)
+predict.add_command(predict_cli.predict3D)
 visualize.add_command(visualize_cli.plot_time_slices)
+analyze.add_command(analyze_cli.analyze_validation_data)
+analyze.add_command(analyze_cli.plot_error_histogram)
+analyze.add_command(analyze_cli.plot_error_per_keypoint)

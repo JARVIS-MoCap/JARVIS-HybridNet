@@ -5,30 +5,24 @@ from tensorboard import program
 
 from jarvis.config.project_manager import ProjectManager
 from jarvis.utils.utils import CLIColors
-from jarvis.dataset.dataset2D import Dataset2D
-from jarvis.dataset.dataset3D import Dataset3D
-from jarvis.efficienttrack.efficienttrack import EfficientTrack
-from jarvis.hybridnet.hybridnet import HybridNet
-from jarvis.prediction.predict2D import predictPosesVideo
-from jarvis.prediction.predict3D import predictPosesVideos, load_reprojection_tools
-from jarvis.visualization.time_slices import plot_slices
-import jarvis.train_interface as train_interface
-import jarvis.predict_interface as predict_interface
-import jarvis.visualize_interface as visualize
+
 
 
 @click.command()
-@click.option('--dataset2d', default='',
-            type=click.Path(exists=False, file_okay=False, dir_okay=True),
-            help='Path to the dataset to be used for training the 2D parts of '
+@click.option('--dataset2d', default = '',
+            type = click.Path(exists = False, file_okay = False, dir_okay = True),
+            help = 'Path to the dataset to be used for training the 2D parts of '
             'the network. Only specify if you have a pretraining dataset for '
             'the 2D network that differs from your 3D dataset.')
-@click.option('--dataset3d', default='',
-            type=click.Path(exists=False, file_okay=False, dir_okay=True),
-             help='Path to the dataset to be used for training the full '
+@click.option('--dataset3d', default = '',
+            type = click.Path(exists = False, file_okay = False, dir_okay = True),
+             help = 'Path to the dataset to be used for training the full '
              '3D network.')
 @click.argument('project_name')
 def create_project(project_name, dataset2d, dataset3d):
+    """
+    Create and configure a new project for your dataset.
+    """
     if dataset3d == '' and dataset2d == '':
         print (f'{CLIColors.FAIL}Specify at least one dataset to create a '
                     'project. Aborting...{CLIColors.ENDC}')

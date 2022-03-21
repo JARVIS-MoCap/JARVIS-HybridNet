@@ -122,19 +122,25 @@ def predict_3D():
                     "file", validate = lambda _, x: (os.path.isfile(x)
                     and x.split(".")[-1] == 'pth'))
 
-    dataset_name = cfg.DATASET.DATASET_3D
-    if os.path.isabs(dataset_name):
-        calib_root_path = os.path.join(dataset_name, 'calib_params')
+    use_calib_path = inq.list_input("Use calibration that is not used in "
+                "trainingset?", choices=["Yes", "No"], default = "No")
+    if use_calib_path == "Yes":
+        calibration_to_use = inq.text("Enter Calibration Path",
+                    validate = lambda _, x: (os.path.isdir(x)))
     else:
-        calib_root_path = os.path.join(cfg.PARENT_DIR,
-                    cfg.DATASET.DATASET_ROOT_DIR, dataset_name,
-                    'calib_params')
-    calibrations = os.listdir(calib_root_path)
-    if len(calibrations) == 1:
-        calibration_to_use = None
-    else:
-        calibration_to_use = inq.list_input("Which calibration should be used?",
-                    choices = calibrations)
+        dataset_name = cfg.DATASET.DATASET_3D
+        if os.path.isabs(dataset_name):
+            calib_root_path = os.path.join(dataset_name, 'calib_params')
+        else:
+            calib_root_path = os.path.join(cfg.PARENT_DIR,
+                        cfg.DATASET.DATASET_ROOT_DIR, dataset_name,
+                        'calib_params')
+        calibrations = os.listdir(calib_root_path)
+        if len(calibrations) == 1:
+            calibration_to_use = None
+        else:
+            calibration_to_use = inq.list_input("Which calibration should be used?",
+                        choices = calibrations)
 
     example_vid = os.path.join(recordings_path,os.listdir(recordings_path)[0])
     frame_start, number_frames = get_frame_start_number(example_vid)

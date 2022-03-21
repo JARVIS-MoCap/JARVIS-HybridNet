@@ -26,6 +26,7 @@ setuptools.setup(
         "ipywidgets",
         "joblib",
         "pandas",
+        "seaborn",
         "Click",
         "streamlit",
         "streamlit_option_menu",
