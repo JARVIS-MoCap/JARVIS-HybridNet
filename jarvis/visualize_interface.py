@@ -43,7 +43,7 @@ def	visualize_2D_sample(dataset, mode, img_idx, skeleton_preset):
         line_idxs = []
         if skeleton_preset != "None":
             colors, line_idxs = utils.get_colors_and_lines(skeleton_preset)
-            if len(colors) != dataset.cfg.KEYPOINTDETECT.NUM_JOINTS:
+            if len(colors) < dataset.cfg.KEYPOINTDETECT.NUM_JOINTS:
                 print (f'{CLIColors.FAIL}Number of keypoints in dataset does '
                             f'not match number of keypoints in skeleton '
                             f'preset! Using default colormap.{CLIColors.ENDC}')
@@ -76,7 +76,7 @@ def visualize_3D_sample(dataset, img_idx, skeleton_preset, azim = 0, elev = 0):
     line_idxs = []
     if skeleton_preset != "None":
         colors, line_idxs = utils.get_colors_and_lines(skeleton_preset)
-        if len(colors) != dataset.cfg.KEYPOINTDETECT.NUM_JOINTS:
+        if len(colors) < dataset.cfg.KEYPOINTDETECT.NUM_JOINTS:
             print (f'{CLIColors.FAIL}Number of keypoints in dataset does '
                         f'not match number of keypoints in skeleton '
                         f'preset! Using default colormap.{CLIColors.ENDC}')

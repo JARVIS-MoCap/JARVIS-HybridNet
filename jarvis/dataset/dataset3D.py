@@ -180,6 +180,7 @@ class Dataset3D(BaseDataset):
 
         centerHM = np.full((self.num_cameras, 2), 128, dtype = int)
         bbox_hw = int(self.cfg.KEYPOINTDETECT.BOUNDING_BOX_SIZE/2)
+        print (len(frameset_ids))
 
         for frame_idx,img_id in enumerate(frameset_ids):
             img = self._load_image(img_id, is_id = True)

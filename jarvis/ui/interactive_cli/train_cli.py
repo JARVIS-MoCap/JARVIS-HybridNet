@@ -122,7 +122,7 @@ def train_hybridnet():
     weights_keypoint_detect = inq.text("Path to '.pth' KeypointDetect weights file",
                 validate = lambda _, x: ((os.path.isfile(x)
                 and x.split(".")[-1] == 'pth') or x == ""))
-    if weights_keypoint_detect1 == "":
+    if weights_keypoint_detect == "":
         weights_keypoint_detect = None
         weights_hybridnet = inq.text("Path to '.pth' Hybridnet weights file",
                     validate = lambda _, x: ((os.path.isfile(x)
@@ -132,8 +132,8 @@ def train_hybridnet():
     else:
         weights_hybridnet = None
 
-    num_epochs = inq.text("Set Number of Epochs to train for", default = 100,
-                validate = lambda _, x: (x.isdigit() and int(x) > 0))
+    num_epochs = int(inq.text("Set Number of Epochs to train for", default = 100,
+                validate = lambda _, x: (x.isdigit() and int(x) > 0)))
     mode = inq.list_input("Select training mode", choices= ['3D_only',
                 'last_layers', 'bifpn', 'all'])
     if mode == '3D_only':
