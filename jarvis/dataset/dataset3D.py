@@ -54,7 +54,8 @@ class Dataset3D(BaseDataset):
             calibPaths = {}
             for cam in self.dataset['calibrations'][calibParams]:
                 if self.cameras_to_use == None or cam in self.cameras_to_use:
-                    calibPaths[cam] = self.dataset['calibrations'][calibParams][cam]
+                    calibPaths[cam] = self.dataset['calibrations'] \
+                                [calibParams][cam]
             self.reproTools[calibParams] = ReprojectionTool(
                         os.path.join(cfg.PARENT_DIR, self.root_dir), calibPaths)
             self.num_cameras = self.reproTools[calibParams].num_cameras
@@ -68,16 +69,20 @@ class Dataset3D(BaseDataset):
         cfg.KEYPOINTDETECT.NUM_JOINTS = self.num_keypoints[0]
 
         if self.cameras_to_use != None:
-            all_camera_names = [cam for cam in list(self.dataset['calibrations'].values())[0]]
-            camera_names = [cam for cam in list(self.reproTools.values())[0].cameras]
-            self.use_idxs = [i for i,cam in enumerate(all_camera_names) if cam in camera_names]
+            all_camera_names = [cam for cam in list(
+                        self.dataset['calibrations'].values())[0]]
+            camera_names = [cam for cam in list(
+                        self.reproTools.values())[0].cameras]
+            self.use_idxs = [i for i,cam in enumerate(all_camera_names)
+                        if cam in camera_names]
 
 
 
         for set in self.dataset['framesets']:
             keypoints3D_cam = np.zeros((cfg.KEYPOINTDETECT.NUM_JOINTS, 3))
             keypoints3D_bb = []
-            file_name = self.imgs[self.dataset['framesets'][set]['frames'][0]]['file_name']
+            file_name = self.imgs[self.dataset['framesets'][set]['frames'][0]] \
+                        ['file_name']
             info_split = file_name.split("/")
             key = info_split[0]
             for i in range(1,len(info_split)-2):
@@ -95,10 +100,12 @@ class Dataset3D(BaseDataset):
                 points2D = np.zeros((self.num_cameras,2))
                 camsToUse = []
                 for cam in range(self.num_cameras):
-                    if keypoints_l[cam][i][0] != 0 or keypoints_l[cam][i][1] != 0:
+                    if (keypoints_l[cam][i][0] != 0
+                                or keypoints_l[cam][i][1] != 0):
                         points2D[cam] = keypoints_l[cam][i][:2]
                         camsToUse.append(cam)
-                keypoints3D_cam[i] = self.reproTools[self.dataset['framesets'][set]['datasetName']].reconstructPoint(
+                keypoints3D_cam[i] = self.reproTools[self.dataset['framesets'] \
+                            [set]['datasetName']].reconstructPoint(
                             points2D.transpose(), camsToUse)
                 if len(camsToUse) > 1:
                     keypoints3D_bb.append(keypoints3D_cam[i])
@@ -121,8 +128,11 @@ class Dataset3D(BaseDataset):
             min_cube_size = np.max([x_cube_size_min,
                                     y_cube_size_min,
                                     z_cube_size_min])
-            if ((self.cfg.HYBRIDNET.ROI_CUBE_SIZE == None) or min_cube_size <= self.cfg.HYBRIDNET.ROI_CUBE_SIZE) and len(keypoints3D_bb) >1:
-                self.image_ids.append(self.dataset['framesets'][set]['frames'][0])
+            if (((self.cfg.HYBRIDNET.ROI_CUBE_SIZE == None)
+                        or min_cube_size <= self.cfg.HYBRIDNET.ROI_CUBE_SIZE)
+                        and len(keypoints3D_bb) > 1):
+                self.image_ids.append(
+                            self.dataset['framesets'][set]['frames'][0])
                 self.keypoints3D.append(keypoints3D_cam)
             # else:
             #      print (min_cube_size)
@@ -180,7 +190,6 @@ class Dataset3D(BaseDataset):
 
         centerHM = np.full((self.num_cameras, 2), 128, dtype = int)
         bbox_hw = int(self.cfg.KEYPOINTDETECT.BOUNDING_BOX_SIZE/2)
-        print (len(frameset_ids))
 
         for frame_idx,img_id in enumerate(frameset_ids):
             img = self._load_image(img_id, is_id = True)
@@ -233,17 +242,21 @@ class Dataset3D(BaseDataset):
 
         exponent = 1.7/(float(2)/2)
         for i in range(self.cfg.KEYPOINTDETECT.NUM_JOINTS):
-            if (keypoints3D[i][0] != 0 or keypoints3D[i][1] == 0 or keypoints3D[i][2] != 0):
+            if (keypoints3D[i][0] != 0 or keypoints3D[i][1] == 0
+                        or keypoints3D[i][2] != 0):
                 heatmap3D[i,xx,yy,zz] = 255.*np.exp(-0.5*(
-                              np.power((keypoints3D_crop[i][0]-xx)/(exponent),2)
-                            + np.power((keypoints3D_crop[i][1]-yy)/(exponent),2)
-                            + np.power((keypoints3D_crop[i][2]-zz)/(exponent),2)))
+                          np.power((keypoints3D_crop[i][0]-xx)/(exponent),2)
+                        + np.power((keypoints3D_crop[i][1]-yy)/(exponent),2)
+                        + np.power((keypoints3D_crop[i][2]-zz)/(exponent),2)))
         sample = [img_l, keypoints3D, centerHM, center3D, heatmap3D,
                     self.reproTools[datasetName].cameraMatrices,
                     self.reproTools[datasetName].intrinsicMatrices,
-                    self.reproTools[datasetName].distortionCoefficients, datasetName]
+                    self.reproTools[datasetName].distortionCoefficients,
+                                datasetName]
 
-        return self.transform(sample)
+        if not self.analysisMode:
+            sample = self.transform(sample)
+        return sample
 
 
     def __len__(self):
@@ -273,126 +286,28 @@ class Dataset3D(BaseDataset):
             tracking_area = np.array([x_range, y_range, z_range])
             tracking_areas.append(tracking_area)
         tracking_areas = np.array(tracking_areas)
-        x_cube_size_min = np.percentile(tracking_areas[:,0,1] - tracking_areas[:,0,0],95)
-        y_cube_size_min = np.percentile(tracking_areas[:,1,1] - tracking_areas[:,1,0],95)
-        z_cube_size_min = np.percentile(tracking_areas[:,2,1] - tracking_areas[:,2,0],95)
+        x_cube_size_min = np.percentile(tracking_areas[:,0,1]
+                    - tracking_areas[:,0,0],95)
+        y_cube_size_min = np.percentile(tracking_areas[:,1,1]
+                    - tracking_areas[:,1,0],95)
+        z_cube_size_min = np.percentile(tracking_areas[:,2,1]
+                    - tracking_areas[:,2,0],95)
         min_cube_size = np.max([x_cube_size_min,
                                 y_cube_size_min,
                                 z_cube_size_min])
+        print (min_cube_size)
         rough_bbox_suggestion = min_cube_size*1.25
-        resolution_suggestion = max(1,int(np.round_((rough_bbox_suggestion/85.))))
-        final_bbox_suggestion = int(np.ceil((min_cube_size*1.25)/(resolution_suggestion*8))*resolution_suggestion*8)
+        resolution_suggestion = max(1,int(np.round_(
+                    rough_bbox_suggestion / 85.)))
+        final_bbox_suggestion = int(np.ceil((min_cube_size * 1.25)
+                    / (resolution_suggestion * 4)) * resolution_suggestion * 4)
 
         suggested_parameters = {
             'bbox': final_bbox_suggestion,
             'resolution': resolution_suggestion,
         }
 
-        # if show_visualization:
-        #     figure = plt.figure()
-        #     axes = figure.gca(projection='3d')
-        #     visualizer = SetupVisualizer(
-        #                 self.dataset['calibration']['primary_camera'],
-        #                 self.root_dir,
-        #                 self.dataset['calibration']['intrinsics'],
-        #                 self.dataset['calibration']['extrinsics'])
-        #     visualizer.plot_cameras(axes)
-        #     visualizer.plot_tracking_area(tracking_area, axes)
-        #     visualizer.plot_datapoints(self.keypoints3D[0], axes)
-        #     plt.show()
-
         return suggested_parameters
-
-
-    def visualize_sample(self, idx):
-        sample = self.__getitem__(idx)
-        margin = 20 #Margin between pictures in pixels
-        w = 4 # Width of the matrix (nb of images)
-        h = 3 # Height of the matrix (nb of images)
-        n = w*h
-        out_size = (1000,1000)
-
-        x,y,z=zip(*sample[1])
-        center3D = sample[3]
-        #grid_size = lookup_subset.shape[0]
-        xx,yy,zz = np.meshgrid(np.arange(52),
-                               np.arange(52),
-                               np.arange(52), indexing='ij')
-        #heatmap3D = self.get_heatmap_value(lookup_subset,
-        #            np.transpose(np.array(sample[3]), axes = [1,0,2,3]),
-        #            xx,yy,zz)
-        heatmap3D = sample[4]
-
-        figure = plt.figure()
-        axes = figure.gca(projection='3d')
-
-
-        colors = [(0,0,1,max(0,3./2*c-0.5)) for c in np.linspace(0,1,100)]
-        cmapblue = mcolors.LinearSegmentedColormap.from_list('mycmap',
-                    colors, N=100)
-
-        points3D_hm = []
-        for heatmap in heatmap3D:
-            mean = [0,0,0]
-            norm = 0
-            for x in range(heatmap3D.shape[1]):
-                for y in range(heatmap3D.shape[2]):
-                    for z in range(heatmap3D.shape[3]):
-                        if heatmap[x,y,z] > 128:
-                            norm += heatmap[x,y,z]
-                            mean[0] += ((x*self.cfg.HYBRIDNET.GRID_SPACING
-                                        + center3D[0])-100)*heatmap[x,y,z]
-                            mean[1] += ((y*self.cfg.HYBRIDNET.GRID_SPACING
-                                        + center3D[1])-100)*heatmap[x,y,z]
-                            mean[2] += ((z*self.cfg.HYBRIDNET.GRID_SPACING
-                                        + center3D[2])-100)*heatmap[x,y,z]
-            points3D_hm.append(np.array(mean)/norm)
-
-
-        colors = ['r', 'r','r','r','b','b','b','b','g','g','g','g',
-             'orange', 'orange','orange','orange', 'y','y','y','y',
-             'purple', 'purple','purple']
-        #colors = ['r', 'r', 'b','b','b', 'b', 'gray', 'y','y', 'purple', 'purple', 'orange']
-        colors = ['r', 'r','r', 'gray', 'b', 'b', 'b', 'b', 'g', 'g','g','g', 'gray', 'y', 'y','y', 'purple', 'purple','purple', 'orange', 'orange', 'orange']
-        #colors = ['r', 'r','r', 'r', 'gray', 'b', 'b', 'b', 'b', 'g', 'g','g','g', 'gray', 'y', 'y','y','y', 'purple', 'purple','purple','purple', 'orange', 'orange', 'orange']
-        line_idxs = [[0,1], [1,2], [2,3], [4,5], [5,6], [6,7], [8,9], [9,10],
-                     [10,11], [12,13], [13,14], [14,15], [16,17], [17,18],
-                     [18,19], [3,7], [7,11], [11,15], [3,21], [7,21],[11,22],
-                     [15,22],[21,22], [18,15], [19,22]]
-        line_idxs = []
-        #line_idxs = [[0,1], [1,2], [0,2], [2,3], [0,3], [1,3]]
-        #line_idxs = [[4,5], [5,6], [6,7], [7,8], [4,9], [9,10], [10,11], [11,12],
-        #             [4,13],[13,14], [14,15], [15,16], [16,17], [13,18], [18,19]]
-
-
-        keypoins3D = sample[1]
-        #print (np.linalg.norm(keypoins3D[2]-keypoins3D[3]))
-        for i, point in enumerate(keypoins3D):
-            if i != 99:
-                if (point[0] != 0):
-                    axes.scatter(point[0], point[1], point[2], color = colors[i])
-        #print ("Lengths:")
-        for line in line_idxs:
-            #print (np.linalg.norm(keypoins3D[line[0]]-keypoins3D[line[1]]))
-            if (keypoins3D[line[0]][0] != 0 and keypoins3D[line[1]][0] != 0):
-                axes.plot([keypoins3D[line[0]][0], keypoins3D[line[1]][0]],
-                          [keypoins3D[line[0]][1], keypoins3D[line[1]][1]],
-                          [keypoins3D[line[0]][2], keypoins3D[line[1]][2]],
-                          c = 'gray')
-
-        cube = np.array(list(itertools.product(*zip([-200,-200,-200],[200,200,200]))))
-        cube = cube + center3D
-        for corner in cube:
-            axes.scatter(corner[0],corner[1],corner[2], c = 'magenta', s = 20)
-
-        vertices = [[0,1], [0,2], [2,3], [1,3], [4,5], [4,6], [6,7], [5,7],
-                    [0,4], [1,5], [2,6], [3,7]]
-        for vertex in vertices:
-            axes.plot([cube[vertex[0]][0], cube[vertex[1]][0]],
-                      [cube[vertex[0]][1], cube[vertex[1]][1]],
-                      [cube[vertex[0]][2], cube[vertex[1]][2]],c = 'magenta')
-
-        plt.show()
 
 
 
@@ -403,7 +318,8 @@ class Normalizer(object):
 
     def __call__(self, sample):
         return [(sample[0].astype(np.float32) - self.mean) / self.std,
-                 sample[1], sample[2], sample[3], sample[4], sample[5], sample[6], sample[7], sample[8]]
+                 sample[1], sample[2], sample[3], sample[4], sample[5],
+                 sample[6], sample[7], sample[8]]
 
 
 
@@ -418,21 +334,4 @@ if __name__ == "__main__":
     training_set = Dataset3D(cfg = cfg, set='val')#, cameras_to_use = ['Camera_T', 'Camera_B', 'Camera_LBB'])
     #training_set.get_dataset_config(True)
     #print (len(training_set))
-    for i in range(100):
-        training_set.visualize_sample(i)
-    # frameNames = []
-    # for i in range(len(training_set.image_ids)):
-    #     image_info = training_set.coco.loadImgs(training_set.image_ids[i])[0]
-    #     frameNames.append(image_info['file_name'])
-    #
-    # import csv
-    # with open("framesNames.csv", 'w', newline='') as myfile:
-    #  wr = csv.writer(myfile, quoting=csv.QUOTE_MINIMAL)
-    #  for name in frameNames:
-    #      wr.writerow([name])
-    #
-    # #training_set.get_dataset_config(show_visualization = True)
-    # for i in range(0,121):
-    #     training_set.visualize_sample(i)
-    # val_frame_numbers = []
     # print (len(training_set.image_ids))

@@ -5,6 +5,7 @@ project_manager.py
 
 import os,sys,inspect
 import ruamel.yaml
+import json
 import shutil
 from yacs.config import CfgNode as CN
 import numpy as np
@@ -15,6 +16,8 @@ from jarvis.config import cfg
 from jarvis.dataset.dataset2D import Dataset2D
 from jarvis.dataset.dataset3D import Dataset3D
 from jarvis.utils.utils import CLIColors
+import jarvis.utils.clp as clp
+
 
 
 class ProjectManager:
@@ -40,8 +43,8 @@ class ProjectManager:
         self.cfg.PROJECT_NAME = project_name
         if not (os.path.isfile(os.path.join(self.parent_dir,
                     self.cfg.PROJECTS_ROOT_PATH, project_name, 'config.yaml'))):
-            print (CLIColors.FAIL + 'Project does not exist, change name or create new Project '
-                   'by calling create_new(...).' + CLIColors.ENDC)
+            clp.error('Project does not exist, change name or create new '
+                        'Project by calling create_new(...).')
             self.cfg = None
             return False
 
@@ -53,12 +56,12 @@ class ProjectManager:
             model_savepath = os.path.join(self.parent_dir,
                         self.cfg.PROJECTS_ROOT_PATH, project_name, 'models',
                         module)
-            log_path = os.path.join(self.parent_dir,self.cfg.PROJECTS_ROOT_PATH, project_name,
-                        'logs', module)
+            log_path = os.path.join(self.parent_dir,self.cfg.PROJECTS_ROOT_PATH,
+                        project_name, 'logs', module)
             self.cfg.savePaths[module] = model_savepath
             self.cfg.logPaths[module] = log_path
         self.cfg.PARENT_DIR = self.parent_dir
-        print (CLIColors.OKGREEN  + 'Successfully loaded project ' + project_name + '.' + CLIColors.ENDC)
+        clp.success(f'Successfully loaded project {project_name}.')
         return True
 
 
@@ -82,33 +85,35 @@ class ProjectManager:
 
         """
         self.cfg = cfg
-        if (os.path.isfile(os.path.join(self.parent_dir, self.cfg.PROJECTS_ROOT_PATH, name,
-                   'config.yaml'))):
-            print (f'{CLIColors.FAIL}Project already exist, change name or delete old project.{CLIColors.ENDC}')
+        if (os.path.isfile(os.path.join(self.parent_dir,
+                    self.cfg.PROJECTS_ROOT_PATH, name, 'config.yaml'))):
+            clp.error('Project already exist, change name or delete old '
+                        'project.')
             self.cfg = None
             return False
 
         if not os.path.isdir(dataset2D_path):
-            print (f'{CLIColors.FAIL}Dataset2D directory does not exist.{CLIColors.ENDC}')
+            clp.error('Dataset2D directory does not exist. Aborting...')
             return False
         if dataset3D_path != None:
             if not os.path.isdir(dataset3D_path):
-                print (f'{CLIColors.FAIL}Dataset3D directory does not exist.{CLIColors.ENDC}')
+                clp.error('Dataset3D directory does not exist. Aborting...')
                 return False
 
         self.cfg.PROJECT_NAME = name
         self.cfg.DATASET.DATASET_2D = dataset2D_path
         self.cfg.DATASET.DATASET_3D = dataset3D_path
-        os.makedirs(os.path.join(self.parent_dir, cfg.PROJECTS_ROOT_PATH, name), exist_ok=True)
+        os.makedirs(os.path.join(self.parent_dir, cfg.PROJECTS_ROOT_PATH, name),
+                    exist_ok=True)
 
         self.cfg.logPaths = CN()
         self.cfg.savePaths = CN()
 
         for module in ['CenterDetect', 'KeypointDetect', 'HybridNet']:
-            model_savepath = os.path.join(self.parent_dir, self.cfg.PROJECTS_ROOT_PATH, name,
-                        'models', module)
-            log_path = os.path.join(self.parent_dir, self.cfg.PROJECTS_ROOT_PATH, name,
-                        'logs', module)
+            model_savepath = os.path.join(self.parent_dir,
+                        self.cfg.PROJECTS_ROOT_PATH, name, 'models', module)
+            log_path = os.path.join(self.parent_dir,
+                        self.cfg.PROJECTS_ROOT_PATH, name, 'logs', module)
             self.cfg.savePaths[module] = model_savepath
             self.cfg.logPaths[module] = log_path
             os.makedirs(log_path, exist_ok=True)
@@ -117,19 +122,20 @@ class ProjectManager:
         if dataset3D_path != None:
             self._init_dataset3D()
         self._init_config(name)
-        print (f'{CLIColors.OKGREEN}Project {name} created succesfully.{CLIColors.ENDC}')
+        clp.success(f'Project {name} created succesfully.')
         return True
 
 
-    def get_create_config_interactive(self, name, dataset2D_path, dataset3D_path = None):
+    def get_create_config_interactive(self, name, dataset2D_path,
+                dataset3D_path = None):
         st.session_state['creating_project'] = True
         self.cfg = cfg
         self.cfg.PROJECT_NAME = name
         self.cfg.DATASET.DATASET_2D = dataset2D_path
         self.cfg.DATASET.DATASET_3D = dataset3D_path
 
-        if (os.path.isfile(os.path.join(self.parent_dir, self.cfg.PROJECTS_ROOT_PATH, name,
-                   'config.yaml'))):
+        if (os.path.isfile(os.path.join(self.parent_dir,
+                    self.cfg.PROJECTS_ROOT_PATH, name, 'config.yaml'))):
             st.error("Project already exists, please choose a different name.")
             return
         if dataset3D_path != None:
@@ -147,10 +153,16 @@ class ProjectManager:
             suggestions = dataset3D.get_dataset_config()
         st.title("Project Configuration")
         with st.form("config_form"):
-            bbox_size = st.number_input("2D bounding box size (has to be divisible by 64):", value = suggested_bbox_size, min_value=64, step=64)
+            bbox_size = st.number_input("2D bounding box size (has to be "
+                        "divisible by 64):", value = suggested_bbox_size,
+                        min_value=64, step=64)
             if dataset3D_path != None:
-                bbox_size_3D = st.number_input("3D tracking Volume size (has to be divisible by 4*grid_spacing):", value = suggestions["bbox"], min_value=4, step=4)
-                grid_spacing = st.number_input("Grid spacing:", value = suggestions["resolution"], min_value=1, max_value=1024, step=1)
+                bbox_size_3D = st.number_input("3D tracking Volume size "
+                            "(has to be divisible by 4*grid_spacing):",
+                            value = suggestions["bbox"], min_value=4, step=4)
+                grid_spacing = st.number_input("Grid spacing:",
+                            value = suggestions["resolution"],
+                            min_value=1, max_value=1024, step=1)
             submitted2 = st.form_submit_button("Confirm")
         if submitted2:
             if bbox_size % 64 != 0:
@@ -158,12 +170,15 @@ class ProjectManager:
                 return
             if dataset3D_path != None:
                 if bbox_size_3D % 8*grid_spacing != 0:
-                    st.error("3D bounding box size has to be divisible by 4*grid_spacing.")
+                    st.error("3D bounding box size has to be divisible by "
+                                "4*grid_spacing.")
                     return
                 if grid_spacing > bbox_size_3D:
-                    st.error("Grid spacing can not be bigger than bounding box.")
+                    st.error("Grid spacing can not be bigger than "
+                                "bounding box.")
                     return
-            os.makedirs(os.path.join(self.parent_dir, cfg.PROJECTS_ROOT_PATH, name), exist_ok=True)
+            os.makedirs(os.path.join(self.parent_dir,
+                        cfg.PROJECTS_ROOT_PATH, name), exist_ok=True)
             self.cfg.KEYPOINTDETECT.BOUNDING_BOX_SIZE = bbox_size
             self.cfg.KEYPOINTDETECT.NUM_JOINTS = dataset2D.num_keypoints[0]
             if dataset3D_path != None:
@@ -173,10 +188,10 @@ class ProjectManager:
             self.cfg.logPaths = CN()
             self.cfg.savePaths = CN()
             for module in ['CenterDetect', 'KeypointDetect', 'HybridNet']:
-                model_savepath = os.path.join(self.parent_dir, self.cfg.PROJECTS_ROOT_PATH, name,
-                            'models', module)
-                log_path = os.path.join(self.parent_dir, self.cfg.PROJECTS_ROOT_PATH, name,
-                            'logs', module)
+                model_savepath = os.path.join(self.parent_dir,
+                            self.cfg.PROJECTS_ROOT_PATH, name, 'models', module)
+                log_path = os.path.join(self.parent_dir,
+                            self.cfg.PROJECTS_ROOT_PATH, name, 'logs', module)
                 self.cfg.savePaths[module] = model_savepath
                 self.cfg.logPaths[module] = log_path
                 os.makedirs(log_path, exist_ok=True)
@@ -247,7 +262,7 @@ class ProjectManager:
     def _init_dataset2D(self):
         dataset2D = Dataset2D(self.cfg, set='train', mode = 'keypoints')
         suggested_bbox_size = dataset2D.get_dataset_config()
-        print ('\KeypointDetect 2D Configuration:')
+        print ('KeypointDetect 2D Configuration:')
         print (f'Use suggested Bounding Box size of {suggested_bbox_size} '
                'pixels? (yes/no)')
         q = 'Enter custom Bounding Box size, make sure it is divisible by 64:'
@@ -259,36 +274,57 @@ class ProjectManager:
 
 
     def _init_dataset3D(self):
+        print ('HybridNet 3D Configuration:')
         dataset3D = Dataset3D(self.cfg, set='train')
         suggestions  = dataset3D.get_dataset_config()
-        print ('\HybridNet 3D Configuration:')
-        print (f'Use suggested 3D Bounding Box size of {suggestions["bbox"]} '
-               'mm? (yes/no)')
-        q = 'Enter custom 3D Bounding Box size, make sure it is divisible by 8:'
         bbox_size = suggestions["bbox"]
-        bbox_size = self._get_number_from_user(q, suggestions["bbox"], 8)
         resolution_suggestion = int(np.round_((bbox_size/85.)))
-
         print (f'Use suggested grid spacing of {resolution_suggestion} '
-               'mm? (yes/no)')
+        'mm? (yes/no)')
         q = 'Enter custom grid spacing:'
         resolution = resolution_suggestion
         resolution = self._get_number_from_user(q, resolution_suggestion,
-                    bounds = [0,4])
+                    bounds = [0,10])
+        suggestion_bbox = int(bbox_size/(resolution*4))*resolution*4
+        print (f'Use suggested 3D Bounding Box size of {suggestion_bbox} '
+               'mm? (yes/no)')
+        q = (f'Enter custom 3D Bounding Box size, make sure it is divisible '
+                    f'by {resolution*4}:')
+        bbox_size = self._get_number_from_user(q, suggestion_bbox, resolution*4)
+
         self.cfg.HYBRIDNET.ROI_CUBE_SIZE = bbox_size
         self.cfg.HYBRIDNET.GRID_SPACING = resolution
         self.cfg.HYBRIDNET.NUM_CAMERAS = dataset3D.num_cameras
 
 
     def _init_config(self, name):
-        config_path = os.path.join(self.parent_dir, cfg.PROJECTS_ROOT_PATH, name, 'config.yaml')
-        shutil.copyfile(os.path.join(self.parent_dir, 'jarvis/config/config_template.yaml'), config_path)
+        config_path = os.path.join(self.parent_dir, cfg.PROJECTS_ROOT_PATH,
+                    name, 'config.yaml')
+        shutil.copyfile(os.path.join(self.parent_dir,
+                    'jarvis/config/config_template.yaml'), config_path)
         with open(config_path, 'r') as stream:
-            data = ruamel.yaml.load(stream, Loader=ruamel.yaml.RoundTripLoader)
-            self._update_values(data, self.cfg)
+            config_data = ruamel.yaml.load(stream,
+                        Loader=ruamel.yaml.RoundTripLoader)
+            self._update_values(config_data, self.cfg)
+
+            dataset_dir = os.path.join(self.cfg.PARENT_DIR,
+                        self.cfg.DATASET.DATASET_ROOT_DIR,
+                        self.cfg.DATASET.DATASET_3D)
+            dataset_json = open(os.path.join(dataset_dir, 'annotations',
+                        'instances_val.json'))
+            dataset_data = json.load(dataset_json)
+            keypoints = dataset_data['keypoint_names']
+            config_data['KEYPOINT_NAMES'] = keypoints
+            skeleton = []
+            for component in dataset_data['skeleton']:
+                 skeleton.append([component['keypointA'],
+                            component['keypointB']])
+            config_data['SKELETON'] = skeleton
 
         with open(config_path, 'w') as outfile:
-            ruamel.yaml.dump(data, outfile, Dumper=ruamel.yaml.RoundTripDumper)
+            ruamel.yaml.dump(config_data, outfile,
+                        Dumper=ruamel.yaml.RoundTripDumper)
+
 
 
     def _update_values(self, config_dict, cfg):

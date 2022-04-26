@@ -1,37 +1,110 @@
 #General Configuration
-DATALOADER_NUM_WORKERS: 4
+DATALOADER_NUM_WORKERS: 16
 
 #Dataset Configuration
 DATASET:
   DATASET_2D: Example_Dataset
   DATASET_3D: Example_Dataset
 
-#EfficientTrack 2D  Center Detector Configuration:
+#EfficientTrack 2D Center Detector Configuration:
 CENTERDETECT:
-  COMPOUND_COEF: 0
-  BATCH_SIZE: 4
-  MAX_LEARNING_RATE: 0.02
+  MODEL_SIZE: 'small'
+  BATCH_SIZE: 8
+  MAX_LEARNING_RATE: 0.01
   NUM_EPOCHS: 50
   CHECKPOINT_SAVE_INTERVAL: 10
   IMAGE_SIZE: 256
 
 #EfficientTrack 2D Keypoint Detector Configuration
 KEYPOINTDETECT:
-  COMPOUND_COEF: 0
-  BATCH_SIZE: 4
-  MAX_LEARNING_RATE: 0.02
+  MODEL_SIZE: 'small'
+  BATCH_SIZE: 16
+  MAX_LEARNING_RATE: 0.01
   NUM_EPOCHS: 100
-  CHECKPOINT_SAVE_INTERVAL: 1
+  CHECKPOINT_SAVE_INTERVAL: 10
   BOUNDING_BOX_SIZE: 256
   NUM_JOINTS: 23
 
-#Vortex Configuration
+#hybridNet Configuration
 HYBRIDNET:
   BATCH_SIZE: 1
-  MAX_LEARNING_RATE: 0.02
+  MAX_LEARNING_RATE: 0.01
   NUM_EPOCHS: 50
-  CHECKPOINT_SAVE_INTERVAL: 1
+  CHECKPOINT_SAVE_INTERVAL: 10
 
   NUM_CAMERAS: 12
-  ROI_CUBE_SIZE: 160
+  ROI_CUBE_SIZE: 144
   GRID_SPACING: 2
+
+KEYPOINT_NAMES:
+- Pinky_T
+- Pinky_D
+- Pinky_M
+- Pinky_P
+- Ring_T
+- Ring_D
+- Ring_M
+- Ring_P
+- Middle_T
+- Middle_D
+- Middle_M
+- Middle_P
+- Index_T
+- Index_D
+- Index_M
+- Index_P
+- Thumb_T
+- Thumb_D
+- Thumb_M
+- Thumb_P
+- Palm
+- Wrist_U
+- Wrist_R
+
+SKELETON:
+- - Pinky_T
+  - Pinky_D
+- - Pinky_D
+  - Pinky_M
+- - Pinky_M
+  - Pinky_P
+- - Ring_T
+  - Ring_D
+- - Ring_D
+  - Ring_M
+- - Ring_M
+  - Ring_P
+- - Middle_T
+  - Middle_D
+- - Middle_D
+  - Middle_M
+- - Middle_M
+  - Middle_P
+- - Index_T
+  - Index_D
+- - Index_D
+  - Index_M
+- - Index_M
+  - Index_P
+- - Thumb_T
+  - Thumb_D
+- - Thumb_D
+  - Thumb_M
+- - Thumb_M
+  - Thumb_P
+- - Pinky_P
+  - Ring_P
+- - Ring_P
+  - Middle_P
+- - Middle_P
+  - Index_P
+- - Index_P
+  - Thumb_M
+- - Index_P
+  - Thumb_P
+- - Pinky_P
+  - Wrist_U
+- - Wrist_U
+  - Wrist_R
+- - Wrist_R
+  - Thumb_P

@@ -1,23 +1,23 @@
-#General Configuration
+# General Configuration
 DATALOADER_NUM_WORKERS:
 
-#Dataset Configuration
+# Dataset Configuration
 DATASET:
   DATASET_2D:
   DATASET_3D:
 
-#Center Detector Configuration:
+# Center Detector Configuration:
 CENTERDETECT:
-  COMPOUND_COEF:
+  MODEL_SIZE:
   BATCH_SIZE:
   MAX_LEARNING_RATE:
   NUM_EPOCHS:
   CHECKPOINT_SAVE_INTERVAL:
   IMAGE_SIZE:
 
-#EfficientTrack Configuration
+# EfficientTrack Configuration
 KEYPOINTDETECT:
-  COMPOUND_COEF:
+  MODEL_SIZE:
   BATCH_SIZE:
   MAX_LEARNING_RATE:
   NUM_EPOCHS:
@@ -25,11 +25,11 @@ KEYPOINTDETECT:
   BOUNDING_BOX_SIZE:
   NUM_JOINTS:
 
-#Vortex Configuration
+# Hybridnet Configuration
 HYBRIDNET:
   BATCH_SIZE:
   MAX_LEARNING_RATE:
-  NUM_EPOCHS: 
+  NUM_EPOCHS:
   CHECKPOINT_SAVE_INTERVAL:
 
   NUM_CAMERAS:

@@ -20,7 +20,7 @@ from torch.utils.data import DataLoader
 from .model import HybridNetBackbone
 from .loss import MSELoss
 import jarvis.utils.utils as utils
-from jarvis.logger.logger import NetLogger, AverageMeter
+from jarvis.utils.logger import NetLogger, AverageMeter
 import jarvis.efficienttrack.darkpose as darkpose
 
 import warnings
@@ -105,13 +105,15 @@ class HybridNet:
         dirs.reverse()
         for weights_dir in dirs:
             weigths_path = os.path.join(weights_dir,
-                        f'HybridNet-d{self.cfg.KEYPOINTDETECT.COMPOUND_COEF}_final.pth')
+                        f'HybridNet-{self.cfg.KEYPOINTDETECT.MODEL_SIZE}'
+                        f'_final.pth')
             if os.path.isfile(weigths_path):
                 return weigths_path
         return None
 
 
-    def train(self, training_set, validation_set, num_epochs, start_epoch = 0, streamlitWidgets = None):
+    def train(self, training_set, validation_set, num_epochs, start_epoch = 0,
+                streamlitWidgets = None):
         """
         Function to train the network on a given dataset for a set number of
         epochs. Most of the training parameters can be set in the config file.
@@ -204,7 +206,8 @@ class HybridNet:
                 count = 0
                 for i,keypoints_batch in enumerate(keypoints):
                     for j,keypoint in enumerate(keypoints_batch):
-                        if keypoint[0] != 0 or keypoint[1] != 0  or keypoint[2] != 0:
+                        if (keypoint[0] != 0 or keypoint[1] != 0
+                                    or keypoint[2] != 0):
                             acc += torch.sqrt(torch.sum(
                                         (keypoint-outputs[2][i][j])**2))
                             count += 1
@@ -223,12 +226,15 @@ class HybridNet:
                         epoch, num_epochs, self.lossMeter.read(),
                         self.accuracyMeter.read()))
                 if streamlitWidgets != None:
-                    streamlitWidgets[1].progress(float(counter+1)/float(len(training_generator)))
+                    streamlitWidgets[1].progress(float(counter+1)
+                                / float(len(training_generator)))
 
             latest_train_loss = self.lossMeter.read()
             train_losses.append(latest_train_loss)
             latest_train_acc = self.accuracyMeter.read()
             train_accs.append(latest_train_acc)
+            self.logger.update_learning_rate(
+                        self.optimizer.param_groups[0]['lr'])
             self.logger.update_train_loss(self.lossMeter.read())
             self.logger.update_train_accuracy(self.accuracyMeter.read())
 
@@ -240,10 +246,13 @@ class HybridNet:
 
             if (epoch + 1) % self.cfg.HYBRIDNET.CHECKPOINT_SAVE_INTERVAL == 0:
                 if epoch + 1 < num_epochs:
-                    self.save_checkpoint(f'HybridNet-d{self.cfg.KEYPOINTDETECT.COMPOUND_COEF}_Epoch_{epoch+1}.pth')
+                    self.save_checkpoint(f'HybridNet-'
+                                f'{self.cfg.KEYPOINTDETECT.MODEL_SIZE}_Epoch_'
+                                f'{epoch+1}.pth')
                     print('checkpoint...')
             if epoch + 1 == num_epochs:
-                self.save_checkpoint(f'HybridNet-d{self.cfg.KEYPOINTDETECT.COMPOUND_COEF}_final.pth')
+                self.save_checkpoint(f'HybridNet-'
+                            f'{self.cfg.KEYPOINTDETECT.MODEL_SIZE}_final.pth')
 
             if epoch % self.cfg.HYBRIDNET.VAL_INTERVAL == 0:
                 self.model.eval()
@@ -268,7 +277,8 @@ class HybridNet:
                         cameraMatrices = cameraMatrices.cuda()
                         intrinsicMatrices = intrinsicMatrices.cuda()
                         distortionCoefficients = distortionCoefficients.cuda()
-                        img_size = torch.tensor(self.cfg.DATASET.IMAGE_SIZE).cuda()
+                        img_size = torch.tensor(
+                                    self.cfg.DATASET.IMAGE_SIZE).cuda()
 
                         outputs = self.model(imgs,
                                              img_size,
@@ -283,7 +293,8 @@ class HybridNet:
                         count = 0
                         for i,keypoints_batch in enumerate(keypoints):
                             for j,keypoint in enumerate(keypoints_batch):
-                                if keypoint[0] != 0 or keypoint[1] != 0  or keypoint[2] != 0:
+                                if (keypoint[0] != 0 or keypoint[1] != 0
+                                            or keypoint[2] != 0):
                                     acc += torch.sqrt(torch.sum(
                                                 (keypoint-outputs[2][i][j])**2))
                                     count += 1
@@ -309,12 +320,18 @@ class HybridNet:
             if streamlitWidgets != None:
                 streamlitWidgets[0].progress(float(epoch+1)/float(num_epochs))
                 streamlitWidgets[2].markdown(f"Epoch {epoch+1}/{num_epochs}")
-                streamlitWidgets[3].line_chart({'Train Loss': train_losses, 'Val Loss': val_losses})
-                streamlitWidgets[4].line_chart({'Train Accuracy [mm]': train_accs, 'Val Accuracy [mm]': val_accs})
-                st.session_state['HybridNet/' + self.training_mode + '/Train Loss'] = train_losses
-                st.session_state['HybridNet/' + self.training_mode + '/Val Loss'] = val_losses
-                st.session_state['HybridNet/' + self.training_mode + '/Train Accuracy'] = train_accs
-                st.session_state['HybridNet/' + self.training_mode + '/Val Accuracy'] = val_accs
+                streamlitWidgets[3].line_chart({'Train Loss': train_losses,
+                            'Val Loss': val_losses})
+                streamlitWidgets[4].line_chart({'Train Accuracy [mm]':
+                            train_accs, 'Val Accuracy [mm]': val_accs})
+                st.session_state['HybridNet/' + self.training_mode
+                            + '/Train Loss'] = train_losses
+                st.session_state['HybridNet/' + self.training_mode
+                            + '/Val Loss'] = val_losses
+                st.session_state['HybridNet/' + self.training_mode
+                            + '/Train Accuracy'] = train_accs
+                st.session_state['HybridNet/' + self.training_mode
+                            + '/Val Accuracy'] = val_accs
                 st.session_state['results_available'] = True
 
         final_results = {'train_loss': latest_train_loss,

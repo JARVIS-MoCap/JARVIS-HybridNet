@@ -20,6 +20,8 @@ current_dir = os.path.dirname(os.path.abspath(
 parent_dir = os.path.dirname(current_dir)
 sys.path.insert(0, parent_dir)
 
+cv2.setNumThreads(0)
+
 
 class BaseDataset(Dataset):
     """
@@ -41,7 +43,8 @@ class BaseDataset(Dataset):
         if os.path.isabs(dataset_name):
             self.root_dir = dataset_name
         else:
-            self.root_dir = os.path.join(cfg.PARENT_DIR, cfg.DATASET.DATASET_ROOT_DIR, dataset_name)
+            self.root_dir = os.path.join(cfg.PARENT_DIR,
+                        cfg.DATASET.DATASET_ROOT_DIR, dataset_name)
 
         self.set_name = set
 
@@ -53,7 +56,8 @@ class BaseDataset(Dataset):
         for category in self.dataset['categories']:
             self.num_keypoints.append(category['num_keypoints'])
         if self.cameras_to_use != None:
-            self.image_ids = [img["id"] for img in self.dataset["images"] if img['file_name'].split("/")[-2] in self.cameras_to_use]
+            self.image_ids = [img["id"] for img in self.dataset["images"]
+                        if img['file_name'].split("/")[-2] in self.cameras_to_use]
         else:
             self.image_ids = [img["id"] for img in self.dataset["images"]]
 
@@ -97,7 +101,8 @@ class BaseDataset(Dataset):
         if is_id:
             annotations_ids = [ann['id'] for ann in self.imgToAnns[image_index]]
         else:
-            annotations_ids = [ann['id'] for ann in self.imgToAnns[self.image_ids[image_index]]]
+            annotations_ids = [ann['id']
+                        for ann in self.imgToAnns[self.image_ids[image_index]]]
         annotations = np.zeros((0, 5))
         keypoints = np.zeros((0,self.num_keypoints[0]*3))
 

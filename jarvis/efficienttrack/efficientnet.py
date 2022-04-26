@@ -7,14 +7,15 @@ EfficientŃet torch module.
 import torch
 from torch import nn
 from torch.nn import functional as F
+from torch.nn import SiLU
 
-from jarvis.utils.utils import Swish, MemoryEfficientSwish
 from .utils import (
     round_filters,
     round_repeats,
     drop_connect,
     get_model_params,
-    efficientnet_params
+    efficientnet_params,
+    BlockArgs
 )
 
 class MBConvBlock(nn.Module):
@@ -24,11 +25,15 @@ class MBConvBlock(nn.Module):
     :param block_args: Parameters for creating specific block
                        (e.g. number of filters)
     """
-    def __init__(self, block_args, block_idx):
+    def __init__(self, block_args: BlockArgs, block_idx):
         super().__init__()
         self.block_idx = block_idx
         self.padding = {1:{1:0,2:0}, 3:{1:1, 2:1}, 5:{1:2,2:2}}
         self._block_args = block_args
+        self.expand_ratio = block_args.expand_ratio
+        self.input_filters = self._block_args.input_filters
+        self.output_filters = self._block_args.output_filters
+        self.stride = self._block_args.stride
         self.num_groups = 8
         self.has_se = (self._block_args.se_ratio is not None) and (0
                        < self._block_args.se_ratio <= 1)
@@ -41,8 +46,11 @@ class MBConvBlock(nn.Module):
         if self._block_args.expand_ratio != 1:
             self._expand_conv = nn.Conv2d(in_channels=inp, out_channels=oup,
                                           kernel_size=1, bias=False)
-            self._gn0 = nn.GroupNorm(self.num_groups, oup)
-
+            #self._gn0 = nn.GroupNorm(self.num_groups, oup)
+            self._gn0 = nn.InstanceNorm2d(oup)
+        else:
+            self._expand_conv = nn.Identity()
+            self._gn0 = nn.Identity()
         # Depthwise convolution phase
         k = self._block_args.kernel_size
         s = self._block_args.stride
@@ -56,12 +64,14 @@ class MBConvBlock(nn.Module):
             if self._block_args.expand_ratio != 1:
                 self._expand_conv = nn.Conv2d(in_channels=inp, out_channels=oup,
                                               kernel_size=1, bias=False)
-                self._gn0 = nn.GroupNorm(self.num_groups, oup)
+                #self._gn0 = nn.GroupNorm(self.num_groups, oup)
+                self._gn0 = nn.InstanceNorm2d(oup)
             self._depthwise_conv = nn.Conv2d(
                 in_channels=oup, out_channels=oup,
                 groups=oup, kernel_size=k, #groups makes it depthwise
                 stride=s, bias=False, padding = self.padding[k][s])
-        self._gn1 = nn.GroupNorm(self.num_groups, oup)
+        #self._gn1 = nn.GroupNorm(self.num_groups, oup)
+        self._gn1 = nn.InstanceNorm2d(oup)
 
         # Squeeze and Excitation layer, if desired
         if self.has_se:
@@ -76,16 +86,17 @@ class MBConvBlock(nn.Module):
         final_oup = self._block_args.output_filters
         self._project_conv = nn.Conv2d(in_channels=oup, out_channels=final_oup,
                     kernel_size=1, bias=False)
-        self._gn2 = nn.GroupNorm(self.num_groups, final_oup)
-        self._swish = MemoryEfficientSwish()
+        #self._gn2 = nn.GroupNorm(self.num_groups, final_oup)
+        self._gn2 = nn.InstanceNorm2d(final_oup)
+        self._swish = SiLU()
 
-    def forward(self, inputs, drop_connect_rate=None):
+    def forward(self, inputs, drop_connect_rate: float):
         # Expansion and Depthwise Convolution
         x = inputs
         if self.block_idx < 4:
             x = self._depthwise_conv(x)
         else:
-            if self._block_args.expand_ratio != 1:
+            if self.expand_ratio != 1:
                 x = self._expand_conv(inputs)
                 #x = self._gn0(x)
                 #x = self._swish(x)
@@ -107,21 +118,12 @@ class MBConvBlock(nn.Module):
         x = self._gn2(x)
 
         # Skip connection and drop connect
-        input_filters = self._block_args.input_filters
-        output_filters = self._block_args.output_filters
-        if (self.id_skip and self._block_args.stride == 1
-            and input_filters == output_filters):
+        if (self.id_skip and self.stride == 1
+            and self.input_filters == self.output_filters):
             if drop_connect_rate:
                 x = drop_connect(x, p=drop_connect_rate, training=self.training)
             x = x + inputs  # skip connection
         return x
-
-    def set_swish(self, memory_efficient=True):
-        """
-        Sets swish function as memory efficient (for training) or
-        standard (for export)
-        """
-        self._swish = MemoryEfficientSwish() if memory_efficient else Swish()
 
 
 
@@ -136,7 +138,7 @@ class EfficientNet(nn.Module):
                           (e.g. drop_connect_rate)
     """
 
-    def __init__(self, blocks_args=None, global_params=None):
+    def __init__(self, blocks_args: BlockArgs, global_params=None):
         super().__init__()
         assert isinstance(blocks_args, list), 'blocks_args should be a list'
         assert len(blocks_args) > 0, 'block args must be greater than 0'
@@ -147,9 +149,11 @@ class EfficientNet(nn.Module):
         # Stem
         in_channels = 3  # rgb
         out_channels = round_filters(32, self._global_params)
+        self.drop_connect_rate = self._global_params.drop_connect_rate
         self._conv_stem = nn.Conv2d(in_channels, out_channels, kernel_size=3,
                                     stride=2, bias=False, padding = 1)
-        self._gn0 = nn.GroupNorm(self.num_groups, out_channels)
+        #self._gn0 = nn.GroupNorm(self.num_groups, out_channels)
+        self._gn0 = nn.InstanceNorm2d(out_channels)
 
         # Build blocks
         self._blocks = nn.ModuleList([])
@@ -165,7 +169,6 @@ class EfficientNet(nn.Module):
                             self._global_params)
             )
 
-            # The first block needs to take care of stride and filter size increase.
             self._blocks.append(MBConvBlock(block_args, idx))
             if block_args.num_repeat > 1:
                 block_args = block_args._replace(
@@ -173,54 +176,19 @@ class EfficientNet(nn.Module):
             for _ in range(block_args.num_repeat - 1):
                 self._blocks.append(MBConvBlock(block_args, idx))
 
-        # Head
-        in_channels = block_args.output_filters  # output of final block
-        out_channels = round_filters(1280, self._global_params)
-        self._conv_head = nn.Conv2d(in_channels, out_channels, kernel_size=1,
-                                    bias=False)
-        self._gn1 = nn.GroupNorm(self.num_groups, out_channels)
+            self._swish = SiLU()
 
-        # Final linear layer
-        self._avg_pooling = nn.AdaptiveAvgPool2d(1)
-        self._dropout = nn.Dropout(self._global_params.dropout_rate)
-        self._fc = nn.Linear(out_channels, self._global_params.num_classes)
-        self._swish = MemoryEfficientSwish()
-
-    def set_swish(self, memory_efficient=True):
-        """
-        Sets swish function as memory efficient (for training) or
-        standard (for export)
-        """
-        self._swish = MemoryEfficientSwish() if memory_efficient else Swish()
-        for block in self._blocks:
-            block.set_swish(memory_efficient)
-
-
-    def extract_features(self, inputs):
-        # Stem
-        x = self._swish(self._gn0(self._conv_stem(inputs)))
-
-        # Blocks
-        for idx, block in enumerate(self._blocks):
-            drop_connect_rate = self._global_params.drop_connect_rate
-            if drop_connect_rate:
-                drop_connect_rate *= float(idx) / len(self._blocks)
-            x = block(x, drop_connect_rate=drop_connect_rate)
-        # Head
-        x = self._swish(self._gn1(self._conv_head(x)))
-
-        return x
 
     def forward(self, inputs):
         bs = inputs.size(0)
-        # Convolution layers
-        x = self.extract_features(inputs)
+        x = self._swish(self._gn0(self._conv_stem(inputs)))
 
-        # Pooling and final linear layer
-        x = self._avg_pooling(x)
-        x = x.view(bs, -1)
-        x = self._dropout(x)
-        x = self._fc(x)
+        for idx, block in enumerate(self._blocks):
+            drop_connect_rate = self.drop_connect_rate
+            if drop_connect_rate:
+                drop_connect_rate *= float(idx) / len(self._blocks)
+            x = block(x, drop_connect_rate=drop_connect_rate)
+
         return x
 
     @classmethod

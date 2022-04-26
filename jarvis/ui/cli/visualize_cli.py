@@ -1,7 +1,8 @@
 import click
 
 from jarvis.utils.utils import CLIColors
-import jarvis.visualize_interface as visualize
+from jarvis.visualization.visualize_dataset import visualize_2D_sample, \
+            visualize_3D_sample
 
 @click.command()
 @click.option('--start_frame', default = 0, help='TODO')

@@ -1,5 +1,7 @@
 import click
-import jarvis.predict_interface as predict_interface
+#import jarvis.predict_interface as predict_interface
+from jarvis.prediction.predict3D import predict3D as predict3D_funct
+from jarvis.utils.paramClasses import Predict3DParams
 
 
 @click.command()
@@ -72,7 +74,13 @@ def predict3D(project_name, recording_path, weights_center_detect,
     """
     if skeleton_preset == "None":
         skeleton_preset = None
-    predict_interface.predict3D(project_name, recording_path,
-                weights_center_detect, weights_hybridnet,
-                frame_start, number_frames, make_videos, skeleton_preset,
-                dataset_name)
+
+    params = Predict3DParams(project_name, recording_path)
+    params.weights_center_detect = weights_center_detect
+    params.weights_hybridnet = weights_hybridnet
+    params.frame_start = frame_start
+    params.number_frames = number_frames
+    params.make_videos = make_videos
+    params.skeleton_preset = skeleton_preset
+    params.dataset_name = dataset_name
+    predict3D_funct(params)

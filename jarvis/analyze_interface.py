@@ -15,11 +15,10 @@ import streamlit as st
 
 from jarvis.config.project_manager import ProjectManager
 from jarvis.utils.utils import CLIColors
+from jarvis.utils.reprojection import load_reprojection_tools
 from jarvis.dataset.dataset3D import Dataset3D
-from jarvis.efficienttrack.efficienttrack import EfficientTrack
-import jarvis.efficienttrack.darkpose as darkpose
-from jarvis.hybridnet.hybridnet import HybridNet
-from jarvis.prediction.predict3D import load_reprojection_tools
+from jarvis.prediction.jarvis3D import JarvisPredictor3D
+
 
 
 
@@ -53,6 +52,7 @@ def plot_error_histogram(path, additional_data = {}, cutoff = -1):
         distances = np.sqrt(np.sum((points-pointsGT)**2, axis = 2))
         mask = np.sum(pointsGT,axis = 2)
         distances = distances[mask != 0]
+
         if cutoff != -1:
             distances[distances>cutoff] = cutoff
         distances_l[labels[i]] = (distances.reshape(-1))
@@ -129,15 +129,10 @@ def analyze_validation_data(project_name, weights_center = 'latest',
 
     dataset = Dataset3D(cfg = cfg, set='val', analysisMode = True,
                 cameras_to_use = cameras_to_use)
-    hybridNet = HybridNet('inference', project.cfg, weights_hybridnet)
-    centerDetect = EfficientTrack('CenterDetectInference', project.cfg,
-                weights_center)
-    reproTools = load_reprojection_tools(cfg, cameras_to_use = cameras_to_use)
 
-    img_downsampled_shape = centerDetect.cfg.IMAGE_SIZE
-    def process_images(img):
-        img = cv2.resize(img, (img_downsampled_shape,img_downsampled_shape))
-        return img
+    jarvisPredictor = JarvisPredictor3D(project.cfg, weights_center, weights_hybridnet)
+
+    reproTools = load_reprojection_tools(cfg, cameras_to_use = cameras_to_use)
 
     pointsNet = []
     pointsGT = []
@@ -145,6 +140,9 @@ def analyze_validation_data(project_name, weights_center = 'latest',
     for item in tqdm(range(len(dataset.image_ids))):
         if progress_bar != None:
             progress_bar.progress(float(item+1)/len(dataset.image_ids))
+
+        file_name = dataset.imgs[dataset.image_ids[item]]['file_name']
+
         sample = dataset.__getitem__(item)
         keypoints3D = sample[1]
         imgs_orig = sample[0]
@@ -153,79 +151,11 @@ def analyze_validation_data(project_name, weights_center = 'latest',
         reproTool = reproTools[dataset_name]
         num_cameras = imgs_orig.shape[0]
 
-        centerHMs = []
-        camsToUse = []
-        downsampling_scale = np.array([
-                    float(imgs_orig[0].shape[1]/img_downsampled_shape),
-                    float(imgs_orig[0].shape[0]/img_downsampled_shape)])
-        imgs = Parallel(n_jobs=-1, require='sharedmem')(
-                    delayed(process_images, )(img) for img in imgs_orig)
+        imgs = torch.from_numpy(imgs_orig).cuda().float().permute(0,3,1,2)
 
-        imgs = torch.from_numpy(np.array(imgs).transpose(0,3,1,2)).cuda().float()
-        outputs = centerDetect.model(imgs)
-        preds, maxvals = darkpose.get_final_preds(
-                    outputs[1].clamp(0,255).detach().cpu().numpy(), None)
-        camsToUse = []
+        points3D_net = jarvisPredictor(imgs, reproTool.cameraMatrices.cuda(), reproTool.intrinsicMatrices.cuda(), reproTool.distortionCoefficients.cuda())
 
-        for i,val in enumerate(maxvals[:]):
-            if val > 100:
-                camsToUse.append(i)
-        if len(camsToUse) >= 2:
-            center3D = torch.from_numpy(reproTool.reconstructPoint((
-                        preds.reshape(num_cameras,2)*(downsampling_scale*2)).transpose(),
-                        camsToUse))
-            reproPoints = reproTool.reprojectPoint(center3D)
-
-            errors = []
-            errors_valid = []
-            for i in range(num_cameras):
-                if maxvals[i] > 100:
-                    errors.append(np.linalg.norm(preds.reshape(
-                                num_cameras,2)[i]*downsampling_scale*2-reproPoints[i]))
-                    errors_valid.append(np.linalg.norm(preds.reshape(
-                                num_cameras,2)[i]*downsampling_scale*2-reproPoints[i]))
-                else:
-                    errors.append(0)
-            medianError = np.median(np.array(errors_valid))
-            camsToUse = []
-            for i,val in enumerate(maxvals[:]):
-                if val > 100 and errors[i] < 2*medianError:
-                    camsToUse.append(i)
-            center3D = torch.from_numpy(reproTool.reconstructPoint(
-                        (preds.reshape(num_cameras,2)*downsampling_scale*2).transpose(),
-                        camsToUse))
-            reproPoints = reproTool.reprojectPoint(center3D)
-            imgs = []
-            bbox_hw = int(hybridNet.cfg.KEYPOINTDETECT.BOUNDING_BOX_SIZE/2)
-            for idx,reproPoint in enumerate(reproPoints):
-                reproPoint = reproPoint.astype(int)
-                reproPoints[idx][0] = min(max(reproPoint[0], bbox_hw),
-                            img_size[1]-1-bbox_hw)
-                reproPoints[idx][1] = min(max(reproPoint[1], bbox_hw),
-                            img_size[0]-1-bbox_hw)
-                reproPoint[0] = reproPoints[idx][0]
-                reproPoint[1] = reproPoints[idx][1]
-                img = imgs_orig[idx][reproPoint[1]-bbox_hw:reproPoint[1]+bbox_hw,
-                            reproPoint[0]-bbox_hw:reproPoint[0]+bbox_hw, :]
-                imgs.append(img)
-
-
-            imgs = torch.from_numpy(np.array(imgs))
-            imgs = imgs.permute(0,3,1,2).view(1,num_cameras,3,
-                        hybridNet.cfg.KEYPOINTDETECT.BOUNDING_BOX_SIZE,
-                        hybridNet.cfg.KEYPOINTDETECT.BOUNDING_BOX_SIZE).cuda().float()
-            centerHMs = np.array(reproPoints).astype(int)
-
-        if len(camsToUse) >= 2:
-            center3D = center3D.int().cuda()
-            centerHMs = torch.from_numpy(centerHMs).cuda()
-            heatmap3D, heatmaps_padded, points3D_net = hybridNet.model(imgs,
-                        torch.tensor(img_size).cuda(),
-                        torch.unsqueeze(centerHMs,0),
-                        torch.unsqueeze(center3D, 0),
-                        torch.unsqueeze(reproTool.cameraMatrices.cuda(),0),
-                        torch.unsqueeze(reproTool.intrinsicMatrices.cuda(),0),
-                        torch.unsqueeze(reproTool.distortionCoefficients.cuda(),0))
+        if points3D_net != None:
             points3D_net = points3D_net[0].cpu().detach().numpy()
             pointsNet.append(points3D_net)
             pointsGT.append(keypoints3D)
@@ -240,7 +170,7 @@ def analyze_validation_data(project_name, weights_center = 'latest',
 
     savetxt(os.path.join(output_dir, 'points_HybridNet.csv'),
                 np.array(pointsNet).reshape(
-                (-1, hybridNet.cfg.KEYPOINTDETECT.NUM_JOINTS*3)), delimiter=',')
+                (-1, project.cfg.KEYPOINTDETECT.NUM_JOINTS*3)), delimiter=',')
     savetxt(os.path.join(output_dir, 'points_GroundTruth.csv'),
                 np.array(pointsGT).reshape(
-                (-1, hybridNet.cfg.KEYPOINTDETECT.NUM_JOINTS*3)), delimiter=',')
+                (-1, project.cfg.KEYPOINTDETECT.NUM_JOINTS*3)), delimiter=',')

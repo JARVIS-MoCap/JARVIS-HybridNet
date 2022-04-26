@@ -1,8 +1,6 @@
 """
 efficienttrack.py
 =================
-EfficientTrack convenience class, can be used to train and troublshoot the
-EfficientTrack module.
 """
 
 import os
@@ -25,7 +23,7 @@ from .model import EfficientTrackBackbone
 from .loss import HeatmapLoss
 import jarvis.efficienttrack.utils as utils
 import jarvis.efficienttrack.darkpose as darkpose
-from jarvis.logger.logger import NetLogger, AverageMeter
+from jarvis.utils.logger import NetLogger, AverageMeter
 
 import warnings
 #Filter out weird pytorch floordiv deprecation warning, don't know where it's
@@ -52,9 +50,8 @@ class EfficientTrack:
         else:
             self.cfg = self.main_cfg.KEYPOINTDETECT
         self.model = EfficientTrackBackbone(self.cfg,
-                    compound_coef=self.cfg.COMPOUND_COEF,
+                    model_size=self.cfg.MODEL_SIZE,
                     output_channels = self.cfg.NUM_JOINTS)
-
         if mode  == 'KeypointDetect' or mode == 'CenterDetect':
             if run_name == None:
                 run_name = "Run_" + time.strftime("%Y%m%d-%H%M%S")
@@ -78,7 +75,8 @@ class EfficientTrack:
                             self.cfg.MAX_LEARNING_RATE)
             else:
                 self.optimizer = torch.optim.SGD(self.model.parameters(),
-                            self.cfg.MAX_LEARNING_RATE, momentum=0.9, nesterov=True)
+                            self.cfg.MAX_LEARNING_RATE, momentum=0.9,
+                            nesterov=True)
 
         elif mode == 'KeypointDetectInference' or 'CenterDetectInference':
             self.load_weights(weights)
@@ -89,14 +87,6 @@ class EfficientTrack:
             self.model.requires_grad_(False)
             self.model.eval()
 
-        elif mode == 'export':
-            self.model = EfficientTrackBackbone(
-                        num_classes=len(self.cfg.DATASET.OBJ_LIST),
-                        compound_coef=self.cfg.COMPOUND_COEF,
-                        onnx_export = True)
-            self.load_weights(weights)
-            self.model = self.model.cuda()
-
 
     def load_weights(self, weights_path = None):
         if weights_path == 'latest':
@@ -106,9 +96,14 @@ class EfficientTrack:
                 if torch.cuda.is_available():
                     pretrained_dict = torch.load(weights_path)
                 else:
-                    pretrained_dict = torch.load(weights_path, map_location=torch.device('cpu'))
-                if self.mode == "KeypointDetect" and pretrained_dict['final_conv1.weight'].shape[0] != self.cfg.NUM_JOINTS:
-                    pretrained_dict = {k: v for k, v in pretrained_dict.items() if not k in ['final_conv1.weight', 'final_conv2.weight']}
+                    pretrained_dict = torch.load(weights_path,
+                                map_location=torch.device('cpu'))
+                if (self.mode == "KeypointDetect" and
+                            pretrained_dict['final_conv1.weight'].shape[0]
+                            != self.cfg.NUM_JOINTS):
+                    pretrained_dict = {k: v for k, v in pretrained_dict.items()
+                                if not k in ['final_conv1.weight',
+                                'final_conv2.weight']}
                 self.model.load_state_dict(pretrained_dict, strict=False)
                 print(f'Successfully loaded weights: {weights_path}')
                 return True
@@ -118,14 +113,21 @@ class EfficientTrack:
             utils.init_weights(self.model)
             return True
 
+
     def load_ecoset_pretrain(self):
-        weights_path = os.path.join(self.main_cfg.PARENT_DIR, 'pretrained', 'EcoSet', f'EfficientTrack-d{self.cfg.COMPOUND_COEF}.pth')
+        weights_path = os.path.join(self.main_cfg.PARENT_DIR, 'pretrained',
+                    'EcoSet', f'EfficientTrack-{self.cfg.MODEL_SIZE}.pth')
         if os.path.isfile(weights_path):
             if torch.cuda.is_available():
                 pretrained_dict = torch.load(weights_path)
             else:
-                pretrained_dict = torch.load(weights_path, map_location=torch.device('cpu'))
-            pretrained_dict = {k: v for k, v in pretrained_dict.items() if not k in ['final_conv1.weight', 'final_conv2.weight', 'first_conv.pointwise_conv.bias', 'first_conv.gn.weight', 'first_conv.gn.bias', 'first_conv.pointwise_conv.weight']}
+                pretrained_dict = torch.load(weights_path,
+                            map_location=torch.device('cpu'))
+            pretrained_dict = {k: v for k, v in pretrained_dict.items()
+                        if not k in ['final_conv1.weight', 'final_conv2.weight',
+                        'first_conv.pointwise_conv.bias',
+                        'first_conv.gn.weight', 'first_conv.gn.bias',
+                        'first_conv.pointwise_conv.weight']}
             self.model.load_state_dict(pretrained_dict, strict=False)
             print(f'Successfully loaded EcoSet weights: {weights_path}')
             return True
@@ -133,25 +135,33 @@ class EfficientTrack:
             print(f'Could not load EcoSet weights: {weights_path}')
             return False
 
+
     def load_pose_pretrain(self, pose):
         if self.mode == 'CenterDetect' or self.mode == 'CenterDetectInference':
-            weights_name = "EfficientTrack_Center.pth"
+            weights_name = f"EfficientTrack_Center-{self.cfg.MODEL_SIZE}.pth"
         else:
-            weights_name = "EfficientTrack_Keypoints.pth"
-        weights_path = os.path.join(self.main_cfg.PARENT_DIR, 'pretrained', 'PosePretrains', pose, weights_name)
+            weights_name = f"EfficientTrack_Keypoints-{self.cfg.MODEL_SIZE}.pth"
+        weights_path = os.path.join(self.main_cfg.PARENT_DIR, 'pretrained',
+                    pose, weights_name)
         if os.path.isfile(weights_path):
             if torch.cuda.is_available():
                 pretrained_dict = torch.load(weights_path)
             else:
-                pretrained_dict = orch.load(weights_path, map_location=torch.device('cpu'))
-            if self.mode == "KeypointDetect" and pretrained_dict['final_conv1.weight'].shape[0] != self.cfg.NUM_JOINTS:
-                pretrained_dict = {k: v for k, v in pretrained_dict.items() if not k in ['final_conv1.weight', 'final_conv2.weight']}
+                pretrained_dict = torch.load(weights_path,
+                            map_location=torch.device('cpu'))
+            if (self.mode == "KeypointDetect"
+                        and pretrained_dict['final_conv1.weight'].shape[0]
+                        != self.cfg.NUM_JOINTS):
+                pretrained_dict = {k: v for k, v in pretrained_dict.items()
+                            if not k in ['final_conv1.weight',
+                            'final_conv2.weight']}
             self.model.load_state_dict(pretrained_dict, strict=False)
             print(f'Successfully loaded {pose} weights: {weights_path}')
             return True
         else:
             print(f'Could not load {pose} weights: {weights_path}')
             return False
+
 
     def get_latest_weights(self):
         model_dir = ''
@@ -160,16 +170,16 @@ class EfficientTrack:
         else:
             model_dir = 'KeypointDetect'
         search_path = os.path.join(self.main_cfg.PARENT_DIR, 'projects',
-                                   self.main_cfg.PROJECT_NAME, 'models', model_dir)
+                                   self.main_cfg.PROJECT_NAME, 'models',
+                                   model_dir)
         dirs = os.listdir(search_path)
-        dirs = [os.path.join(search_path, d) for d in dirs] # add path to each file
+        dirs = [os.path.join(search_path, d) for d in dirs]
         dirs.sort(key=lambda x: os.path.getmtime(x))
         dirs.reverse()
         for weights_dir in dirs:
             weigths_path = os.path.join(weights_dir,
-                        f'EfficientTrack-d{self.cfg.COMPOUND_COEF}_final.pth')
+                        f'EfficientTrack-{self.cfg.MODEL_SIZE}_final.pth')
             if os.path.isfile(weigths_path):
-                print (weigths_path)
                 return weigths_path
         return None
 
@@ -182,15 +192,8 @@ class EfficientTrack:
         self.load_weights(weights_path)
 
 
-    def freeze_backbone(self):
-        classname = self.model.__class__.__name__
-        for ntl in ['EfficientNet', 'BiFPN']:
-            if ntl in classname:
-                for param in self.model.parameters():
-                    param.requires_grad = False
-
-
-    def train(self, training_set, validation_set, num_epochs, start_epoch = 0, streamlitWidgets = None):
+    def train(self, training_set, validation_set, num_epochs, start_epoch = 0,
+                streamlitWidgets = None):
         """
         Function to train the network on a given dataset for a set number of
         epochs. Most of the training parameters can be set in the config file.
@@ -272,12 +275,14 @@ class EfficientTrack:
                     'Epoch: {}/{}. Loss: {:.5f}'.format(
                         epoch+1, num_epochs, self.lossMeter.read()))
                 if streamlitWidgets != None:
-                    streamlitWidgets[1].progress(float(count+1)/float(len(training_generator)))
+                    streamlitWidgets[1].progress(float(count + 1)
+                                / float(len(training_generator)))
 
             if not self.cfg.USE_ONECYLCLE:
                 self.scheduler.step(self.lossMeter.read())
 
-            self.logger.update_learning_rate(self.optimizer.param_groups[0]['lr'])
+            self.logger.update_learning_rate(
+                        self.optimizer.param_groups[0]['lr'])
             self.logger.update_train_loss(self.lossMeter.read())
             latest_train_loss = self.lossMeter.read()
             train_losses.append(latest_train_loss)
@@ -285,10 +290,12 @@ class EfficientTrack:
 
             if (epoch + 1) % self.cfg.CHECKPOINT_SAVE_INTERVAL == 0:
                 if epoch + 1 < num_epochs:
-                    self.save_checkpoint(f'EfficientTrack-d{self.cfg.COMPOUND_COEF}_Epoch_{epoch+1}.pth')
+                    self.save_checkpoint(f'EfficientTrack-'
+                                f'{self.cfg.MODEL_SIZE}_Epoch_{epoch+1}.pth')
                     print('checkpoint...')
             if epoch + 1 == num_epochs:
-                self.save_checkpoint(f'EfficientTrack-d{self.cfg.COMPOUND_COEF}_final.pth')
+                self.save_checkpoint(f'EfficientTrack-'
+                            f'{self.cfg.MODEL_SIZE}_final.pth')
 
             if (epoch + 1) % self.cfg.VAL_INTERVAL == 0:
                 self.model.eval()
@@ -337,13 +344,16 @@ class EfficientTrack:
 
                 self.model.train()
                 if streamlitWidgets != None:
-                    streamlitWidgets[0].progress(float(epoch+1)/float(num_epochs))
+                    streamlitWidgets[0].progress(float(epoch + 1)
+                                / float(num_epochs))
                     streamlitWidgets[2].markdown(f"Epoch {epoch+1}/{num_epochs}")
-                    streamlitWidgets[3].line_chart({'Train Loss': train_losses, 'Val Loss': val_losses})
-                    streamlitWidgets[4].line_chart({'Val Accuracy [px]': val_accs})
-                    st.session_state[self.mode + '/' + 'Train Loss'] = train_losses
-                    st.session_state[self.mode + '/' + 'Val Loss'] = val_losses
-                    st.session_state[self.mode + '/' + 'Val Accuracy'] = val_accs
+                    streamlitWidgets[3].line_chart({'Train Loss': train_losses,
+                                'Val Loss': val_losses})
+                    streamlitWidgets[4].line_chart(
+                                {'Val Accuracy [px]': val_accs})
+                    st.session_state[self.mode+'/'+'Train Loss'] = train_losses
+                    st.session_state[self.mode+'/'+'Val Loss'] = val_losses
+                    st.session_state[self.mode+'/'+'Val Accuracy'] = val_accs
                     st.session_state['results_available'] = True
 
 
@@ -367,47 +377,3 @@ class EfficientTrack:
     def save_checkpoint(self, name):
         torch.save(self.model.state_dict(),
                    os.path.join(self.model_savepath, name))
-
-
-    def predictCenter(self, img):
-        img_vis = ((img*self.main_cfg.DATASET.STD)+self.main_cfg.DATASET.MEAN)*255
-        img_shape = img.shape[:2]
-        img = torch.from_numpy(img).permute(2, 0, 1).float()
-        img = img.reshape(1,3,img_shape[0],img_shape[1]).cuda()
-        outputs = self.model(img)
-        preds, maxvals = darkpose.get_final_preds(
-                    outputs[1].clamp(0,255).detach().cpu().numpy(), None)
-        for i,point in enumerate(preds[0]):
-            if (maxvals[0][i]) > 10:
-                cv2.circle(img_vis, (int(point[0]*2), int(point[1])*2), 2, (255,0,0), thickness=5)
-            else:
-                cv2.circle(img_vis, (int(point[0]*2), int(point[1])*2), 2, (100,0,0), thickness=5)
-
-        heatmap = cv2.resize(outputs[1].clamp(0,255).detach().cpu().numpy()[0][0]/255.,
-                    (img_shape[1],img_shape[0]), interpolation=cv2.cv2.INTER_NEAREST)
-        return preds, maxvals, img_vis
-
-
-    def predictKeypoints(self, img):
-        img_vis = ((img*self.main_cfg.DATASET.STD)+self.main_cfg.DATASET.MEAN)*255
-        img= torch.from_numpy(img).permute(2, 0, 1).float()
-        img = img.reshape(1,3,self.main_cfg.KEYPOINTDETECT.BOUNDING_BOX_SIZE,
-                              self.main_cfg.KEYPOINTDETECT.BOUNDING_BOX_SIZE).cuda()
-        outputs = self.model(img)
-        colors = []
-        cmap = matplotlib.cm.get_cmap('jet')
-        for i in range(self.main_cfg.KEYPOINTDETECT.NUM_JOINTS):
-            colors.append(((np.array(
-                    cmap(float(i)/self.main_cfg.KEYPOINTDETECT.NUM_JOINTS)) *
-                    255).astype(int)[:3]).tolist())
-
-        preds, maxvals = darkpose.get_final_preds(
-                    outputs[1].clamp(0,255).detach().cpu().numpy(), None)
-
-        for i,point in enumerate(preds[0]):
-            if (maxvals[0][i]) > 50:
-                cv2.circle(img_vis, (int(point[0]*2), int(point[1])*2), 2, colors[i], thickness=5)
-            else:
-                cv2.circle(img_vis, (int(point[0]*2), int(point[1])*2), 2, (100,100,100), thickness=5)
-
-        return preds, maxvals, img_vis

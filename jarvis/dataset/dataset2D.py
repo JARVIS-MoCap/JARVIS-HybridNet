@@ -162,7 +162,8 @@ class Dataset2D(BaseDataset):
             joints_list = [joints.copy() for _ in range(2)]
         target_list = list()
         for scale_id in range(2):
-            target_t = self.heatmap_generators[scale_id](joints_list[scale_id], animal_size)
+            target_t = self.heatmap_generators[scale_id](joints_list[scale_id],
+                        animal_size)
             target_list.append(target_t.astype(np.float32))
         sample = [img, target_list, keypoints]
         return self.transform(sample)
@@ -211,7 +212,8 @@ class Dataset2D(BaseDataset):
         joints_list = [joints.copy() for _ in range(2)]
         target_list = list()
         for scale_id in range(2):
-            target_t = self.heatmap_generators[scale_id](joints_list[scale_id], animal_size)
+            target_t = self.heatmap_generators[scale_id](joints_list[scale_id],
+                        animal_size)
             target_list.append(target_t.astype(np.float32))
         sample = [img, target_list, keypoints]
         sample =  self.transform(sample)
@@ -239,7 +241,8 @@ class Dataset2D(BaseDataset):
         # plt.hist(x_sizes, bins='auto')
         # plt.hist(y_sizes, bins='auto')
         # plt.show()
-        bbox_min_size = np.max([np.percentile(x_sizes,98), np.percentile(y_sizes,98)])
+        bbox_min_size = np.max([np.percentile(x_sizes,98),
+                    np.percentile(y_sizes,98)])
         ind = np.argmax(x_sizes)
         file_name = self.imgs[self.image_ids[ind]]['file_name']
         path = os.path.join(self.root_dir, self.set_name,file_name)

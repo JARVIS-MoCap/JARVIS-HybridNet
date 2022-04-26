@@ -5,24 +5,17 @@ import inquirer as inq
 from jarvis.config.project_manager import ProjectManager
 from jarvis.utils.utils import CLIColors
 import jarvis.train_interface as train_interface
-
+import jarvis.utils.clp as clp
+from jarvis.utils.utils import get_available_pretrains
 
 def cls():
     os.system('cls' if os.name=='nt' else 'clear')
 
 
 def check_gpus():
-    if (torch.cuda.device_count() > 1):
-        gpu_q = [
-            inq.List('gpu',
-                message="Index of GPU to be used",
-                choices=range(torch.cuda.device_count()))
-        ]
-        gpu_id = inq.prompt(gpu_q)['gpu']
-        os.environ["CUDA_VISIBLE_DEVICES"]= str(gpu_id)
     if (torch.cuda.device_count() == 0):
-        print (f'{CLIColors.FAIL}Aborting! You can only run this on a computer '
-                    f'that has at least one GPU...{CLIColors.ENDC}')
+        clp.error('Aborting! You can only run this on a computer '
+                    'that has at least one GPU...')
         print ()
         input("Press Enter to go back to main menu...")
         return False
@@ -49,9 +42,10 @@ def launch_training_menu():
 def get_project_and_pretrain():
     projectManager = ProjectManager()
     projects = projectManager.get_projects()
-    project_name = inq.list_input("Select project to load", choices=projects),
-    weights = inq.list_input("Select pretrain to be used", choices=['None',
-                'HumanHand', 'MonkeyHand', 'HumanBody', 'RatBody', 'MouseBody']),
+    project_name = inq.list_input("Select project to load", choices=projects)
+    available_pretrains = get_available_pretrains(projectManager.parent_dir)
+    weights = inq.list_input("Select pretrain to be used",
+                choices=['None'] + available_pretrains)
 
     if weights == 'None':
         specify_path = inq.list_input("Specify weights to load before training?",
@@ -63,10 +57,10 @@ def get_project_and_pretrain():
     return project_name, weights
 
 
-
 def train_center_detect():
     cls()
-    print (f'{CLIColors.OKGREEN}Training CenterDetect!{CLIColors.ENDC}')
+    print (f'{CLIColors.OKGREEN}{CLIColors.BOLD}Training CenterDetect!'
+                f'{CLIColors.ENDC}')
     print ('You can change all network training setttings in the projects '
                 '\'config.yaml\'.')
     print()
@@ -76,12 +70,11 @@ def train_center_detect():
                     validate = lambda _, x: (x.isdigit() and int(x) > 0)))
     if not check_gpus():
         return
-
     train_interface.train_efficienttrack('CenterDetect', project_name,
                 num_epochs, weights)
     print ()
-    print (f'{CLIColors.OKGREEN}Training finished! You CenterDetect network is '
-                f'ready for prediction, have fun :){CLIColors.ENDC}')
+    clp.success('Training finished! You CenterDetect network is '
+                'ready for prediction, have fun :)')
     print ()
     input("Press Enter to go back to main menu...")
 
@@ -89,29 +82,32 @@ def train_center_detect():
 
 def train_keypoint_detect():
     cls()
-    print (f'{CLIColors.OKGREEN}Training KeypointDetect!{CLIColors.ENDC}')
+    print (f'{CLIColors.OKGREEN}{CLIColors.BOLD}Training KeypointDetect!'
+                f'{CLIColors.ENDC}')
     print ('You can change all network training setttings in the projects '
                 '\'config.yaml\'.')
     print()
     project_name, weights = get_project_and_pretrain()
 
-    num_epochs = int(inq.text("Set Number of Epochs to train for", default = 50,
-                    validate = lambda _, x: (x.isdigit() and int(x) > 0)))
+    num_epochs = int(inq.text("Set Number of Epochs to train for",
+                default = 100,
+                validate = lambda _, x: (x.isdigit() and int(x) > 0)))
     if not check_gpus():
         return
 
-    train_interface.train_efficienttrack('CenterDetect', project_name,
+    train_interface.train_efficienttrack('KeypointDetect', project_name,
                 num_epochs, weights)
     print ()
-    print (f'{CLIColors.OKGREEN}Training finished! You KeypointDetect network is '
-                f'ready for prediction, have fun :){CLIColors.ENDC}')
+    clp.success('{Training finished! You KeypointDetect network is '
+                'ready for prediction, have fun :)')
     print ()
     input("Press Enter to go back to main menu...")
 
 
 def train_hybridnet():
     cls()
-    print (f'{CLIColors.OKGREEN}Training HybridNet!{CLIColors.ENDC}')
+    print (f'{CLIColors.OKGREEN}{CLIColors.BOLD}Training HybridNet!'
+                f'{CLIColors.ENDC}')
     print ('You can change all network training setttings in the projects '
                 '\'config.yaml\'.')
     print()
@@ -119,9 +115,16 @@ def train_hybridnet():
     projects = projectManager.get_projects()
     project_name = inq.list_input("Select project to load", choices=projects)
 
-    weights_keypoint_detect = inq.text("Path to '.pth' KeypointDetect weights file",
-                validate = lambda _, x: ((os.path.isfile(x)
-                and x.split(".")[-1] == 'pth') or x == ""))
+    use_latest_keypoint = inq.list_input("Use most recently saved "
+                "KeypointDetect weights?", choices=["Yes", "No"])
+    if use_latest_keypoint == "Yes":
+        weights_keypoint_detect = 'latest'
+    else:
+        weights_keypoint_detect = inq.text("Path to KeypointDetect "
+                    "'.pth' weights file",
+                    validate = lambda _, x: (os.path.isfile(x)
+                    and x.split(".")[-1] == 'pth'))
+
     if weights_keypoint_detect == "":
         weights_keypoint_detect = None
         weights_hybridnet = inq.text("Path to '.pth' Hybridnet weights file",
@@ -132,7 +135,7 @@ def train_hybridnet():
     else:
         weights_hybridnet = None
 
-    num_epochs = int(inq.text("Set Number of Epochs to train for", default = 100,
+    num_epochs = int(inq.text("Set Number of Epochs to train for", default = 50,
                 validate = lambda _, x: (x.isdigit() and int(x) > 0)))
     mode = inq.list_input("Select training mode", choices= ['3D_only',
                 'last_layers', 'bifpn', 'all'])
@@ -146,15 +149,16 @@ def train_hybridnet():
     train_interface.train_hybridnet(project_name, num_epochs,
                 weights_keypoint_detect, weights_hybridnet, mode, finetune)
     print ()
-    print (f'{CLIColors.OKGREEN}Training finished! You HybridNet is '
-                f'ready for prediction, have fun :){CLIColors.ENDC}')
+    clp.success('Training finished! You HybridNet is '
+                'ready for prediction, have fun :)')
     print ()
     input("Press Enter to go back to main menu...")
 
 
 def train_all():
     cls()
-    print (f'{CLIColors.OKGREEN}Training Full Network Stack!{CLIColors.ENDC}')
+    print (f'{CLIColors.OKGREEN}{CLIColors.BOLD}Training Full Network Stack!'
+                f'{CLIColors.ENDC}')
     print ('You can change all network training setttings in the projects '
                 '\'config.yaml\'.')
     print()
@@ -216,13 +220,13 @@ def train_all():
                 f'epochs...')
     train_interface.train_hybridnet(project_name, num_epochs_hybridnet,
                 'latest', None, '3D_only')
-    if settings['finetune']:
+    if settings['finetune'] == 'Yes':
         print (f'Finetuning complete HybridNet for {num_epochs_hybridnet} '
                     f'epochs...')
         train_interface.train_hybridnet(project_name, num_epochs_hybridnet,
                     None, 'latest', 'all', finetune = True)
     print ()
-    print (f'{CLIColors.OKGREEN}Training finished! You networks are '
-                f'ready for prediction, have fun :){CLIColors.ENDC}')
+    clp.success('{Training finished! You networks are '
+                f'ready for prediction, have fun :)')
     print ()
     input("Press Enter to go back to main menu...")
