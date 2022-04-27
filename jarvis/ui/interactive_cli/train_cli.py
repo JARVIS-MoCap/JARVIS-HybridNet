@@ -164,15 +164,14 @@ def train_all():
     print()
     projectManager = ProjectManager()
     projects = projectManager.get_projects()
-
+    available_pretrains = get_available_pretrains(projectManager.parent_dir)
     questions = [
         inq.List('project_name',
             message="Select project to load",
             choices=projects),
         inq.List('pretrain',
             message="Select pretrain to be used",
-            choices=['None', 'HumanHand', 'MonkeyHand', 'HumanBody',
-            'RatBody', 'MouseBody']),
+            choices=['None'] + available_pretrains),
         inq.List('finetune', message="Finetune HybridNet? "
                     "(Slow and GPU RAM-hungry)", choices=["Yes", "No"],
                     default="No"),

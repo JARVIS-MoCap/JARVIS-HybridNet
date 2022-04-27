@@ -34,7 +34,7 @@ def get_latest_weights_efficienttrack(cfg, mode):
     dirs.reverse()
     for weights_dir in dirs:
         weigths_path = os.path.join(weights_dir,
-                    f'EfficientTrack-d{cfg.KEYPOINTDETECT.COMPOUND_COEF}'
+                    f'EfficientTrack-{cfg.KEYPOINTDETECT.MODEL_SIZE}'
                     f'_final.pth')
         if os.path.isfile(weigths_path):
             return weigths_path
@@ -93,7 +93,6 @@ def train_efficienttrack(mode, project_name, num_epochs, weights,
         elif weights == "ecoset" or weights == "EcoSet":
             found_weights = efficientTrack.load_ecoset_pretrain()
         elif weights in pose_pretrain_list:
-            print ("WOOOOORKS")
             found_weights = efficientTrack.load_pose_pretrain(weights)
         else:
             found_weights = efficientTrack.load_weights(weights)

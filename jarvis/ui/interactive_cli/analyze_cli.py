@@ -7,7 +7,8 @@ import matplotlib.pyplot as plt
 
 from jarvis.config.project_manager import ProjectManager
 from jarvis.utils.utils import CLIColors
-import jarvis.analyze_interface as analyze_interface
+import jarvis.analysis.analyze as analyze
+import jarvis.analysis.plotting as plotting
 
 
 
@@ -77,7 +78,7 @@ def analyze_validation_data():
                     choices=camera_names)
     else:
         cameras_to_use = None
-    analyze_interface.analyze_validation_data(project_name, weights_center,
+    analyze.analyze_validation_data(project_name, weights_center,
                 weights_hybridnet, cameras_to_use)
 
     print ()
@@ -123,14 +124,14 @@ def plot_error_histogram():
     if use_cutoff == "Yes":
         cutoff = int(inq.text("Cutoff Value", default = "30",
                     validate = lambda _, x: (x.isdigit() and int(x) > 0)))
-    analyze_interface.plot_error_histogram(path, additional_data, cutoff)
+    plotting.plot_error_histogram(path, additional_data, cutoff)
     launch_analyze_menu()
 
 
 def plot_error_per_keypoint():
     cls()
     path = get_analysis_path()
-    analyze_interface.plot_error_per_keypoint(path)
+    plotting.plot_error_per_keypoint(path)
     print ()
     input ("press Enter to continue")
     launch_analyze_menu()

@@ -4,13 +4,19 @@ import torch
 import cv2
 import inquirer as inq
 import matplotlib.pyplot as plt
+from ruamel.yaml import YAML
+
 
 from jarvis.config.project_manager import ProjectManager
 from jarvis.utils.utils import CLIColors
 from jarvis.visualization.visualize_dataset import visualize_2D_sample, \
             visualize_3D_sample
+from jarvis.visualization.create_videos import create_videos3D
+
 from jarvis.dataset.dataset2D import Dataset2D
 from jarvis.dataset.dataset3D import Dataset3D
+
+from jarvis.utils.paramClasses import CreateVideos3DParams
 
 
 def cls():
@@ -28,12 +34,16 @@ def launch_visualize_menu():
     cls()
     training_menu = [
       inq.List('menu',
-            message=f"{CLIColors.OKGREEN}{CLIColors.BOLD}Training Menu{CLIColors.ENDC}",
-            choices=['Visualize Dataset2D', 'Visualize Dataset3D', '<< back'])
+            message=f"{CLIColors.OKGREEN}{CLIColors.BOLD}Visualize"
+                        f" Menu{CLIColors.ENDC}",
+            choices=['Create Videos 3D', 'Visualize Dataset2D',
+                        'Visualize Dataset3D', '<< back'])
     ]
     menu = inq.prompt(training_menu)['menu']
     if menu == '<< back':
         return
+    elif menu == "Create Videos 3D":
+        create_videos_3D()
     elif menu == "Visualize Dataset2D":
         visualize_2D()
     elif menu == "Visualize Dataset3D":
@@ -70,7 +80,8 @@ def visualize_2D():
     cancel_2D['cancel'] = False
     for idx in range(len(set.image_ids)):
         fig = visualize_2D_sample(set, mode, idx)
-        fig.canvas.mpl_connect('key_press_event', lambda event: on_press(event, cancel_2D))
+        fig.canvas.mpl_connect('key_press_event',
+                    lambda event: on_press(event, cancel_2D))
         plt.show()
         if cancel_2D['cancel']:
             cancel_2D['cancel'] = False
@@ -108,7 +119,8 @@ def visualize_3D():
     cancel_3D['cancel'] = False
     for idx in range(len(set.image_ids)):
         fig = visualize_3D_sample(set, idx)
-        fig.canvas.mpl_connect('key_press_event', lambda event: on_press(event, cancel_3D))
+        fig.canvas.mpl_connect('key_press_event',
+                    lambda event: on_press(event, cancel_3D))
         plt.show()
         if cancel_3D['cancel']:
             cancel_3D['cancel'] = False
@@ -117,3 +129,87 @@ def visualize_3D():
             return
     cls()
     launch_visualize_menu()
+
+
+def create_videos_3D():
+    print (f'{CLIColors.OKGREEN}Create Videos 3D Menu{CLIColors.ENDC}')
+    print ('This mode lets you create annotated videos from one of your '
+                'predictions.')
+
+    projectManager = ProjectManager()
+    projects = projectManager.get_projects()
+    project_name = inq.list_input("Select project to load", choices=projects)
+    projectManager.load(project_name)
+    cfg = projectManager.get_cfg()
+
+
+    data_csv = None
+    prediction_path = get_prediction_path(cfg)
+    print (prediction_path)
+    if prediction_path != None:
+        data_csv = get_data_csv(prediction_path)
+
+    if data_csv == None:
+        print ("No '.csv' file containing predictions found! Aborting...")
+        print()
+        input("Press Enter to go back to main menu...")
+        return
+
+    with open(os.path.join(prediction_path, 'info.yaml')) as file:
+        yaml = YAML()
+        info_yaml = yaml.load(file)
+        recordings_path = info_yaml['recording_path']
+        dataset_name = info_yaml['dataset_name']
+        frame_start = info_yaml['frame_start']
+        number_frames = info_yaml['number_frames']
+
+    params = CreateVideos3DParams(project_name, recordings_path, data_csv)
+
+    params.dataset_name = dataset_name
+    params.frame_start = frame_start
+    params.number_frames = number_frames
+
+    example_vid = os.path.join(recordings_path,os.listdir(recordings_path)[0])
+
+    params.make_videos = True
+    cameras = []
+    videos = os.listdir(params.recording_path)
+    for video in os.listdir(params.recording_path):
+        cameras.append(video.split('.')[0])
+    params.video_cam_list = inq.checkbox("Select cameras to create videos "
+                "with", choices=cameras, default = cameras)
+
+    create_videos3D(params)
+
+    print()
+    input("Press Enter to go back to main menu...")
+
+
+def get_prediction_path(cfg):
+    predict_path = os.path.join(cfg.PARENT_DIR,
+                cfg.PROJECTS_ROOT_PATH, cfg.PROJECT_NAME,
+                'predictions', 'predictions3D')
+
+    if (not os.path.exists(predict_path)) or len(os.listdir(predict_path)) == 0:
+        print ("No predictions created yet. Please run Predict3D first!")
+        return None
+
+    prediction = inq.list_input("Select Prediction to load",
+                choices = sorted(os.listdir(predict_path))[::-1])
+    path = os.path.join(predict_path, prediction)
+    return path
+
+def get_data_csv(path):
+    files = os.listdir(path)
+    print (files)
+    files = [file for file in files if file.split(".")[-1] == 'csv']
+    if len(files) == 1:
+        data_csv = os.path.join(path, files[0])
+        return data_csv
+    elif len(files) > 1:
+        data_csv = inq.list_input("Select prediction savefile to use",
+                    choices=files)
+        return os.path.join(path, data_csv)
+
+
+    return None

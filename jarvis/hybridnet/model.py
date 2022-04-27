@@ -74,6 +74,9 @@ class HybridNetBackbone(nn.Module):
              pad = [1,1,1,1], mode='constant', value=0.)
         heatmaps3D = self.reproLayer(heatmaps_padded, center3D,centerHM,
                     cameraMatrices, intrinsicMatrices, distortionCoefficients)
+        if (self.training):
+            heatmaps3D = self.drop_joint(heatmaps3D)    
+
         heatmap_final = self.v2vNet((heatmaps3D/255.))
         heatmap_final = self.softplus(heatmap_final)
         #heatmap_final = heatmaps_gt

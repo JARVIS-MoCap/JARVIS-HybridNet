@@ -223,7 +223,7 @@ class HybridNet:
 
                 progress_bar.set_description(
                     'Epoch: {}/{}. Loss: {:.4f}. Acc: {:.2f}'.format(
-                        epoch, num_epochs, self.lossMeter.read(),
+                        epoch+1, num_epochs, self.lossMeter.read(),
                         self.accuracyMeter.read()))
                 if streamlitWidgets != None:
                     streamlitWidgets[1].progress(float(counter+1)

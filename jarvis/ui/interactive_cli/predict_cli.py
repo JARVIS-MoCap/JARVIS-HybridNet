@@ -149,19 +149,6 @@ def predict_3D():
     params.frame_start, params.number_frames = \
                 get_frame_start_number(example_vid)
 
-    make_videos = inq.list_input("Make Videos overlayed with the predictions?",
-                choices=["Yes", "No"])
-    if make_videos == "Yes":
-        params.make_videos = True
-        cameras = []
-        videos = os.listdir(params.recording_path)
-        for video in os.listdir(params.recording_path):
-            cameras.append(video.split('.')[0])
-        params.video_cam_list = inq.checkbox("Select cameras to create videos "
-                    "with", choices=cameras, default = cameras[0])
-    else:
-        params.make_videos = False
-
     predict3D(params)
 
     print()

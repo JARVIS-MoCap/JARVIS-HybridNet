@@ -1,7 +1,8 @@
 import click
 import os
 
-import jarvis.analyze_interface as analyze_interface
+import jarvis.analysis.analyze as analyze
+import jarvis.analysis.plotting as plotting
 from jarvis.config.project_manager import ProjectManager
 
 
@@ -28,7 +29,7 @@ def analyze_validation_data(project_name, weights_center_detect,
     """
     Analyse the validation data of your projects dataset.
     """
-    analyze_interface.analyze_validation_data(project_name, weights_center_detect,
+    analyze.analyze_validation_data(project_name, weights_center_detect,
                 weights_hybridnet, None)
 
 
@@ -52,7 +53,7 @@ def plot_error_histogram(project_name, analysis_path, cutoff):
         dirs = [os.path.join(analysis_root_path, d) for d in dirs] # add path to each file
         dirs.sort(key=lambda x: os.path.getmtime(x))
         analysis_path = dirs[-1]
-    analyze_interface.plot_error_histogram(analysis_path, {}, cutoff)
+    plotting.plot_error_histogram(analysis_path, {}, cutoff)
 
 
 @click.command()
@@ -70,4 +71,4 @@ def plot_error_per_keypoint(project_name, analysis_path):
         dirs = [os.path.join(analysis_root_path, d) for d in dirs] # add path to each file
         dirs.sort(key=lambda x: os.path.getmtime(x))
         analysis_path = dirs[-1]
-    analyze_interface.plot_error_per_keypoint(analysis_path)
+    plotting.plot_error_per_keypoint(analysis_path)

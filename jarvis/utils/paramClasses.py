@@ -16,6 +16,7 @@ class Predict3DParams:
     trt_mode: str = 'off'
     output_dir: str =  ''
 
+
 @dataclass
 class Predict2DParams:
     project_name: str
@@ -27,3 +28,16 @@ class Predict2DParams:
     make_video: bool = True
     progress_bar = None
     trt_mode: str = 'off'
+
+
+@dataclass
+class CreateVideos3DParams:
+    project_name: str
+    recording_path: str
+    data_csv: str
+    frame_start: int = 0
+    number_frames: int = -1
+    make_videos: bool = True
+    video_cam_list: List[str] = field(default_factory=list)
+    dataset_name = None
+    output_dir: str =  ''
