@@ -259,7 +259,7 @@ class EfficientTrack:
 
                 self.optimizer.zero_grad()
                 outputs = self.model(imgs)
-                heatmaps_losses = self.criterion(outputs[:2], heatmaps)
+                heatmaps_losses = self.criterion(outputs, heatmaps)
                 loss = 0
                 for idx in range(2):
                     if heatmaps_losses[idx] is not None:
@@ -310,7 +310,7 @@ class EfficientTrack:
                                     heatmaps))
 
                         outputs = self.model(imgs)
-                        heatmaps_losses = self.criterion(outputs[:2],
+                        heatmaps_losses = self.criterion(outputs,
                                     heatmaps)
 
                         loss = 0

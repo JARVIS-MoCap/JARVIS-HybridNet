@@ -78,8 +78,6 @@ class EfficientTrackBackbone(nn.Module):
 
         self.backbone_net = EfficientNet(self.backbone_compound_coef)
 
-        self.upsample_exp = nn.Upsample(scale_factor = 2, mode = 'nearest')
-
         self.swish = SiLU()
         self.upsample3 = nn.Upsample(scale_factor = 4, mode = 'nearest')
         self.upsample2 = nn.Upsample(scale_factor = 2, mode = 'nearest')
@@ -115,7 +113,6 @@ class EfficientTrackBackbone(nn.Module):
 
     def forward(self, inputs: torch.Tensor):
         features = self.backbone_net(inputs)
-        res3 = self.upsample_exp(features[0])
         for bifpn in self.bifpn:
             features = bifpn(features)
 
@@ -130,7 +127,7 @@ class EfficientTrackBackbone(nn.Module):
         res2 = self.deconv1(res1)
         res1 = self.final_conv1(res1)
 
-        return (res1, res2, res3)
+        return (res1, res2)
 
 
 
