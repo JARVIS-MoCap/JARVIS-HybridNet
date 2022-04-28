@@ -1,12 +1,14 @@
 import os
 import streamlit as st
 from streamlit_option_menu import option_menu
-import jarvis.analyze_interface as analyze_interface
+import jarvis.analysis.analyze as analyze
+import jarvis.analysis.plotting as plotting
 from jarvis.config.project_manager import ProjectManager
 
 
 
 def analyze_validation_set_gui(project_name):
+    st.title("Analyse Validation Data")
     with st.form("analysis_form"):
         projectManager = ProjectManager()
         projectManager.load(project_name)
@@ -37,11 +39,54 @@ def analyze_validation_set_gui(project_name):
         submitted = st.form_submit_button("Analyse")
     if submitted:
         progress_bar = st.progress(0)
-        analyze_interface.analyze_validation_data(project_name, weights_center,
+        analyze.analyze_validation_data(project_name, weights_center,
                     weights_hybridnet, cameras_to_use, progress_bar = progress_bar)
 
+
 def plot_error_histogram_gui(project_name):
-    return
+    st.title("Plot Error Histogram")
+    path = get_analysis_path(project_name)
+    cutoff = st.number_input("Error cutoff for plotting:", -1)
+    if (st.button("Plot")):
+        fig = plotting.plot_error_histogram(path, cutoff = cutoff,
+                    interactive = False)
+        col1, col2, col3 = st.columns([1,3,1])
+        with col1:
+            st.write("")
+        with col2:
+            st.pyplot(fig)
+        with col3:
+            st.write("")
+
 
 def plot_errors_per_keypoint_gui(project_name):
+    st.title("Plot Error per Keypoint")
+    path = get_analysis_path(project_name)
+    if (st.button("Plot")):
+        fig = plotting.plot_error_per_keypoint(path, project_name,
+                    interactive = False)
+        col1, col2, col3 = st.columns([1,3,1])
+        with col1:
+            st.write("")
+        with col2:
+            st.pyplot(fig)
+        with col3:
+            st.write("")
+
     return
+
+
+def get_analysis_path(project_name):
+    project = ProjectManager()
+    project.load(project_name)
+    cfg = project.get_cfg()
+    analysis_path = os.path.join(project.parent_dir,
+                project.cfg.PROJECTS_ROOT_PATH, project_name,
+                'analysis')
+    if len(os.listdir(analysis_path)) == 0:
+        st.error("Please run Analysis on this project first! Aborting...")
+        return None, None
+    analysis_set = st.selectbox('Select Prediction to load',
+                os.listdir(analysis_path))
+    path = os.path.join(analysis_path, analysis_set)
+    return path

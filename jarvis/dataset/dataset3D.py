@@ -8,8 +8,6 @@ import os,sys,inspect
 import numpy as np
 import itertools
 import matplotlib.pyplot as plt
-import matplotlib.colors as mcolors
-import time
 import cv2
 
 import torch
@@ -24,7 +22,6 @@ sys.path.insert(0, parent_dir)
 
 from jarvis.dataset.datasetBase import BaseDataset
 from jarvis.dataset.utils import ReprojectionTool
-#from lib.dataset.utils import SetupVisualizer
 
 class Dataset3D(BaseDataset):
     """
@@ -256,6 +253,8 @@ class Dataset3D(BaseDataset):
 
         if not self.analysisMode:
             sample = self.transform(sample)
+        else:
+            sample = sample + [file_name]
         return sample
 
 

@@ -24,14 +24,6 @@ from jarvis.config.project_manager import ProjectManager
 from jarvis.prediction.jarvis3D import JarvisPredictor3D
 
 
-def create_info_file(params):
-    with open(os.path.join(params.output_dir, 'info.yaml'), 'w') as file:
-        yaml=YAML()
-        yaml.dump({'recording_path': params.recording_path,
-                    'dataset_name': params.dataset_name,
-                    'frame_start': params.frame_start,
-                    'number_frames': params.number_frames}, file)
-
 
 def predict3D(params):
     #Load project and config
@@ -155,3 +147,12 @@ def create_header(writer, cfg):
     coords = ['x','y','z']*len(cfg.KEYPOINT_NAMES)
     writer.writerow(joints)
     writer.writerow(coords)
+
+
+def create_info_file(params):
+    with open(os.path.join(params.output_dir, 'info.yaml'), 'w') as file:
+        yaml=YAML()
+        yaml.dump({'recording_path': params.recording_path,
+                    'dataset_name': params.dataset_name,
+                    'frame_start': params.frame_start,
+                    'number_frames': params.number_frames}, file)

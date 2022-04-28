@@ -5,14 +5,11 @@ efficienttrack.py
 
 import os
 import numpy as np
-from tqdm.autonotebook import tqdm
-import traceback
+from tqdm import tqdm
 import cv2
 import time
 import csv
 import itertools
-import matplotlib
-import pandas as pd
 import streamlit as st
 
 import torch
@@ -24,6 +21,7 @@ from .loss import HeatmapLoss
 import jarvis.efficienttrack.utils as utils
 import jarvis.efficienttrack.darkpose as darkpose
 from jarvis.utils.logger import NetLogger, AverageMeter
+import jarvis.utils.clp as clp
 
 import warnings
 #Filter out weird pytorch floordiv deprecation warning, don't know where it's
@@ -83,7 +81,7 @@ class EfficientTrack:
             if torch.cuda.is_available():
                 self.model = self.model.cuda()
             else:
-                print ("[Info] No GPU available, model is compiled on CPU.")
+                clp.info("No GPU available, model is compiled on CPU.")
             self.model.requires_grad_(False)
             self.model.eval()
 
@@ -105,7 +103,7 @@ class EfficientTrack:
                                 if not k in ['final_conv1.weight',
                                 'final_conv2.weight']}
                 self.model.load_state_dict(pretrained_dict, strict=False)
-                print(f'Successfully loaded weights: {weights_path}')
+                clp.info(f'Successfully loaded weights: {weights_path}')
                 return True
             else:
                 return False
@@ -129,10 +127,10 @@ class EfficientTrack:
                         'first_conv.gn.weight', 'first_conv.gn.bias',
                         'first_conv.pointwise_conv.weight']}
             self.model.load_state_dict(pretrained_dict, strict=False)
-            print(f'Successfully loaded EcoSet weights: {weights_path}')
+            clp.info(f'Successfully loaded EcoSet weights: {weights_path}')
             return True
         else:
-            print(f'Could not load EcoSet weights: {weights_path}')
+            clp.warning(f'Could not load EcoSet weights: {weights_path}')
             return False
 
 
@@ -156,10 +154,10 @@ class EfficientTrack:
                             if not k in ['final_conv1.weight',
                             'final_conv2.weight']}
             self.model.load_state_dict(pretrained_dict, strict=False)
-            print(f'Successfully loaded {pose} weights: {weights_path}')
+            clp.info(f'Successfully loaded {pose} weights: {weights_path}')
             return True
         else:
-            print(f'Could not load {pose} weights: {weights_path}')
+            clp.warning(f'Could not load {pose} weights: {weights_path}')
             return False
 
 
@@ -187,7 +185,8 @@ class EfficientTrack:
     def load_latest_weights(self):
         weights_path = self.get_lates_weights()
         if weights_path == None:
-            print ("Could not find any weights!")
+            clp.warning("Could not find any recently saved weights for this "
+                        "project!")
             return
         self.load_weights(weights_path)
 
@@ -292,7 +291,6 @@ class EfficientTrack:
                 if epoch + 1 < num_epochs:
                     self.save_checkpoint(f'EfficientTrack-'
                                 f'{self.cfg.MODEL_SIZE}_Epoch_{epoch+1}.pth')
-                    print('checkpoint...')
             if epoch + 1 == num_epochs:
                 self.save_checkpoint(f'EfficientTrack-'
                             f'{self.cfg.MODEL_SIZE}_final.pth')

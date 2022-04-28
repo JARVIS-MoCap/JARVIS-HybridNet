@@ -46,7 +46,6 @@ class MBConvBlock(nn.Module):
         if self._block_args.expand_ratio != 1:
             self._expand_conv = nn.Conv2d(in_channels=inp, out_channels=oup,
                                           kernel_size=1, bias=False)
-            #self._gn0 = nn.GroupNorm(self.num_groups, oup)
             self._gn0 = nn.InstanceNorm2d(oup)
         else:
             self._expand_conv = nn.Identity()
@@ -64,13 +63,11 @@ class MBConvBlock(nn.Module):
             if self._block_args.expand_ratio != 1:
                 self._expand_conv = nn.Conv2d(in_channels=inp, out_channels=oup,
                                               kernel_size=1, bias=False)
-                #self._gn0 = nn.GroupNorm(self.num_groups, oup)
                 self._gn0 = nn.InstanceNorm2d(oup)
             self._depthwise_conv = nn.Conv2d(
                 in_channels=oup, out_channels=oup,
                 groups=oup, kernel_size=k, #groups makes it depthwise
                 stride=s, bias=False, padding = self.padding[k][s])
-        #self._gn1 = nn.GroupNorm(self.num_groups, oup)
         self._gn1 = nn.InstanceNorm2d(oup)
 
         # Squeeze and Excitation layer, if desired
@@ -86,7 +83,6 @@ class MBConvBlock(nn.Module):
         final_oup = self._block_args.output_filters
         self._project_conv = nn.Conv2d(in_channels=oup, out_channels=final_oup,
                     kernel_size=1, bias=False)
-        #self._gn2 = nn.GroupNorm(self.num_groups, final_oup)
         self._gn2 = nn.InstanceNorm2d(final_oup)
         self._swish = SiLU()
 
@@ -152,7 +148,6 @@ class EfficientNet(nn.Module):
         self.drop_connect_rate = self._global_params.drop_connect_rate
         self._conv_stem = nn.Conv2d(in_channels, out_channels, kernel_size=3,
                                     stride=2, bias=False, padding = 1)
-        #self._gn0 = nn.GroupNorm(self.num_groups, out_channels)
         self._gn0 = nn.InstanceNorm2d(out_channels)
 
         # Build blocks

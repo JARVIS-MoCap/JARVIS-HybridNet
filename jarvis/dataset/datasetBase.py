@@ -57,7 +57,7 @@ class BaseDataset(Dataset):
             self.num_keypoints.append(category['num_keypoints'])
         if self.cameras_to_use != None:
             self.image_ids = [img["id"] for img in self.dataset["images"]
-                        if img['file_name'].split("/")[-2] in self.cameras_to_use]
+                    if img['file_name'].split("/")[-2] in self.cameras_to_use]
         else:
             self.image_ids = [img["id"] for img in self.dataset["images"]]
 

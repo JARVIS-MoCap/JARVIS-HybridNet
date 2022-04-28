@@ -8,7 +8,6 @@ import os,sys,inspect
 import numpy as np
 import cv2
 import matplotlib.pyplot as plt
-import time
 
 import torch
 from torch.utils.data import Dataset

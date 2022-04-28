@@ -73,7 +73,7 @@ def train_center_detect():
     train_interface.train_efficienttrack('CenterDetect', project_name,
                 num_epochs, weights)
     print ()
-    clp.success('Training finished! You CenterDetect network is '
+    clp.success('Training finished! Your CenterDetect network is '
                 'ready for prediction, have fun :)')
     print ()
     input("Press Enter to go back to main menu...")
@@ -98,7 +98,7 @@ def train_keypoint_detect():
     train_interface.train_efficienttrack('KeypointDetect', project_name,
                 num_epochs, weights)
     print ()
-    clp.success('{Training finished! You KeypointDetect network is '
+    clp.success('{Training finished! Your KeypointDetect network is '
                 'ready for prediction, have fun :)')
     print ()
     input("Press Enter to go back to main menu...")
@@ -122,8 +122,8 @@ def train_hybridnet():
     else:
         weights_keypoint_detect = inq.text("Path to KeypointDetect "
                     "'.pth' weights file",
-                    validate = lambda _, x: (os.path.isfile(x)
-                    and x.split(".")[-1] == 'pth'))
+                    validate = lambda _, x: ((os.path.isfile(x)
+                    and x.split(".")[-1] == 'pth') or x == ""))
 
     if weights_keypoint_detect == "":
         weights_keypoint_detect = None
@@ -149,7 +149,7 @@ def train_hybridnet():
     train_interface.train_hybridnet(project_name, num_epochs,
                 weights_keypoint_detect, weights_hybridnet, mode, finetune)
     print ()
-    clp.success('Training finished! You HybridNet is '
+    clp.success('Training finished! Your HybridNet is '
                 'ready for prediction, have fun :)')
     print ()
     input("Press Enter to go back to main menu...")
@@ -159,7 +159,7 @@ def train_all():
     cls()
     print (f'{CLIColors.OKGREEN}{CLIColors.BOLD}Training Full Network Stack!'
                 f'{CLIColors.ENDC}')
-    print ('You can change all network training setttings in the projects '
+    clp.info('You can change all network training settings in the projects '
                 '\'config.yaml\'.')
     print()
     projectManager = ProjectManager()
@@ -225,7 +225,7 @@ def train_all():
         train_interface.train_hybridnet(project_name, num_epochs_hybridnet,
                     None, 'latest', 'all', finetune = True)
     print ()
-    clp.success('{Training finished! You networks are '
+    clp.success('{Training finished! Your networks are '
                 f'ready for prediction, have fun :)')
     print ()
     input("Press Enter to go back to main menu...")

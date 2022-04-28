@@ -19,8 +19,8 @@ class JarvisPredictor2D(nn.Module):
 
         self.centerDetect = EfficientTrack('CenterDetectInference', self.cfg,
                     weights_center_detect).model
-        self.keypointDetect = EfficientTrack('KeypointDetectInference', self.cfg,
-                    weights_keypoint_detect).model
+        self.keypointDetect = EfficientTrack('KeypointDetectInference',
+                    self.cfg, weights_keypoint_detect).model
 
         self.transform_mean = torch.tensor(self.cfg.DATASET.MEAN,
                     device = torch.device('cuda')).view(3,1,1)
@@ -120,8 +120,10 @@ class JarvisPredictor2D(nn.Module):
                         // outputs[1].shape[3]),
                         dim=2).squeeze()*downsampling_scale*2
             centerHM = centerHM.int()
-            centerHM[0] = torch.clamp(centerHM[0], self.bbox_hw, img_size[0]-self.bbox_hw-1)
-            centerHM[1] = torch.clamp(centerHM[1], self.bbox_hw, img_size[1]-self.bbox_hw-1)
+            centerHM[0] = torch.clamp(centerHM[0], self.bbox_hw,
+                        img_size[0]-self.bbox_hw-1)
+            centerHM[1] = torch.clamp(centerHM[1], self.bbox_hw,
+                        img_size[1]-self.bbox_hw-1)
 
             img_cropped = img[:,:,
                     centerHM[1]-self.bbox_hw:centerHM[1]+self.bbox_hw,

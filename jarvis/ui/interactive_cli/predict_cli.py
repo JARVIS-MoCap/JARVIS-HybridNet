@@ -49,7 +49,6 @@ def predict_2D():
     recording_path = inq.text("Video Path",
                 validate = lambda _, x: (os.path.isfile(x)))
 
-
     params = Predict2DParams(project_name, recording_path)
     params.trt_mode = get_trt_mode(cfg, "2D")
 
@@ -73,14 +72,7 @@ def predict_2D():
                         validate = lambda _, x: (os.path.isfile(x)
                         and x.split(".")[-1] == 'pth'))
 
-    frame_start, number_frames = get_frame_start_number(recording_path)
-
-    make_video = inq.list_input("Make Videos overlayed with the predictions?",
-                choices=["Yes", "No"])
-    if make_video == "Yes":
-        params.make_video = True
-    else:
-        params.make_video = False
+    params.frame_start, params.number_frames = get_frame_start_number(recording_path)
 
     predict2D(params)
 

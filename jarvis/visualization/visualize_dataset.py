@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 from jarvis.utils.utils import CLIColors
 from jarvis.dataset.dataset2D import Dataset2D
 from jarvis.dataset.dataset3D import Dataset3D
-import jarvis.prediction.prediction_utils as utils
+import jarvis.visualization.visualization_utils as utils
 from jarvis.utils.skeleton import get_skeleton
 
 
@@ -56,6 +56,7 @@ def	visualize_2D_sample(dataset, mode, img_idx):
                             int(keypoints[line[1]][1]*3)),
                     colors[line[1]], 1)
     plt.imshow(img/255.)
+    plt.axis('off')
     return fig
 
 

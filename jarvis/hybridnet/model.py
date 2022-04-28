@@ -4,24 +4,16 @@ model.py
 HybridNet torch module.
 """
 
-import os,sys,inspect
 import numpy as np
 import torch
 import torch.nn as nn
 import cv2
 import torch.nn.functional as F
 
-from mpl_toolkits import mplot3d
-import matplotlib.pyplot as plt
-import matplotlib.colors as mcolors
-from matplotlib import cm
-
 from .repro_layer import ReprojectionLayer
 from jarvis.dataset.dataset3D import Dataset3D
 from jarvis.efficienttrack.model import EfficientTrackBackbone
-import jarvis.efficienttrack.darkpose as darkpose
 from .v2vnet import V2VNet
-import time
 
 
 class HybridNetBackbone(nn.Module):
@@ -41,8 +33,11 @@ class HybridNetBackbone(nn.Module):
                         strict = True)
 
         self.reproLayer = ReprojectionLayer(cfg)
+
+        self.drop_joint = self.drop_joint = nn.Dropout3d(p=0.1)
         self.v2vNet = V2VNet(cfg.KEYPOINTDETECT.NUM_JOINTS,
                              cfg.KEYPOINTDETECT.NUM_JOINTS)
+
 
         self.softplus = nn.Softplus()
         self.xx,self.yy,self.zz = torch.meshgrid(
@@ -50,8 +45,6 @@ class HybridNetBackbone(nn.Module):
                 torch.arange(int(self.grid_size/self.grid_spacing/2)).cuda(),
                 torch.arange(int(self.grid_size/self.grid_spacing/2)).cuda(),
                 indexing = 'ij')
-        self.last_time = 0
-
 
         self.heatmap_size = torch.cuda.IntTensor([0,0])
 
@@ -68,18 +61,16 @@ class HybridNetBackbone(nn.Module):
                 heatmaps_batch.shape[2],
                 heatmaps_batch.shape[3])
 
-
-
         heatmaps_padded = F.pad(input=heatmaps_batch,
              pad = [1,1,1,1], mode='constant', value=0.)
         heatmaps3D = self.reproLayer(heatmaps_padded, center3D,centerHM,
                     cameraMatrices, intrinsicMatrices, distortionCoefficients)
         if (self.training):
-            heatmaps3D = self.drop_joint(heatmaps3D)    
+            heatmaps3D = self.drop_joint(heatmaps3D)
 
         heatmap_final = self.v2vNet((heatmaps3D/255.))
         heatmap_final = self.softplus(heatmap_final)
-        #heatmap_final = heatmaps_gt
+
         #TODO: Make this work for different batch sizes"!!
         norm = torch.sum(heatmap_final, dim = [2,3,4])
         x = torch.mul(heatmap_final, self.xx)

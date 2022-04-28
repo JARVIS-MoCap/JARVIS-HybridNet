@@ -10,17 +10,21 @@ import itertools
 import numpy as np
 import torch
 import cv2
-import matplotlib.pyplot as plt
 from tqdm import tqdm
 import streamlit as st
-import matplotlib
 import time
+from ruamel.yaml import YAML
 
 from jarvis.prediction.jarvis2D import JarvisPredictor2D
-import jarvis.prediction.prediction_utils as utils
 from jarvis.config.project_manager import ProjectManager
-from jarvis.utils.skeleton import get_skeleton
 
+
+def create_info_file(params):
+    with open(os.path.join(params.output_dir, 'info.yaml'), 'w') as file:
+        yaml=YAML()
+        yaml.dump({'recording_path': params.recording_path,
+                    'frame_start': params.frame_start,
+                    'number_frames': params.number_frames}, file)
 
 
 def predict2D(params):
@@ -33,9 +37,10 @@ def predict2D(params):
 
     params.output_dir = os.path.join(project.parent_dir,
                 cfg.PROJECTS_ROOT_PATH, params.project_name,
-                'predictions',
+                'predictions', 'predictions2D',
                 f'Predictions_2D_{time.strftime("%Y%m%d-%H%M%S")}')
     os.makedirs(params.output_dir, exist_ok = True)
+    create_info_file(params)
 
     jarvisPredictor = JarvisPredictor2D(cfg, params.weights_center_detect,
                 params.weights_keypoint_detect, params.trt_mode)
@@ -44,16 +49,6 @@ def predict2D(params):
     cap.set(1,params.frame_start)
     img_size  = [int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)),
                  int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))]
-    frameRate = cap.get(cv2.CAP_PROP_FPS)
-
-    if params.make_video:
-        out = cv2.VideoWriter(os.path.join(params.output_dir,
-                    params.recording_path.split('/')[-1].split(".")[0] + ".mp4"),
-                    cv2.VideoWriter_fourcc('m', 'p', '4', 'v'), frameRate,
-                    (img_size[0],img_size[1]))
-
-    #create skeleton idxs and colors for plotting
-    colors, line_idxs = get_skeleton(cfg)
 
     csvfile = open(os.path.join(params.output_dir, 'data2D.csv'), 'w',
                 newline='')
@@ -70,7 +65,8 @@ def predict2D(params):
         params.number_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) \
                     - params.frame_start
     else:
-        assert params.frame_start+params.number_frames <= cap.get(cv2.CAP_PROP_FRAME_COUNT), \
+        assert params.frame_start+params.number_frames \
+                    <= cap.get(cv2.CAP_PROP_FRAME_COUNT), \
                     "make sure your selected segment is not longer that the " \
                     "total video!"
 
@@ -88,28 +84,18 @@ def predict2D(params):
             for i,point in enumerate(points2D):
                 row = row + point.tolist() + [maxvals[i]]
             writer.writerow(row)
-            if params.make_video:
-                for line in line_idxs:
-                    utils.draw_line(img_orig, line, points2D,
-                            img_size, colors[line[1]])
-                for j,point in enumerate(points2D):
-                    utils.draw_point(img_orig, point, img_size,
-                            colors[j])
 
         else:
             row = []
-            for i in range(keypointDetect.main_cfg.KEYPOINTDETECT.NUM_JOINTS*3):
+            for i in range(cfg.KEYPOINTDETECT.NUM_JOINTS*3):
                 row = row + ['NaN']
             writer.writerow(row)
 
-        if params.make_video:
-            out.write(img_orig)
+
         if params.progress_bar != None:
             params.progress_bar.progress(float(frame_num+1)
-                        / float(number_frames))
+                        / float(params.number_frames))
 
-    if params.make_video:
-        out.release()
     cap.release()
 
 

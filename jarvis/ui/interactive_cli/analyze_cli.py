@@ -9,7 +9,7 @@ from jarvis.config.project_manager import ProjectManager
 from jarvis.utils.utils import CLIColors
 import jarvis.analysis.analyze as analyze
 import jarvis.analysis.plotting as plotting
-
+import jarvis.utils.clp as clp
 
 
 def cls():
@@ -19,7 +19,7 @@ def cls():
 def launch_analyze_menu():
     cls()
     menu_items = ['Analyze Validation Data', 'Plot Error Histogram',
-                'Plot Error per Keypoint', 'Plot Joint Length Distribution',
+                'Plot Error per Keypoint', 'Plot Error Histogram per Keypoint',
                 '<< back']
     menu = inq.list_input(f"{CLIColors.OKGREEN}{CLIColors.BOLD}Training "
                 f"Menu{CLIColors.ENDC}", choices = menu_items)
@@ -32,8 +32,8 @@ def launch_analyze_menu():
         plot_error_histogram()
     elif menu == "Plot Error per Keypoint":
         plot_error_per_keypoint()
-    elif menu == "Plot Joint Length Distribution":
-        plot_joint_length_distribution()
+    elif menu == "Plot Error Histogram per Keypoint":
+        plot_error_histogram_per_keypoint()
 
 
 def analyze_validation_data():
@@ -71,7 +71,8 @@ def analyze_validation_data():
             calib_root_path = os.path.join(cfg.PARENT_DIR,
                         cfg.DATASET.DATASET_ROOT_DIR, dataset_name,
                         'calib_params')
-        calib_path = os.path.join(calib_root_path,os.listdir(calib_root_path)[0])
+        calib_path = os.path.join(calib_root_path,
+                    os.listdir(calib_root_path)[0])
         camera_names = os.listdir(calib_path)
         camera_names = [cam.split(".")[0] for cam in camera_names]
         cameras_to_use = inq.checkbox('Select cameras to be used for analysis',
@@ -96,15 +97,32 @@ def get_analysis_path():
     analysis_path = os.path.join(project.parent_dir,
                 project.cfg.PROJECTS_ROOT_PATH, project_name,
                 'analysis')
+    if len(os.listdir(analysis_path)) == 0:
+        clp.error("Please run Analysis on this project first! Aborting...")
+        return None, None
     analysis_set = inq.list_input("Select Anlysis Set to load",
                 choices = sorted(os.listdir(analysis_path))[::-1])
     path = os.path.join(analysis_path, analysis_set)
-    return path
+    return path, project_name
+
+
+def get_interactive():
+    interactive = inq.list_input("Show interactive Matplotlib window?",
+                choices =["Yes", "No"], default = "Yes")
+    if interactive == "Yes":
+        return True
+    else:
+        return False
 
 
 def plot_error_histogram():
     cls()
-    path = get_analysis_path()
+    path,_ = get_analysis_path()
+    if path == None:
+        print ()
+        input ("press Enter to continue")
+        launch_analyze_menu()
+        return
     add_more_data = True
     additional_data = {}
     while add_more_data:
@@ -120,26 +138,39 @@ def plot_error_histogram():
             add_more_data = False
     cutoff = -1
     use_cutoff = inq.list_input("Use Error Cutoff? (Values above cutoff will "
-                "be grouped in one bin)", choices =["Yes", "No"], default = "No")
+                "be grouped in one bin)", choices =["Yes", "No"],
+                default = "No")
     if use_cutoff == "Yes":
         cutoff = int(inq.text("Cutoff Value", default = "30",
                     validate = lambda _, x: (x.isdigit() and int(x) > 0)))
-    plotting.plot_error_histogram(path, additional_data, cutoff)
+    interactive = get_interactive()
+    plotting.plot_error_histogram(path, additional_data, cutoff,
+                interactive = interactive)
     launch_analyze_menu()
 
 
 def plot_error_per_keypoint():
     cls()
-    path = get_analysis_path()
-    plotting.plot_error_per_keypoint(path)
-    print ()
-    input ("press Enter to continue")
+    path, project_name = get_analysis_path()
+    if path == None:
+        print ()
+        input ("press Enter to continue")
+        launch_analyze_menu()
+        return
+    interactive = get_interactive()
+    plotting.plot_error_per_keypoint(path, project_name, interactive)
     launch_analyze_menu()
 
 
-def plot_joint_length_distribution():
+def plot_error_histogram_per_keypoint():
     cls()
-    print ("Not implemented yet, sorry!")
-    print ()
-    input ("press Enter to continue")
+    path, project_name = get_analysis_path()
+    if path == None:
+        print ()
+        input ("press Enter to continue")
+        launch_analyze_menu()
+        return
+    interactive = get_interactive()
+    plotting.plot_error_histogram_per_keypoint(path, project_name, cutoff = -1,
+                interactive = interactive)
     launch_analyze_menu()

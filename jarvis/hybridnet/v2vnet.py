@@ -19,7 +19,6 @@ class Basic3DBlock(nn.Module):
         )
         self.dropout = nn.Dropout(0.2)
 
-
     def forward(self, x):
         return self.dropout(self.block(x))
 
@@ -36,7 +35,6 @@ class Res3DBlock(nn.Module):
                       padding=1),
             nn.InstanceNorm3d(out_planes)
         )
-
         self.dropout = nn.Dropout(0.2)
 
     def forward(self, x):
@@ -55,7 +53,6 @@ class Upsample3DBlock(nn.Module):
             nn.InstanceNorm3d(out_planes),
             nn.ReLU(True)
         )
-
         self.dropout = nn.Dropout(0.2)
 
 
@@ -66,7 +63,6 @@ class Upsample3DBlock(nn.Module):
 class EncoderDecorder(nn.Module):
     def __init__(self, input_channels):
         super(EncoderDecorder, self).__init__()
-
         self.encoder_pool1 = Basic3DBlock(input_channels*2,
                     input_channels*4, 2,2)
         self.mid_res = Res3DBlock(input_channels*4, input_channels*4)
@@ -74,7 +70,6 @@ class EncoderDecorder(nn.Module):
                     input_channels*2, 2, 2)
         self.decoder_res1 = Res3DBlock(input_channels*2, input_channels*2)
         self.skip_res1 = Res3DBlock(input_channels*2, input_channels*2)
-
 
     def forward(self, x):
         res1 = self.skip_res1(x)
@@ -98,7 +93,6 @@ class V2VNet(nn.Module):
         self.output_layer = nn.Conv3d(input_channels*2, output_channels,
                     kernel_size=1, stride=1)
         self._initialize_weights()
-
 
     def forward(self, x):
         x = self.front_layers(x)

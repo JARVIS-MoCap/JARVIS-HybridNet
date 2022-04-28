@@ -4,7 +4,6 @@ loss.py
 MSE Heatmap Loss for EfficientTrack.
 """
 
-import torch
 import torch.nn as nn
 
 class HeatmapLoss(nn.Module):

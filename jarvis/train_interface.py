@@ -17,7 +17,7 @@ def load_weights_keypoint_detect(model, weights_path = None):
         if os.path.isfile(weights_path):
             pretrained_dict = torch.load(weights_path)
             model.load_state_dict(pretrained_dict, strict=False)
-            clp.success(f'Successfully loaded weights: {weights_path}')
+            clp.info(f'Successfully loaded weights: {weights_path}')
             return True
         else:
             return False

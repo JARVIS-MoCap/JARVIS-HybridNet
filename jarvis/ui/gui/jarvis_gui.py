@@ -13,16 +13,12 @@ import json, yaml
 
 import jarvis.config.project_manager as ProjectManager
 import jarvis.train_interface as train
-import jarvis.visualize_interface as visualize
 from jarvis.ui.gui.predict_gui import predict2D_gui, predict3D_gui
 from jarvis.ui.gui.train_gui import train_all_gui, train_center_detect_gui, \
 			train_keypoint_detect_gui, train_hybridnet_gui
-from jarvis.ui.gui.visualize_gui import visualize2D_gui, visualize3D_gui
+import jarvis.ui.gui.visualize_gui as visualize_gui
 from jarvis.ui.gui.analyze_gui import analyze_validation_set_gui, \
 			plot_error_histogram_gui, plot_errors_per_keypoint_gui
-
-
-
 
 st.set_page_config(
 	layout="wide",
@@ -154,10 +150,10 @@ elif project_box != 'Select...':
 	if selected == "Training":
 		with st.sidebar:
 			train_mode = option_menu("Training Options",
-						['Train Full', 'Train Center', 'Train Keypoint', 'Train HybridNet'],
+						['Train All', 'Train Center', 'Train Keypoint', 'Train HybridNet'],
 						menu_icon="gpu-card", default_index=0)
 		st.title("Training")
-		if train_mode == 'Train Full':
+		if train_mode == 'Train All':
 			train_all_gui(project_box, projectManager.cfg)
 		elif train_mode == 'Train Center':
 			train_center_detect_gui(project_box, projectManager.cfg)
@@ -178,13 +174,17 @@ elif project_box != 'Select...':
 			predict2D_gui(project_box)
 	elif selected == "Visualization":
 		with st.sidebar:
-			vis_mode = option_menu("Visualizations", ['Dataset2D', 'Dataset3D'],
+			vis_mode = option_menu("Visualizations", ['Create Video 3D', 'Create Video 2D','Visualize Dataset2D', 'Visualize Dataset3D'],
 						menu_icon="graph-up", default_index=0)
 		st.title('Visualization')
-		if vis_mode == 'Dataset2D':
-			visualize2D_gui(project_box)
-		elif vis_mode == "Dataset3D":
-			visualize3D_gui(project_box)
+		if vis_mode == 'Create Video 3D':
+			visualize_gui.create_video3D_gui(project_box)
+		if vis_mode == 'Create Video 2D':
+			visualize_gui.create_video2D_gui(project_box)
+		elif vis_mode == 'Visualize Dataset2D':
+			visualize_gui.visualize2D_gui(project_box)
+		elif vis_mode == "Visualize Dataset3D":
+			visualize_gui.visualize3D_gui(project_box)
 	else:
 		with st.sidebar:
 			analysis_mode = option_menu("Analysis", ['Analyse Validation Data', 'Plot Error Histogram', 'Plot Error per Keypoint'],

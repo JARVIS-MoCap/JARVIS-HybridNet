@@ -1,11 +1,13 @@
 import os
+import time
 import streamlit as st
 from streamlit_option_menu import option_menu
+
 import jarvis.config.project_manager as ProjectManager
 import jarvis.train_interface as train
-import jarvis.predict_interface as predict
-import jarvis.visualize_interface as visualize
-import time
+from jarvis.prediction.predict2D import predict2D
+from jarvis.prediction.predict3D import predict3D
+from jarvis.utils.paramClasses import Predict2DParams, Predict3DParams
 
 
 def predict2D_gui(project):
@@ -14,27 +16,25 @@ def predict2D_gui(project):
     with st.form("predict_2D_form"):
         video_path = st.text_input("Path of Video:",
                     placeholder = "Please enter path...")
+
+        params = Predict2DParams(project, video_path)
         col3, col4 = st.columns(2)
         with col3:
-            weights_center_detect = st.text_input("Weights for CenterDetect:",
+            params.weights_center_detect = st.text_input("Weights for CenterDetect:",
                         value = 'latest',
                         help = "Use 'latest' to load you last saved weights, or "
                                     "specify the path to a '.pth' file.")
         with col4:
-            weights_keypoint_detect = st.text_input("Weights for KeypointDetect:",
+            params.weights_keypoint_detect = st.text_input("Weights for KeypointDetect:",
                         value = 'latest',
                         help = "Use 'latest' to load you last saved weights, or "
                                     "specify the path to a '.pth' file.")
-        skeleton_preset = st.selectbox('Skeleton Preset',
-                    ['None', 'Hand', 'HumanBody', 'MonkeyBody','RodentBody'])
-        make_video = st.checkbox("Make Video overlayed with predictions?",
-                    value = True)
         col1, col2 = st.columns(2)
         with col1:
-            frame_start = st.number_input("Start Frame:",
+            params.frame_start = st.number_input("Start Frame:",
                         value = 0, min_value = 0)
         with col2:
-            number_frames = st.number_input("Number of Frames:",
+            params.number_frames = st.number_input("Number of Frames:",
                         value = -1, min_value = -1)
         submitted = st.form_submit_button("Predict")
     if submitted:
@@ -44,19 +44,15 @@ def predict2D_gui(project):
         if not os.path.isfile(video_path):
             st.error("Video File does not exist!")
             return
-        if not (weights_center_detect == "latest" or (os.path.isfile(weights_center_detect) and weights_center_detect.split(".")[-1] == "pth")):
+        if not (params.weights_center_detect == "latest" or (os.path.isfile(params.weights_center_detect) and params.weights_center_detect.split(".")[-1] == "pth")):
             st.error("CenterDetect weights do not exist!")
             return
-        if not (weights_keypoint_detect == "latest" or (os.path.isfile(weights_keypoint_detect) and weights_center_detect.split(".")[-1] == "pth")):
+        if not (params.weights_keypoint_detect == "latest" or (os.path.isfile(params.weights_keypoint_detect) and params.weights_center_detect.split(".")[-1] == "pth")):
             st.error("KeypointDetect weights do not exist!")
             return
-        if skeleton_preset == "None":
-            skeleton_preset = None
         st.subheader("Prediction Progress:")
-        my_bar = st.progress(0)
-        predict.predict2D(project, video_path, weights_center_detect,
-                    weights_keypoint_detect, frame_start,
-                    number_frames, make_video, skeleton_preset, my_bar)
+        params.progress_bar = st.progress(0)
+        predict2D(params)
         st.balloons()
         time.sleep(1)
         st.experimental_rerun()
@@ -68,27 +64,24 @@ def predict3D_gui(project):
     with st.form("predict_3D_form"):
         recording_path = st.text_input("Path of recording directory:",
                     placeholder = "Please enter path...")
+        params = Predict3DParams(project, recording_path)
         col3, col4 = st.columns(2)
         with col3:
-            weights_center_detect = st.text_input("Weights for CenterDetect:",
+            params.weights_center_detect = st.text_input("Weights for CenterDetect:",
                         value = "latest",
                         help = "Use 'latest' to load you last saved weights, or "
                                     "specify the path to a '.pth' file.")
         with col4:
-            weights_hybridnet = st.text_input("Weights for HybridNet:",
+            params.weights_hybridnet = st.text_input("Weights for HybridNet:",
                         value = "latest",
                         help = "Use 'latest' to load you last saved weights, or "
                                     "specify the path to a '.pth' file.")
-        skeleton_preset = st.selectbox('Skeleton Preset',
-                    ['None', 'Hand', 'HumanBody', 'MonkeyBody', 'RodentBody'])
-        make_videos = st.checkbox("Make Videos overlayed with predictions?",
-                    value = True)
         col1, col2 = st.columns(2)
         with col1:
-            frame_start = st.number_input("Start Frame:",
+            params.frame_start = st.number_input("Start Frame:",
                         value = 0, min_value = 0)
             with col2:
-                number_frames = st.number_input("Number of Frames:",
+                params.number_frames = st.number_input("Number of Frames:",
                             value = -1, min_value = -1)
         projectManager = ProjectManager.ProjectManager()
         projectManager.load(project)
@@ -106,24 +99,21 @@ def predict3D_gui(project):
                         calibrations)
         else:
             calibration_selection = None
+        params.dataset_name = calibration_selection
         submitted = st.form_submit_button("Predict")
     if submitted:
         if not os.path.isdir(recording_path):
             st.error("Recording directory does not exist!")
             return
-        if not (weights_center_detect == "latest" or (os.path.isfile(weights_center_detect) and weights_center_detect.split(".")[-1] == "pth")):
+        if not (params.weights_center_detect == "latest" or (os.path.isfile(params.weights_center_detect) and params.weights_center_detect.split(".")[-1] == "pth")):
             st.error("CenterDetect weights do not exist!")
             return
-        if not (weights_hybridnet == "latest" or (os.path.isfile(weights_hybridnet) and weights_hybridnet.split(".")[-1] == "pth")):
+        if not (params.weights_hybridnet == "latest" or (os.path.isfile(params.weights_hybridnet) and params.weights_hybridnet.split(".")[-1] == "pth")):
             st.error("HybridNet weights do not exist!")
             return
-        if skeleton_preset == "None":
-            skeleton_preset = None
         st.subheader("Prediction Progress:")
-        my_bar = st.progress(0)
-        predict.predict3D(project, recording_path, weights_center_detect,
-                    weights_hybridnet, frame_start, number_frames,
-                    make_videos, skeleton_preset, calibration_selection, my_bar)
+        params.progress_bar = st.progress(0)
+        predict3D(params)
         st.balloons()
         time.sleep(1)
         st.experimental_rerun()

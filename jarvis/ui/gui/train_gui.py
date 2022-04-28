@@ -3,10 +3,10 @@ import streamlit as st
 from streamlit_option_menu import option_menu
 import jarvis.config.project_manager as ProjectManager
 import jarvis.train_interface as train
-import jarvis.predict_interface as predict
-import jarvis.visualize_interface as visualize
 import time
 import jarvis.train_interface as train
+from jarvis.utils.utils import get_available_pretrains
+
 
 def train_all_gui(project, cfg):
     st.header("Train Full Network")
@@ -26,8 +26,9 @@ def train_all_gui(project, cfg):
             num_epochs_hybridnet = st.number_input("Epochs HybridNet:",
                         value = cfg.HYBRIDNET.NUM_EPOCHS,
                         min_value = 1, max_value = 1000)
+        available_pretrains = get_available_pretrains(cfg.PARENT_DIR)
         pretrain = st.selectbox('Pretraining to use',
-                    ['None', 'EcoSet', 'MonkeyHand', 'HumanHand', 'HumanBody','RatBody', 'MouseBody'])
+                    ['None'] + available_pretrains)
         finetune = st.checkbox("Finetune Network", value = False)
         submitted = st.form_submit_button("Train")
     if submitted:
@@ -311,9 +312,6 @@ def check_dataset3D(project, cfg):
     return True
 
 def check_center_detect(project, cfg):
-    if cfg.CENTERDETECT.COMPOUND_COEF < 0 or cfg.CENTERDETECT.COMPOUND_COEF > 8:
-        st.error("CenterDetect Compound Coefficient has to be in valid range of 0-8!")
-        return False
     if cfg.CENTERDETECT.BATCH_SIZE <= 0:
         st.error("CenterDetect Batch Size has to be bigger than 0!")
         return False
@@ -333,9 +331,6 @@ def check_center_detect(project, cfg):
 
 
 def check_keypoint_detect(project, cfg):
-    if cfg.KEYPOINTDETECT.COMPOUND_COEF < 0 or cfg.KEYPOINTDETECT.COMPOUND_COEF > 8:
-        st.error("KeypointDetect Compound Coefficient has to be in valid range of 0-8!")
-        return False
     if cfg.KEYPOINTDETECT.BATCH_SIZE <= 0:
         st.error("KeypointDetect Batch Size has to be bigger than 0!")
         return False

@@ -9,8 +9,6 @@ class Predict3DParams:
     weights_hybridnet: str = 'latest'
     frame_start: int = 0
     number_frames: int = -1
-    make_videos: bool = True
-    video_cam_list: List[str] = field(default_factory=list)
     dataset_name = None
     progress_bar = None
     trt_mode: str = 'off'
@@ -25,7 +23,6 @@ class Predict2DParams:
     weights_keypoint_detect: str = 'latest'
     frame_start: int = 0
     number_frames: int = -1
-    make_video: bool = True
     progress_bar = None
     trt_mode: str = 'off'
 
@@ -37,7 +34,17 @@ class CreateVideos3DParams:
     data_csv: str
     frame_start: int = 0
     number_frames: int = -1
-    make_videos: bool = True
     video_cam_list: List[str] = field(default_factory=list)
     dataset_name = None
+    progress_bar = None
     output_dir: str =  ''
+
+
+@dataclass
+class CreateVideos2DParams:
+    project_name: str
+    recording_path: str
+    data_csv: str
+    frame_start: int = 0
+    number_frames: int = -1
+    progress_bar = None

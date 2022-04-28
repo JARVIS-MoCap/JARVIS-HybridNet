@@ -7,7 +7,7 @@ HybridNet module.
 
 import os
 import numpy as np
-from tqdm.autonotebook import tqdm
+from tqdm import tqdm
 import time
 import cv2
 import matplotlib
@@ -21,7 +21,7 @@ from .model import HybridNetBackbone
 from .loss import MSELoss
 import jarvis.utils.utils as utils
 from jarvis.utils.logger import NetLogger, AverageMeter
-import jarvis.efficienttrack.darkpose as darkpose
+import jarvis.utils.clp as clp
 
 import warnings
 #Filter out weird pytorch floordiv deprecation warning, don't know where it's
@@ -88,7 +88,7 @@ class HybridNet:
             if os.path.isfile(weights_path):
                 state_dict = torch.load(weights_path)
                 self.model.load_state_dict(state_dict, strict=True)
-                print(f'[Info] loaded weights: {weights_path}')
+                clp.info(f'[Info] loaded weights: {weights_path}')
                 return True
             else:
                 return False
@@ -249,7 +249,6 @@ class HybridNet:
                     self.save_checkpoint(f'HybridNet-'
                                 f'{self.cfg.KEYPOINTDETECT.MODEL_SIZE}_Epoch_'
                                 f'{epoch+1}.pth')
-                    print('checkpoint...')
             if epoch + 1 == num_epochs:
                 self.save_checkpoint(f'HybridNet-'
                             f'{self.cfg.KEYPOINTDETECT.MODEL_SIZE}_final.pth')
@@ -344,6 +343,7 @@ class HybridNet:
     def save_checkpoint(self, name):
         torch.save(self.model.state_dict(),
                    os.path.join(self.model_savepath, name))
+
 
     def set_training_mode(self, mode):
         """

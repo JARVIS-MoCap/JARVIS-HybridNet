@@ -6,39 +6,15 @@ Utility functions for EfficientDet.
 
 import itertools
 import numpy as np
-from typing import Union
-import math
 import cv2
 import collections
 import re
 import math
 
-
-
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
 from torch.nn.init import _calculate_fan_in_and_fan_out, _no_grad_normal_
-from torchvision.ops.boxes import batched_nms
-
-
-class MaxPool2dStaticSamePadding(nn.Module):
-    """
-    Tensorflow like static paddding for BiFPN fuse connections
-    """
-    def __init__(self, *args, **kwargs):
-        super().__init__()
-        self.pool = nn.MaxPool2d(*args, **kwargs)
-        self.left = 0
-        self.right = 1
-        self.bottom = 1
-        self.top = 0
-
-    def forward(self, x):
-        x = F.pad(x, [self.left, self.right, self.top, self.bottom])
-
-        x = self.pool(x)
-        return x
 
 
 def variance_scaling_(tensor, gain=1.):

@@ -6,7 +6,6 @@ EfficientTrack torch module.
 
 import torch
 from torch import nn
-from torchvision.ops.boxes import nms as nms_torch
 
 from .efficientnet import EfficientNet as EffNet
 from torch.nn import SiLU

@@ -6,11 +6,10 @@ from tqdm import tqdm
 from joblib import Parallel, delayed
 import torch
 
-
 from jarvis.utils.reprojection import get_repro_tool
 from jarvis.config.project_manager import ProjectManager
 from jarvis.utils.skeleton import get_skeleton
-import jarvis.prediction.prediction_utils as utils
+import jarvis.visualization.visualization_utils as utils
 
 
 def create_videos3D(params):
@@ -55,22 +54,28 @@ def create_videos3D(params):
     for frame_num in tqdm(range(params.number_frames)):
         Parallel(n_jobs=12, require='sharedmem')(delayed(read_images)
                     (cap, slice, imgs_orig) for slice, cap in enumerate(caps))
-        points3D_net = torch.from_numpy(points3D[frame_num].reshape(-1,3)).float()
-        points2D = reproTool.reprojectPoint(
-                    points3D_net).numpy()
+        points3D_net = torch.from_numpy(
+                    points3D[frame_num].reshape(-1,3)).float()
 
-        points2D = np.array(points2D)
-        for i in range(len(outs)):
-            if make_video_index[i]:
-                for line in line_idxs:
-                    utils.draw_line(imgs_orig[i], line, points2D[:,i],
-                            img_size, colors[line[1]])
-                for j,points in enumerate(points2D):
-                    utils.draw_point(imgs_orig[i], points[i], img_size,
-                            colors[j])
+        if points3D_net != None:
+            points2D = reproTool.reprojectPoint(
+                        points3D_net).numpy()
+
+            points2D = np.array(points2D)
+            for i in range(len(outs)):
+                if make_video_index[i]:
+                    for line in line_idxs:
+                        utils.draw_line(imgs_orig[i], line, points2D[:,i],
+                                img_size, colors[line[1]])
+                    for j,points in enumerate(points2D):
+                        utils.draw_point(imgs_orig[i], points[i], img_size,
+                                colors[j])
         for i,out in enumerate(outs):
             if make_video_index[i]:
                 out.write(imgs_orig[i])
+        if params.progress_bar != None:
+            params.progress_bar.progress(float(frame_num+1)
+                        / float(params.number_frames))
 
     for i,out in enumerate(outs):
         if make_video_index[i]:
@@ -109,16 +114,15 @@ def create_video_writer_and_reader(params, reproTool, video_paths,
                     "frame_start bigger than total framecount!"
         cap.set(1,params.frame_start)
         caps.append(cap)
-        if params.make_videos:
-            if make_video_index[i]:
-                frameRate = cap.get(cv2.CAP_PROP_FPS)
-                outs.append(cv2.VideoWriter(os.path.join(params.output_dir,
-                            path.split('/')[-1].split(".")[0] + ".mp4"),
-                            cv2.VideoWriter_fourcc('m', 'p', '4', 'v'),
-                            frameRate,
-                            (img_size[0],img_size[1])))
-            else:
-                outs.append(None)
+        if make_video_index[i]:
+            frameRate = cap.get(cv2.CAP_PROP_FPS)
+            outs.append(cv2.VideoWriter(os.path.join(params.output_dir,
+                        path.split('/')[-1].split(".")[0] + ".mp4"),
+                        cv2.VideoWriter_fourcc('m', 'p', '4', 'v'),
+                        frameRate,
+                        (img_size[0],img_size[1])))
+        else:
+            outs.append(None)
 
     return caps, outs, img_size
 
