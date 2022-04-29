@@ -35,9 +35,13 @@ def create_videos3D(params):
                 video_paths, make_video_index)
 
     colors, line_idxs = get_skeleton(cfg)
-    points3D = np.genfromtxt(params.data_csv, delimiter=',')
-    if np.isnan(points3D[0,0]):
-        points3D = points3D[2:]
+    data = np.genfromtxt(params.data_csv, delimiter=',')
+    if np.isnan(data[0,0]):
+        data = data[2:]
+    points3D = np.delete(data, list(range(3, data.shape[1], 4)), axis=1)
+    print (points3D.shape)
+    confidences = data[:, 3::4]
+
 
     if (params.number_frames == -1):
         params.number_frames = (int(caps[0].get(cv2.CAP_PROP_FRAME_COUNT))
@@ -56,6 +60,7 @@ def create_videos3D(params):
                     (cap, slice, imgs_orig) for slice, cap in enumerate(caps))
         points3D_net = torch.from_numpy(
                     points3D[frame_num].reshape(-1,3)).float()
+        confidence = confidences[frame_num]
 
         if points3D_net != None:
             points2D = reproTool.reprojectPoint(
@@ -69,7 +74,7 @@ def create_videos3D(params):
                                 img_size, colors[line[1]])
                     for j,points in enumerate(points2D):
                         utils.draw_point(imgs_orig[i], points[i], img_size,
-                                colors[j])
+                                colors[j], confidence[j])
         for i,out in enumerate(outs):
             if make_video_index[i]:
                 out.write(imgs_orig[i])

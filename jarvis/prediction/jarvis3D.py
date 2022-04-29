@@ -175,7 +175,7 @@ class JarvisPredictor3D(nn.Module):
             imgs_cropped = ((imgs_cropped - self.transform_mean)
                         / self.transform_std)
 
-            _, _, points3D = self.hybridNet(imgs_cropped.unsqueeze(0),
+            _, _, points3D, confidences = self.hybridNet(imgs_cropped.unsqueeze(0),
                         img_size,
                         centerHMs.unsqueeze(0),
                         center3D.int().unsqueeze(0),
@@ -184,4 +184,4 @@ class JarvisPredictor3D(nn.Module):
                         distortionCoefficients.unsqueeze(0))
         else:
             points3D = None
-        return points3D
+        return points3D, confidences

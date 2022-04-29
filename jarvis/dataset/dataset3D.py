@@ -294,7 +294,6 @@ class Dataset3D(BaseDataset):
         min_cube_size = np.max([x_cube_size_min,
                                 y_cube_size_min,
                                 z_cube_size_min])
-        print (min_cube_size)
         rough_bbox_suggestion = min_cube_size*1.25
         resolution_suggestion = max(1,int(np.round_(
                     rough_bbox_suggestion / 85.)))

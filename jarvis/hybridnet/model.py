@@ -34,7 +34,7 @@ class HybridNetBackbone(nn.Module):
 
         self.reproLayer = ReprojectionLayer(cfg)
 
-        self.drop_joint = self.drop_joint = nn.Dropout3d(p=0.1)
+        #self.drop_joint = self.drop_joint = nn.Dropout3d(p=0.1)
         self.v2vNet = V2VNet(cfg.KEYPOINTDETECT.NUM_JOINTS,
                              cfg.KEYPOINTDETECT.NUM_JOINTS)
 
@@ -65,8 +65,8 @@ class HybridNetBackbone(nn.Module):
              pad = [1,1,1,1], mode='constant', value=0.)
         heatmaps3D = self.reproLayer(heatmaps_padded, center3D,centerHM,
                     cameraMatrices, intrinsicMatrices, distortionCoefficients)
-        if (self.training):
-            heatmaps3D = self.drop_joint(heatmaps3D)
+        # if (self.training):
+        #     heatmaps3D = self.drop_joint(heatmaps3D)
 
         heatmap_final = self.v2vNet((heatmaps3D/255.))
         heatmap_final = self.softplus(heatmap_final)
@@ -80,8 +80,10 @@ class HybridNetBackbone(nn.Module):
         z = torch.mul(heatmap_final, self.zz)
         z = torch.sum(z, dim = [2,3,4])/norm
         points3D = torch.stack([x,y,z], dim = 2)
+        confidences = torch.clamp(torch.max(heatmap_final.view(
+                    *heatmap_final.shape[:2], -1), dim = 2)[0], max = 255.)/255.
         points3D = (points3D.transpose(0,1)*self.grid_spacing*2 - self.grid_size
                     / 2. + center3D).transpose(0,1)
         heatmap_final = self.softplus(heatmap_final)
 
-        return heatmap_final, heatmaps_padded, points3D
+        return heatmap_final, heatmaps_padded, points3D, confidences

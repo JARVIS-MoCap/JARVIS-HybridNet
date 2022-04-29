@@ -135,9 +135,10 @@ def train_hybridnet():
     else:
         weights_hybridnet = None
 
-    num_epochs = int(inq.text("Set Number of Epochs to train for", default = 50,
+    num_epochs = int(inq.text("Set Number of Epochs to train for", default = 30,
                 validate = lambda _, x: (x.isdigit() and int(x) > 0)))
-    mode = inq.list_input("Select training mode", choices= ['3D_only',
+    mode = inq.list_input("Select training mode (only use mode different from "
+                "3D_only if you know what you're doing)", choices= ['3D_only',
                 'last_layers', 'bifpn', 'all'])
     if mode == '3D_only':
         finetune = False
@@ -172,9 +173,6 @@ def train_all():
         inq.List('pretrain',
             message="Select pretrain to be used",
             choices=['None'] + available_pretrains),
-        inq.List('finetune', message="Finetune HybridNet? "
-                    "(Slow and GPU RAM-hungry)", choices=["Yes", "No"],
-                    default="No"),
         inq.Text('num_epochs_center',
                     message="Set Number of Epochs for CenterDetect",
                     validate = lambda _, x: (x.isdigit() and int(x) > 0),
@@ -186,7 +184,7 @@ def train_all():
         inq.Text('num_epochs_hybridnet',
                     message="Set Number of Epochs for HybridNet",
                     validate = lambda _, x: (x.isdigit() and int(x) > 0),
-                    default = 50),
+                    default = 30),
     ]
     settings = inq.prompt(questions)
     if not check_gpus():
@@ -219,11 +217,6 @@ def train_all():
                 f'epochs...')
     train_interface.train_hybridnet(project_name, num_epochs_hybridnet,
                 'latest', None, '3D_only')
-    if settings['finetune'] == 'Yes':
-        print (f'Finetuning complete HybridNet for {num_epochs_hybridnet} '
-                    f'epochs...')
-        train_interface.train_hybridnet(project_name, num_epochs_hybridnet,
-                    None, 'latest', 'all', finetune = True)
     print ()
     clp.success('{Training finished! Your networks are '
                 f'ready for prediction, have fun :)')

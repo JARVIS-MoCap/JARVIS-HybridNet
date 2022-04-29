@@ -88,7 +88,7 @@ class HybridNet:
             if os.path.isfile(weights_path):
                 state_dict = torch.load(weights_path)
                 self.model.load_state_dict(state_dict, strict=True)
-                clp.info(f'[Info] loaded weights: {weights_path}')
+                clp.info(f'Loaded Hybridnet weights: {weights_path}')
                 return True
             else:
                 return False

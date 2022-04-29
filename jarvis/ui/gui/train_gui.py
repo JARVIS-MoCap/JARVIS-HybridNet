@@ -29,7 +29,6 @@ def train_all_gui(project, cfg):
         available_pretrains = get_available_pretrains(cfg.PARENT_DIR)
         pretrain = st.selectbox('Pretraining to use',
                     ['None'] + available_pretrains)
-        finetune = st.checkbox("Finetune Network", value = False)
         submitted = st.form_submit_button("Train")
     if submitted:
         if not check_config_all(project, cfg):
@@ -93,23 +92,6 @@ def train_all_gui(project, cfg):
                         'latest', None, '3D_only',
                         streamlitWidgets = [progressBar_epoch3,progressBar_total3,
                                             epoch_counter3, plot_loss3, plot_acc3])
-            if finetune:
-                st.header("Finetuning whole network")
-                col_fine1, col_fine2 = st.columns([1,5])
-                with col_fine1:
-                    epoch_counter4 = st.empty()
-                    epoch_counter4.markdown(f"Epoch 0")
-                with col_fine2:
-                    progressBar_epoch4 = st.progress(0)
-                progressBar_total4 = st.progress(0)
-                st.subheader("Loss Monitor")
-                plot_loss4 = st.empty()
-                st.subheader("Accuracy Monitor")
-                plot_acc4 = st.empty()
-                train.train_hybridnet(project, num_epochs_hybridnet,
-                            None, 'latest', 'all', finetune = True,
-                            streamlitWidgets = [progressBar_epoch4,progressBar_total4,
-                                                epoch_counter4, plot_loss4, plot_acc4])
             st.balloons()
             time.sleep(1)
             st.experimental_rerun()
@@ -213,9 +195,9 @@ def train_hybridnet_gui(project, cfg):
         weights = st.text_input("Weights:", value = "latest",
                     help = "Use 'latest' to load you last saved weights, or "
                                 "specify the path to a '.pth' file.")
-        mode = st.selectbox('Training Mode', ['3D_only', 'last_layers', 'all'])
-        finetune = st.checkbox("Finetune Network",
-                    help = "")
+        mode = st.selectbox("Training Mode (only use mode different from "
+                    "3D_only if you know what you're doing)",
+                    ['3D_only', 'last_layers', 'all'])
         submitted = st.form_submit_button("Train")
     if submitted:
         if not check_config_hybridnet(project, cfg):
@@ -244,6 +226,10 @@ def train_hybridnet_gui(project, cfg):
                     or weights_keypoint.split(".")[-1] != "pth"):
             st.error("Weights KeypointDetect is not a valid file!")
             return
+        if mode == '3D_only':
+            finetune = False
+        else:
+            finetune = True
         train.train_hybridnet(project, num_epochs, weights_keypoint, weights,
                     mode, finetune = finetune,
                     streamlitWidgets = [progressBar_epoch,progressBar_total,

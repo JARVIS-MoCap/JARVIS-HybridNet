@@ -75,14 +75,14 @@ def predict2D(params):
         img = torch.from_numpy(
                 img_orig).cuda().float().permute(2,0,1)[[2, 1, 0]]/255.
 
-        points2D, maxvals = jarvisPredictor(img.unsqueeze(0))
+        points2D, confidences = jarvisPredictor(img.unsqueeze(0))
 
         if points2D != None:
             points2D = points2D.cpu().numpy()
-            maxvals = maxvals.cpu().numpy()
+            confidences = confidences.cpu().numpy()
             row = []
             for i,point in enumerate(points2D):
-                row = row + point.tolist() + [maxvals[i]]
+                row = row + point.tolist() + [confidences[i]]
             writer.writerow(row)
 
         else:

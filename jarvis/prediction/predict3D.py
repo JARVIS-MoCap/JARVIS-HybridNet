@@ -82,20 +82,20 @@ def predict3D(params):
         imgs = torch.from_numpy(
                 imgs_orig).cuda().float().permute(0,3,1,2)[:, [2, 1, 0]]/255.
 
-        points3D_net = jarvisPredictor(imgs,
+        points3D_net, confidences = jarvisPredictor(imgs,
                     reproTool.cameraMatrices.cuda(),
                     reproTool.intrinsicMatrices.cuda(),
                     reproTool.distortionCoefficients.cuda())
 
         if points3D_net != None:
             row = []
-            for point in points3D_net.squeeze():
-                row = row + point.tolist()
+            for point, conf in zip(points3D_net.squeeze(), confidences.squeeze().cpu().numpy()):
+                row = row + point.tolist() + [conf]
             writer.writerow(row)
 
         else:
             row = []
-            for i in range(cfg.KEYPOINTDETECT.NUM_JOINTS*3):
+            for i in range(cfg.KEYPOINTDETECT.NUM_JOINTS*4):
                 row = row + ['NaN']
             writer.writerow(row)
 
@@ -142,9 +142,9 @@ def read_images(cap, slice, imgs):
 
 
 def create_header(writer, cfg):
-    joints = list(itertools.chain.from_iterable(itertools.repeat(x, 3)
+    joints = list(itertools.chain.from_iterable(itertools.repeat(x, 4)
                 for x in cfg.KEYPOINT_NAMES))
-    coords = ['x','y','z']*len(cfg.KEYPOINT_NAMES)
+    coords = ['x','y','z', 'confidence']*len(cfg.KEYPOINT_NAMES)
     writer.writerow(joints)
     writer.writerow(coords)
 

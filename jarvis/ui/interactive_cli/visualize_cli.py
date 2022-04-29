@@ -180,6 +180,7 @@ def create_videos_3D():
     print()
     input("Press Enter to go back to main menu...")
 
+
 def create_videos_2D():
     print (f'{CLIColors.OKGREEN}Create Videos 2D Menu{CLIColors.ENDC}')
     print ('This mode lets you create an annotated from one of your '

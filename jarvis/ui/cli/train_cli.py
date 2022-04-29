@@ -6,12 +6,6 @@ from jarvis.utils.utils import CLIColors
 import jarvis.train_interface as train_interface
 
 
-def set_gpu_environ(gpu):
-    if gpu == None:
-        return
-    os.environ["CUDA_VISIBLE_DEVICES"]= str(gpu)
-
-
 @click.command(name='centerDetect')
 @click.option('--num_epochs', default = None,
             type = click.IntRange(min = 1),
@@ -21,20 +15,14 @@ def set_gpu_environ(gpu):
             help = 'Weights to load before training. You have to specify the '
             'path to a specific \'.pth\' file')
 @click.option('--pretrained_weights', default = 'None',
-            type = click.Choice(['None', 'EcoSet', 'HumanHand', 'MonkeyHand',
-            'HumanBody', 'RatBody', 'MouseBody'], case_sensitive = False),
-            help = 'Pretrain to load before training. Select either \'EcoSet\' '
-            'or one of the pretrained pose estimators available')
-@click.option('--gpu', default= None,
-            type = click.IntRange(min = 0, max = torch.cuda.device_count()-1),
-            help = 'Number of the GPU to be used')
+            help = "Pretrain to load before training. Select either 'EcoSet' "
+            "or one of the pretrained pose estimators available")
 @click.argument('project_name')
 def train_center_detect(project_name, num_epochs, weights_path,
-            pretrained_weights, gpu):
+            pretrained_weights):
     """
     Train only the centerDetect network.
     """
-    set_gpu_environ(gpu)
     if weights_path != None:
         weights = weights_path
     elif pretrained_weights != 'None':
@@ -55,20 +43,14 @@ def train_center_detect(project_name, num_epochs, weights_path,
             help = 'Weights to load before training. You have to specify the '
             'path to a specific \'.pth\' file')
 @click.option('--pretrained_weights', default='None',
-            type = click.Choice(['None', 'EcoSet', 'HumanHand', 'MonkeyHand',
-            'HumanBody', 'RatBody', 'MouseBody'], case_sensitive = False),
             help = 'Pretrain to load before training. Select either \'EcoSet\' '
             'or one of the pretrained pose estimators available')
-@click.option('--gpu', default = None,
-            type = click.IntRange(min = 0, max = torch.cuda.device_count()-1),
-            help = 'Number of the GPU to be used')
 @click.argument('project_name')
 def train_keypoint_detect(project_name, num_epochs, weights_path,
-            pretrained_weights, gpu):
+            pretrained_weights):
     """
     Train only the keypontDetect network.
     """
-    set_gpu_environ(gpu)
     if weights_path != None:
         weights = weights_path
     elif pretrained_weights != 'None':
@@ -105,16 +87,12 @@ def train_keypoint_detect(project_name, num_epochs, weights_path,
             '\'last_layers\': The 3D network and the output layers of the 2D '
             'network will be trained\n'
             '\'3D_only\': Only the 3D network will be trained')
-@click.option('--gpu', default = None,
-            type = click.IntRange(min = 0, max =torch.cuda.device_count()-1),
-            help = 'Number of the GPU to be used')
 @click.argument('project_name')
 def train_hybridnet(project_name, num_epochs, weights_keypoint_detect,
-            weights_hybridnet, mode, gpu):
+            weights_hybridnet, mode):
     """
     Train the full HybridNet using previously trained keypointDetect weights.
     """
-    set_gpu_environ(gpu)
     if (weights_keypoint_detect == 'None'):
         weights_keypoint_detect = None
     if (weights_hybridnet == 'None'):
@@ -139,23 +117,14 @@ def train_hybridnet(project_name, num_epochs, weights_keypoint_detect,
             type = click.IntRange(min = 1),
             help = 'Number of Epochs for HybridNet.')
 @click.option('--pretrain', default='None',
-            type = click.Choice(['None', 'HumanHand', 'MonkeyHand',
-            'HumanBody', 'RatBody', 'MouseBody'], case_sensitive = False),
             help = 'Pretrain to load before training. Select '
             'one of the pretrained pose estimators available')
-@click.option('--finetune', default = False, type=click.BOOL,
-            help = 'If True the whole network stack will be finetuned jointly. '
-            'Might not fit into GPU Memory, depending on GPU model')
-@click.option('--gpu', default = None,
-            type = click.IntRange(min = 0, max =torch.cuda.device_count()-1),
-            help = 'Number of the GPU to be used')
 @click.argument('project_name')
 def train_all(project_name, num_epochs_center, num_epochs_keypoint,
-            num_epochs_hybridnet, pretrain, finetune, gpu):
+            num_epochs_hybridnet, pretrain):
     """
     Train the full network stack from scratch.
     """
-    set_gpu_environ(gpu)
     click.echo(f'Training all newtorks for project {project_name} for '
                 f'{num_epochs_center} epochs!')
     click.echo(f'First training CenterDetect for {num_epochs_center} epochs...')
@@ -172,11 +141,6 @@ def train_all(project_name, num_epochs_center, num_epochs_keypoint,
                 f'epochs...')
     train_interface.train_hybridnet(project_name, num_epochs_hybridnet,
                 'latest', None, '3D_only')
-    if finetune:
-        click.echo(f'Finetuning complete HybridNet for {num_epochs_hybridnet} '
-                    f'epochs...')
-        train_interface.train_hybridnet(project_name, num_epochs_hybridnet,
-                    None, 'latest', 'all', finetune = True)
     click.echo()
     click.echo(f'{CLIColors.OKGREEN}Training finished! You networks are '
                 f'ready for prediction, have fun :){CLIColors.ENDC}')

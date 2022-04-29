@@ -24,11 +24,14 @@ def draw_line(img, line, points2D, img_size, color):
                 color, 1)
 
 
-def draw_point(img, point, img_size, color):
+def draw_point(img, point, img_size, color, confidence):
     array_sum = np.sum(np.array(point))
     array_has_nan = np.isnan(array_sum)
     if ((not array_has_nan) and (point[0] < img_size[0]-1
             and point[0] > 0 and point[1] < img_size[1]-1
             and point[1] > 0)):
+        thickness = 3
+        if confidence < 0.6:
+            thickness = 1
         cv2.circle(img, (int(point[0]), int(point[1])),
-                3, color, thickness=3)
+                3, color, thickness=thickness)
