@@ -238,7 +238,6 @@ def get_prediction_path(cfg, mode):
 
 def get_data_csv(path):
     files = os.listdir(path)
-    print (files)
     files = [file for file in files if file.split(".")[-1] == 'csv']
     if len(files) == 1:
         data_csv = os.path.join(path, files[0])

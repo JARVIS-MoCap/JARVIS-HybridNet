@@ -1,5 +1,5 @@
 #General Configuration
-DATALOADER_NUM_WORKERS: 16
+DATALOADER_NUM_WORKERS: 4
 
 #Dataset Configuration
 DATASET:

@@ -185,6 +185,7 @@ def train_all():
     print()
     projectManager = ProjectManager()
     projects = projectManager.get_projects()
+    project_name = inq.list_input("Select project to load", choices=projects)
     available_pretrains = get_available_pretrains(projectManager.parent_dir)
     if not projectManager.load(project_name):
         clp.error(f"Could not load Project {project_name}!")
@@ -194,9 +195,6 @@ def train_all():
     cfg = projectManager.cfg
 
     questions = [
-        inq.List('project_name',
-            message="Select project to load",
-            choices=projects),
         inq.List('pretrain',
             message="Select pretrain to be used",
             choices=['None'] + available_pretrains),
@@ -217,7 +215,6 @@ def train_all():
     if not check_gpus():
         return
 
-    project_name = settings['project_name']
     num_epochs_center = int(settings['num_epochs_center'])
     num_epochs_keypoint = int(settings['num_epochs_keypoint'])
     num_epochs_hybridnet = int(settings['num_epochs_hybridnet'])

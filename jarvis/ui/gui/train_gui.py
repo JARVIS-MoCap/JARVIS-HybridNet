@@ -105,7 +105,7 @@ def train_center_detect_gui(project, cfg):
         num_epochs = st.number_input("Epochs:",
                     value = cfg.CENTERDETECT.NUM_EPOCHS,
                     min_value = 1, max_value = 1000)
-        weights = st.text_input("Weights:", value = "latest",
+        weights = st.text_input("Weights:", value = "",
                     help = "Use 'latest' to load you last saved weights, or "
                                 "specify the path to a '.pth' file.")
         submitted = st.form_submit_button("Train")
@@ -147,7 +147,7 @@ def train_keypoint_detect_gui(project, cfg):
         num_epochs = st.number_input("Epochs:",
                     value = cfg.KEYPOINTDETECT.NUM_EPOCHS,
                     min_value = 1, max_value = 1000)
-        weights = st.text_input("Weights:", value = "latest",
+        weights = st.text_input("Weights:", value = "",
                     help = "Use 'latest' to load you last saved weights, or "
                                 "specify the path to a '.pth' file.")
         submitted = st.form_submit_button("Train")
@@ -192,7 +192,7 @@ def train_hybridnet_gui(project, cfg):
                     value = "latest",
                     help = "Use 'latest' to load you last saved weights, or "
                                 "specify the path to a '.pth' file.")
-        weights = st.text_input("Weights:", value = "latest",
+        weights = st.text_input("Weights:", value = "",
                     help = "Use 'latest' to load you last saved weights, or "
                                 "specify the path to a '.pth' file.")
         mode = st.selectbox("Training Mode (only use mode different from "
