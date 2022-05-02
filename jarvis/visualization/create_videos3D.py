@@ -39,7 +39,6 @@ def create_videos3D(params):
     if np.isnan(data[0,0]):
         data = data[2:]
     points3D = np.delete(data, list(range(3, data.shape[1], 4)), axis=1)
-    print (points3D.shape)
     confidences = data[:, 3::4]
 
 
@@ -74,7 +73,7 @@ def create_videos3D(params):
                                 img_size, colors[line[1]])
                     for j,points in enumerate(points2D):
                         utils.draw_point(imgs_orig[i], points[i], img_size,
-                                colors[j], confidence[j])
+                                colors[j])
         for i,out in enumerate(outs):
             if make_video_index[i]:
                 out.write(imgs_orig[i])

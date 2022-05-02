@@ -65,9 +65,16 @@ def train_center_detect():
                 '\'config.yaml\'.')
     print()
     project_name, weights = get_project_and_pretrain()
-
-    num_epochs = int(inq.text("Set Number of Epochs to train for", default = 50,
-                    validate = lambda _, x: (x.isdigit() and int(x) > 0)))
+    projectManager = ProjectManager()
+    if not projectManager.load(project_name):
+        clp.error(f"Could not load Project {project_name}!")
+        print ()
+        input("Press Enter to go back to main menu...")
+        return
+    cfg = projectManager.cfg
+    num_epochs = int(inq.text("Set Number of Epochs to train for",
+                default = cfg.CENTERDETECT.NUM_EPOCHS,
+                validate = lambda _, x: (x.isdigit() and int(x) > 0)))
     if not check_gpus():
         return
     train_interface.train_efficienttrack('CenterDetect', project_name,
@@ -88,9 +95,16 @@ def train_keypoint_detect():
                 '\'config.yaml\'.')
     print()
     project_name, weights = get_project_and_pretrain()
+    projectManager = ProjectManager()
+    if not projectManager.load(project_name):
+        clp.error(f"Could not load Project {project_name}!")
+        print ()
+        input("Press Enter to go back to main menu...")
+        return
+    cfg = projectManager.cfg
 
     num_epochs = int(inq.text("Set Number of Epochs to train for",
-                default = 100,
+                default = cfg.KEYPOINTDETECT.NUM_EPOCHS,
                 validate = lambda _, x: (x.isdigit() and int(x) > 0)))
     if not check_gpus():
         return
@@ -114,6 +128,11 @@ def train_hybridnet():
     projectManager = ProjectManager()
     projects = projectManager.get_projects()
     project_name = inq.list_input("Select project to load", choices=projects)
+    if not projectManager.load(project_name):
+        clp.error(f"Could not load Project {project_name}!")
+        print ()
+        input("Press Enter to go back to main menu...")
+        return
 
     use_latest_keypoint = inq.list_input("Use most recently saved "
                 "KeypointDetect weights?", choices=["Yes", "No"])
@@ -135,7 +154,8 @@ def train_hybridnet():
     else:
         weights_hybridnet = None
 
-    num_epochs = int(inq.text("Set Number of Epochs to train for", default = 30,
+    num_epochs = int(inq.text("Set Number of Epochs to train for",
+                default = projectManager.cfg.HYBRIDNET.NUM_EPOCHS,
                 validate = lambda _, x: (x.isdigit() and int(x) > 0)))
     mode = inq.list_input("Select training mode (only use mode different from "
                 "3D_only if you know what you're doing)", choices= ['3D_only',
@@ -166,6 +186,13 @@ def train_all():
     projectManager = ProjectManager()
     projects = projectManager.get_projects()
     available_pretrains = get_available_pretrains(projectManager.parent_dir)
+    if not projectManager.load(project_name):
+        clp.error(f"Could not load Project {project_name}!")
+        print ()
+        input("Press Enter to go back to main menu...")
+        return
+    cfg = projectManager.cfg
+
     questions = [
         inq.List('project_name',
             message="Select project to load",
@@ -176,15 +203,15 @@ def train_all():
         inq.Text('num_epochs_center',
                     message="Set Number of Epochs for CenterDetect",
                     validate = lambda _, x: (x.isdigit() and int(x) > 0),
-                    default = 50),
+                    default = cfg.CENTERDETECT.NUM_EPOCHS),
         inq.Text('num_epochs_keypoint',
                     message="Set Number of Epochs for KeypointDetect",
                     validate = lambda _, x: (x.isdigit() and int(x) > 0),
-                    default = 100),
+                    default = cfg.KEYPOINTDETECT.NUM_EPOCHS),
         inq.Text('num_epochs_hybridnet',
                     message="Set Number of Epochs for HybridNet",
                     validate = lambda _, x: (x.isdigit() and int(x) > 0),
-                    default = 30),
+                    default = cfg.HYBRIDNET.NUM_EPOCHS),
     ]
     settings = inq.prompt(questions)
     if not check_gpus():

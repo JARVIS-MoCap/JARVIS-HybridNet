@@ -60,7 +60,7 @@ def create_videos2D(params):
                         img_size, colors[line[1]])
             for j,point in enumerate(points2D):
                 utils.draw_point(img_orig, point, img_size,
-                        colors[j], point[2])
+                        colors[j])
 
         out.write(img_orig)
         if params.progress_bar != None:
