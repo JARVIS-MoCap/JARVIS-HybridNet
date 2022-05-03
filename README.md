@@ -1,5 +1,12 @@
 # JARVIS-HybridNet
 
+JARIS-HybridNet is a Python library for precise multi-view markerless 3D motion capture in complex environments. Our hybrid 2D-and 3D-CNN pose estimation network is designed to provide precise and robust tracking even under heavy occlusions.
+
+The primary goal of JARVIS to make markerless 3D pose estimation easy to use and quick to implement. With that in mind our network architecture was specifically designed to work with small manually annotated datasets. To make the process of acquiring multi-camera recordings and annotated training data as painless as possible we also provide our [AcquisitionTool]() and our [AnnotationTool](). Assuming you have a set of [FLIR Machine Vision Cameras](https://www.flir.eu/iis/machine-vision/) those tools will enable you to set up your motion capture pipeline without writing a single line of code.  
+
+
+Check out our [Getting Started Guide](https://jarvis-mocap.github.io/jarvis-docs//2021-10-28-gettingstarted.html) if you want to learn more.  
+
 ## Install Instructions
 
 - Clone the repository with
