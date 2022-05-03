@@ -1,9 +1,16 @@
+"""
+JARVIS-MoCap (https://jarvis-mocap.github.io/jarvis-docs)
+Copyright (c) 2022 Timo Hueser.
+https://github.com/JARVIS-MoCap/JARVIS-HybridNet
+Licensed under GNU Lesser General Public License v3.0
+"""
+
 import os
 import streamlit as st
 from streamlit_option_menu import option_menu
-import jarvis.config.project_manager as ProjectManager
-import jarvis.train_interface as train
 import time
+
+import jarvis.config.project_manager as ProjectManager
 import jarvis.train_interface as train
 from jarvis.utils.utils import get_available_pretrains
 
@@ -48,10 +55,12 @@ def train_all_gui(project, cfg):
             plot_acc1 = st.empty()
             trained = train.train_efficienttrack('CenterDetect', project,
                         num_epochs_center, pretrain,
-                        streamlitWidgets = [progressBar_epoch1, progressBar_total1,
-                                            epoch_counter1, plot_loss1, plot_acc1])
+                        streamlitWidgets = [progressBar_epoch1,
+                        progressBar_total1,epoch_counter1,
+                        plot_loss1, plot_acc1])
             if not trained:
-                st.error("Could not find pretraining weights, aborting training!")#
+                st.error("Could not find pretraining weights, "
+                            "aborting training!")
                 return
 
         with st.expander("Expand KeypointDetect Training", expanded=True):
@@ -69,10 +78,12 @@ def train_all_gui(project, cfg):
             plot_acc2 = st.empty()
             trained = train.train_efficienttrack('KeypointDetect', project,
                         num_epochs_keypoint, pretrain,
-                        streamlitWidgets = [progressBar_epoch2,progressBar_total2,
-                                            epoch_counter2, plot_loss2, plot_acc2])
+                        streamlitWidgets = [progressBar_epoch2,
+                        progressBar_total2, epoch_counter2,
+                        plot_loss2, plot_acc2])
             if not trained:
-                st.error("Could not find pretraining weights, aborting training!")#
+                st.error("Could not find pretraining weights, "
+                            "aborting training!")
                 return
 
         with st.expander("Expand HybridNet Training", expanded=True):
@@ -90,8 +101,9 @@ def train_all_gui(project, cfg):
             plot_acc3 = st.empty()
             train.train_hybridnet(project, num_epochs_hybridnet,
                         'latest', None, '3D_only',
-                        streamlitWidgets = [progressBar_epoch3,progressBar_total3,
-                                            epoch_counter3, plot_loss3, plot_acc3])
+                        streamlitWidgets = [progressBar_epoch3,
+                        progressBar_total3, epoch_counter3,
+                        plot_loss3, plot_acc3])
             st.balloons()
             time.sleep(1)
             st.experimental_rerun()
@@ -183,7 +195,8 @@ def train_keypoint_detect_gui(project, cfg):
 def train_hybridnet_gui(project, cfg):
     st.header("Train Hybridnet")
     st.write("HybridNet is the full network, containing the 2D keypoint "
-                "detector as well as the reprojection based 3D multiview network.")
+                "detector as well as the reprojection based 3D multiview "
+                "network.")
     with st.form("train_ckeypoint_form"):
         num_epochs = st.number_input("Epochs:",
                     value = cfg.HYBRIDNET.NUM_EPOCHS,
@@ -222,8 +235,9 @@ def train_hybridnet_gui(project, cfg):
             return
         if weights_keypoint == "":
             weights_keypoint = None
-        elif weights_keypoint != "latest" and (not os.path.isfile(weights_keypoint)
-                    or weights_keypoint.split(".")[-1] != "pth"):
+        elif (weights_keypoint != "latest"
+                    and (not os.path.isfile(weights_keypoint)
+                    or weights_keypoint.split(".")[-1] != "pth")):
             st.error("Weights KeypointDetect is not a valid file!")
             return
         if mode == '3D_only':
@@ -281,7 +295,8 @@ def check_dataset2D(project, cfg):
     if os.path.isabs(cfg.DATASET.DATASET_2D):
         dataset2D_path = cfg.DATASET.DATASET_2D
     else:
-        dataset2D_path = os.path.join(cfg.PARENT_DIR, cfg.DATASET.DATASET_ROOT_DIR, cfg.DATASET.DATASET_2D)
+        dataset2D_path = os.path.join(cfg.PARENT_DIR,
+                    cfg.DATASET.DATASET_ROOT_DIR, cfg.DATASET.DATASET_2D)
     if not os.path.isdir(dataset2D_path):
         st.error("Dataset2D does not exist, please check path!")
         return False
@@ -291,7 +306,8 @@ def check_dataset3D(project, cfg):
     if os.path.isabs(cfg.DATASET.DATASET_3D):
         dataset3D_path = cfg.DATASET.DATASET_3D
     else:
-        dataset3D_path = os.path.join(cfg.PARENT_DIR, cfg.DATASET.DATASET_ROOT_DIR, cfg.DATASET.DATASET_3D)
+        dataset3D_path = os.path.join(cfg.PARENT_DIR,
+                    cfg.DATASET.DATASET_ROOT_DIR, cfg.DATASET.DATASET_3D)
     if not os.path.isdir(dataset3D_path):
         st.error("Dataset3D does not exist, please check path!")
         return False
@@ -308,10 +324,13 @@ def check_center_detect(project, cfg):
         st.error("CenterDetect Number of Epochs has to be bigger than 0!")
         return False
     if cfg.CENTERDETECT.CHECKPOINT_SAVE_INTERVAL <= 0:
-        st.error("CenterDetect Checkpoint Save Interval has to be bigger than 0!")
+        st.error("CenterDetect Checkpoint Save Interval has to be bigger "
+                    "than 0!")
         return False
-    if cfg.CENTERDETECT.IMAGE_SIZE <= 0 or cfg.CENTERDETECT.IMAGE_SIZE % 64 != 0:
-        st.error("CenterDetect Image Size has to be bigger than 0 and divisible by 64!")
+    if (cfg.CENTERDETECT.IMAGE_SIZE <= 0
+                or cfg.CENTERDETECT.IMAGE_SIZE % 64 != 0):
+        st.error("CenterDetect Image Size has to be bigger than 0 and "
+                    "divisible by 64!")
         return False
     return True
 
@@ -327,10 +346,13 @@ def check_keypoint_detect(project, cfg):
         st.error("KeypointDetect Number of Epochs has to be bigger than 0!")
         return False
     if cfg.KEYPOINTDETECT.CHECKPOINT_SAVE_INTERVAL <= 0:
-        st.error("KeypointDetect Checkpoint Save Interval has to be bigger than 0!")
+        st.error("KeypointDetect Checkpoint Save Interval has to be bigger "
+                    "than 0!")
         return False
-    if cfg.KEYPOINTDETECT.BOUNDING_BOX_SIZE <= 0 or cfg.KEYPOINTDETECT.BOUNDING_BOX_SIZE % 64 != 0:
-        st.error("KeypointDetect Bounding Box Size has to be bigger than 0 and divisible by 64!")
+    if (cfg.KEYPOINTDETECT.BOUNDING_BOX_SIZE <= 0
+                or cfg.KEYPOINTDETECT.BOUNDING_BOX_SIZE % 64 != 0):
+        st.error("KeypointDetect Bounding Box Size has to be bigger than 0 "
+                    "and divisible by 64!")
         return False
     if cfg.KEYPOINTDETECT.NUM_JOINTS <= 0:
         st.error("KeypointDetect Number of JOints has to be bigger than 0!")
@@ -361,6 +383,7 @@ def check_hybridnet(project, cfg):
         st.error("HybridNet Grid Spacing has to be bigger than 0!")
         return False
     if cfg.HYBRIDNET.ROI_CUBE_SIZE % (cfg.HYBRIDNET.GRID_SPACING*8) != 0:
-        st.error("HybirdNet ROI_CUBE_SIZE has to be divisible by 4 * GRID_SPACING!")
+        st.error("HybirdNet ROI_CUBE_SIZE has to be divisible by 4 * "
+                    "GRID_SPACING!")
         return False
     return True

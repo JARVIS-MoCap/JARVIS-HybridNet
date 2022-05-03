@@ -1,6 +1,8 @@
 """
-efficienttrack.py
-=================
+JARVIS-MoCap (https://jarvis-mocap.github.io/jarvis-docs)
+Copyright (c) 2022 Timo Hueser.
+https://github.com/JARVIS-MoCap/JARVIS-HybridNet
+Licensed under GNU Lesser General Public License v3.0
 """
 
 import os
@@ -19,7 +21,6 @@ from torch.utils.data import DataLoader
 from .model import EfficientTrackBackbone
 from .loss import HeatmapLoss
 import jarvis.efficienttrack.utils as utils
-import jarvis.efficienttrack.darkpose as darkpose
 from jarvis.utils.logger import NetLogger, AverageMeter
 import jarvis.utils.clp as clp
 
@@ -226,10 +227,12 @@ class EfficientTrack:
         self.model.train()
 
         latest_train_loss = 0
+        latest_train_acc = 0
         latest_val_loss = 0
         latest_val_acc = 0
 
         train_losses = []
+        train_accs = []
         val_losses = []
         val_accs = []
 
@@ -255,6 +258,8 @@ class EfficientTrack:
                 imgs = imgs.cuda()
                 heatmaps = list(map(lambda x: x.cuda(non_blocking=True),
                             heatmaps))
+                keypoints = np.array(data[2]).reshape(-1,
+                            self.cfg.NUM_JOINTS,3)[:,:,:2]
 
                 self.optimizer.zero_grad()
                 outputs = self.model(imgs)
@@ -269,10 +274,17 @@ class EfficientTrack:
                 if self.cfg.USE_ONECYLCLE:
                     self.scheduler.step()
 
+                outs = outputs[1].clamp(0,255).detach()
+                acc = self.calculate_accuracy(outs, keypoints)
+
                 self.lossMeter.update(loss.item())
+                if (acc != -1):
+                    self.accuracyMeter.update(acc)
+
                 progress_bar.set_description(
-                    'Epoch: {}/{}. Loss: {:.5f}'.format(
-                        epoch+1, num_epochs, self.lossMeter.read()))
+                    'Epoch: {}/{}. Loss: {:.5f}. Acc: {:1.3f}'.format(
+                        epoch+1, num_epochs, self.lossMeter.read(),
+                        self.accuracyMeter.read()))
                 if streamlitWidgets != None:
                     streamlitWidgets[1].progress(float(count + 1)
                                 / float(len(training_generator)))
@@ -283,9 +295,13 @@ class EfficientTrack:
             self.logger.update_learning_rate(
                         self.optimizer.param_groups[0]['lr'])
             self.logger.update_train_loss(self.lossMeter.read())
+            self.logger.update_train_accuracy(self.accuracyMeter.read())
             latest_train_loss = self.lossMeter.read()
+            latest_train_acc = self.accuracyMeter.read()
             train_losses.append(latest_train_loss)
+            train_accs.append(latest_train_acc)
             self.lossMeter.reset()
+            self.accuracyMeter.reset()
 
             if (epoch + 1) % self.cfg.CHECKPOINT_SAVE_INTERVAL == 0:
                 if epoch + 1 < num_epochs:
@@ -317,7 +333,7 @@ class EfficientTrack:
                                 heatmaps_loss = heatmaps_losses[idx].mean(dim=0)
                                 loss = loss + heatmaps_loss
 
-                    outs = outputs[1].clamp(0,255).detach().cpu().numpy()
+                    outs = outputs[1].clamp(0,255).detach()
                     acc = self.calculate_accuracy(outs, keypoints)
 
                     self.lossMeter.update(loss.item())
@@ -348,21 +364,29 @@ class EfficientTrack:
                     streamlitWidgets[3].line_chart({'Train Loss': train_losses,
                                 'Val Loss': val_losses})
                     streamlitWidgets[4].line_chart(
-                                {'Val Accuracy [px]': val_accs})
+                                {'Train Accuracy [px]': train_accs,
+                                 'Val Accuracy [px]': val_accs})
                     st.session_state[self.mode+'/'+'Train Loss'] = train_losses
+                    st.session_state[self.mode+'/'+'Train Accuracy'] = train_accs
                     st.session_state[self.mode+'/'+'Val Loss'] = val_losses
                     st.session_state[self.mode+'/'+'Val Accuracy'] = val_accs
                     st.session_state['results_available'] = True
 
 
         final_results = {'train_loss': latest_train_loss,
+                         'train_acc': latest_train_acc,
                          'val_loss': latest_val_loss,
                          'val_acc': latest_val_acc}
         return final_results
 
 
     def calculate_accuracy(self, outs, gt):
-        preds, maxvals = darkpose.get_final_preds(outs,None)
+        hms = outs.view(outs.shape[0], outs.shape[1], -1)
+        m = hms.argmax(2).view(outs.shape[0],
+                    outs.shape[1], 1)
+        preds = torch.cat((m % outs.shape[2], m
+                    // outs.shape[3]),
+                    dim=2).cpu().numpy()
         mask = np.sum(gt,axis = 2)
         masked = np.ma.masked_where(mask == 0,
                     np.linalg.norm((preds+0.5)*2-gt,

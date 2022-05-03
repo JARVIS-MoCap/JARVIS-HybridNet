@@ -1,3 +1,10 @@
+"""
+JARVIS-MoCap (https://jarvis-mocap.github.io/jarvis-docs)
+Copyright (c) 2022 Timo Hueser.
+https://github.com/JARVIS-MoCap/JARVIS-HybridNet
+Licensed under GNU Lesser General Public License v3.0
+"""
+
 import click
 import os
 from pathlib import Path
@@ -17,7 +24,6 @@ import jarvis.ui.interactive_cli.cli as interactive_cli
 class OrderedGroup(click.Group):
     def __init__(self, name=None, commands=None, **attrs):
         super(OrderedGroup, self).__init__(name, commands, **attrs)
-        #: the registered subcommands by their exported names.
         self.commands = commands or collections.OrderedDict()
 
     def list_commands(self, ctx):

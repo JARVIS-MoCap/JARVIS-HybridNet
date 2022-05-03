@@ -1,3 +1,10 @@
+"""
+JARVIS-MoCap (https://jarvis-mocap.github.io/jarvis-docs)
+Copyright (c) 2022 Timo Hueser.
+https://github.com/JARVIS-MoCap/JARVIS-HybridNet
+Licensed under GNU Lesser General Public License v3.0
+"""
+
 import os
 import numpy as np
 import matplotlib.pyplot as plt
@@ -33,7 +40,8 @@ def set_axes_equal(ax):
     ax.set_zlim3d([z_middle - plot_radius, z_middle + plot_radius])
 
 
-def plot_slices(csv_file, filename, start_frame, num_frames, skip_number, skeleton_preset, plot_azim, plot_elev):
+def plot_slices(csv_file, filename, start_frame, num_frames, skip_number,
+            skeleton_preset, plot_azim, plot_elev):
     if not os.path.isfile(csv_file):
         print ('3D Coordinate CSV file does not exist!')
         return

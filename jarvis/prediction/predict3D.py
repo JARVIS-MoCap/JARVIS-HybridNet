@@ -1,7 +1,8 @@
 """
-predict3D.py
-=================
-Functions to run 3D inference and visualize the results
+JARVIS-MoCap (https://jarvis-mocap.github.io/jarvis-docs)
+Copyright (c) 2022 Timo Hueser.
+https://github.com/JARVIS-MoCap/JARVIS-HybridNet
+Licensed under GNU Lesser General Public License v3.0
 """
 
 import os
@@ -10,7 +11,6 @@ import itertools
 import numpy as np
 import torch
 import cv2
-import matplotlib
 import json
 import itertools
 from joblib import Parallel, delayed
@@ -22,7 +22,6 @@ from jarvis.utils.reprojection import ReprojectionTool, load_reprojection_tools
 from jarvis.utils.reprojection import get_repro_tool
 from jarvis.config.project_manager import ProjectManager
 from jarvis.prediction.jarvis3D import JarvisPredictor3D
-
 
 
 def predict3D(params):
@@ -47,7 +46,6 @@ def predict3D(params):
     os.makedirs(params.output_dir, exist_ok = True)
     create_info_file(params)
 
-
     #create openCV video read streams
     video_paths = get_video_paths(
                 params.recording_path, reproTool)
@@ -62,7 +60,6 @@ def predict3D(params):
                     <= caps[0].get(cv2.CAP_PROP_FRAME_COUNT), \
                     "make sure your selected segment is not " \
                     "longer that the total video!"
-
 
     csvfile = open(os.path.join(params.output_dir, 'data3D.csv'), 'w',
                 newline='')

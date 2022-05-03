@@ -1,3 +1,10 @@
+"""
+JARVIS-MoCap (https://jarvis-mocap.github.io/jarvis-docs)
+Copyright (c) 2022 Timo Hueser.
+https://github.com/JARVIS-MoCap/JARVIS-HybridNet
+Licensed under GNU Lesser General Public License v3.0
+"""
+
 import click
 import os
 import torch
@@ -5,7 +12,6 @@ from tensorboard import program
 
 from jarvis.config.project_manager import ProjectManager
 from jarvis.utils.utils import CLIColors
-
 
 
 @click.command()

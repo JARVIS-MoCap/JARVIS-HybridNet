@@ -1,10 +1,16 @@
+"""
+JARVIS-MoCap (https://jarvis-mocap.github.io/jarvis-docs)
+Copyright (c) 2022 Timo Hueser.
+https://github.com/JARVIS-MoCap/JARVIS-HybridNet
+Licensed under GNU Lesser General Public License v3.0
+"""
+
 import click
 import os
 
 import jarvis.analysis.analyze as analyze
 import jarvis.analysis.plotting as plotting
 from jarvis.config.project_manager import ProjectManager
-
 
 
 def get_analysis_path(project_name):
@@ -16,6 +22,7 @@ def get_analysis_path(project_name):
                 project.cfg.PROJECTS_ROOT_PATH, project_name,
                 'analysis')
     return analysis_path
+
 
 @click.command()
 @click.option('--weights_center_detect', default = 'latest',

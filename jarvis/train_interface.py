@@ -1,3 +1,10 @@
+"""
+JARVIS-MoCap (https://jarvis-mocap.github.io/jarvis-docs)
+Copyright (c) 2022 Timo Hueser.
+https://github.com/JARVIS-MoCap/JARVIS-HybridNet
+Licensed under GNU Lesser General Public License v3.0
+"""
+
 import os
 import torch
 import streamlit as st
@@ -106,6 +113,7 @@ def train_efficienttrack(mode, project_name, num_epochs, weights,
     clp.success('Succesfully finished training!')
     print ('Final Stats:')
     print (f'Training Loss: {train_results["train_loss"]}')
+    print (f'Training Accuracy [px]: {train_results["train_acc"]}')
     print (f'Validation Loss: {train_results["val_loss"]}')
     print (f'Validation Accuracy [px]: {train_results["val_acc"]}')
     print ()

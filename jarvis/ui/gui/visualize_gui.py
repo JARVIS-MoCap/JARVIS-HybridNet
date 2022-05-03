@@ -1,7 +1,15 @@
+"""
+JARVIS-MoCap (https://jarvis-mocap.github.io/jarvis-docs)
+Copyright (c) 2022 Timo Hueser.
+https://github.com/JARVIS-MoCap/JARVIS-HybridNet
+Licensed under GNU Lesser General Public License v3.0
+"""
+
 import os
 import streamlit as st
 from ruamel.yaml import YAML
 from streamlit_option_menu import option_menu
+import time
 
 import jarvis.config.project_manager as ProjectManager
 from jarvis.dataset.dataset2D import Dataset2D
@@ -10,7 +18,6 @@ import jarvis.visualization.visualize_dataset as visualize_dataset
 from jarvis.visualization.create_videos3D import create_videos3D
 from jarvis.visualization.create_videos2D import create_videos2D
 from jarvis.utils.paramClasses import CreateVideos3DParams, CreateVideos2DParams
-import time
 
 
 def create_video2D_gui(project):
@@ -117,7 +124,8 @@ def visualize2D_gui(project):
     mode = st.selectbox(
                 'Select Mode', ['CenterDetect', 'KeypointDetect'])
     set = Dataset2D(projectManager.cfg, set=set_name, mode = mode)
-    img_idx = st.slider("Frame Index", min_value=0, max_value=len(set.image_ids), value=1)
+    img_idx = st.slider("Frame Index", min_value=0,
+                max_value=len(set.image_ids), value=1)
     fig = visualize_dataset.visualize_2D_sample(set, mode, img_idx)
     col1, col2, col3 = st.columns([1,3,1])
     with col1:
@@ -137,7 +145,8 @@ def visualize3D_gui(project):
     mode = st.selectbox(
                 'Select Mode', ['CenterDetect', 'KeypointDetect'])
     set = Dataset3D(projectManager.cfg, set=set_name)
-    img_idx = st.slider("Frame Index", min_value=0, max_value=len(set.image_ids), value=1)
+    img_idx = st.slider("Frame Index",
+                min_value=0, max_value=len(set.image_ids), value=1)
     azim = st.slider("Azim", min_value=0, max_value=180)
     elev = st.slider("Elev", min_value=0, max_value=180)
 

@@ -1,7 +1,8 @@
 """
-jarvis_gui.py
-============
-Main Streamlit GUI script.
+JARVIS-MoCap (https://jarvis-mocap.github.io/jarvis-docs)
+Copyright (c) 2022 Timo Hueser.
+https://github.com/JARVIS-MoCap/JARVIS-HybridNet
+Licensed under GNU Lesser General Public License v3.0
 """
 
 import streamlit as st
@@ -120,7 +121,8 @@ if 'results_available' in st.session_state:
 			st.subheader('Loss')
 			st.line_chart({'Train Loss': train_losses, 'Val Loss': val_losses})
 			st.subheader('Accuracy')
-			st.line_chart({'Train Accuracy [mm]': train_accs, 'Val Accuracy [mm]': val_accs})
+			st.line_chart({'Train Accuracy [mm]': train_accs,
+						'Val Accuracy [mm]': val_accs})
 
 	if 'HybridNet/all/Train Loss' in st.session_state:
 		train_losses = st.session_state['HybridNet/all/Train Loss']
@@ -132,25 +134,30 @@ if 'results_available' in st.session_state:
 		del st.session_state['HybridNet/all/Train Accuracy']
 		del st.session_state['HybridNet/all/Val Accuracy']
 		st.header("HybridNet Finetuning")
-		with st.expander("Expand HybridNet Finetuning Results", expanded = True):
+		with st.expander("Expand HybridNet Finetuning Results",
+					expanded = True):
 			st.subheader('Loss')
-			st.line_chart({'Train Loss': train_losses, 'Val Loss': val_losses})
+			st.line_chart({'Train Loss': train_losses,
+						'Val Loss': val_losses})
 			st.subheader('Accuracy')
-			st.line_chart({'Train Accuracy [mm]': train_accs, 'Val Accuracy [mm]': val_accs})
+			st.line_chart({'Train Accuracy [mm]': train_accs,
+						'Val Accuracy [mm]': val_accs})
 
 	st.button("Clear")
 
 elif project_box != 'Select...':
 	projectManager.load(project_box)
 	with st.sidebar:
-		selected = option_menu("Menus", ['Training', 'Prediction', 'Visualization', 'Analysis'],
+		selected = option_menu("Menus", ['Training', 'Prediction',
+					'Visualization', 'Analysis'],
 		icons=['gpu-card', 'layer-forward', 'graph-up', 'bar-chart-fill'],
 		menu_icon="list", default_index=0)
 
 	if selected == "Training":
 		with st.sidebar:
 			train_mode = option_menu("Training Options",
-						['Train All', 'Train Center', 'Train Keypoint', 'Train HybridNet'],
+						['Train All', 'Train Center',
+						'Train Keypoint', 'Train HybridNet'],
 						menu_icon="gpu-card", default_index=0)
 		st.title("Training")
 		if train_mode == 'Train All':
@@ -164,9 +171,10 @@ elif project_box != 'Select...':
 
 	elif selected == "Prediction":
 		with st.sidebar:
-			predict_mode = option_menu("Prediction Options", ['Predict3D', 'Predict2D'],
-				icons=['badge-3d', 'camera-video'],
-				menu_icon="layer-forward", default_index=0)
+			predict_mode = option_menu("Prediction Options",
+						['Predict3D', 'Predict2D'],
+						icons=['badge-3d', 'camera-video'],
+						menu_icon="layer-forward", default_index=0)
 		st.title("Prediction")
 		if predict_mode == 'Predict3D':
 			predict3D_gui(project_box)
@@ -174,7 +182,9 @@ elif project_box != 'Select...':
 			predict2D_gui(project_box)
 	elif selected == "Visualization":
 		with st.sidebar:
-			vis_mode = option_menu("Visualizations", ['Create Video 3D', 'Create Video 2D','Visualize Dataset2D', 'Visualize Dataset3D'],
+			vis_mode = option_menu("Visualizations", ['Create Video 3D',
+						'Create Video 2D','Visualize Dataset2D',
+						'Visualize Dataset3D'],
 						menu_icon="graph-up", default_index=0)
 		st.title('Visualization')
 		if vis_mode == 'Create Video 3D':
@@ -187,7 +197,8 @@ elif project_box != 'Select...':
 			visualize_gui.visualize3D_gui(project_box)
 	else:
 		with st.sidebar:
-			analysis_mode = option_menu("Analysis", ['Analyse Validation Data', 'Plot Error Histogram', 'Plot Error per Keypoint'],
+			analysis_mode = option_menu("Analysis", ['Analyse Validation Data',
+						'Plot Error Histogram', 'Plot Error per Keypoint'],
 						menu_icon="bar-chart-fill", default_index=0)
 		st.title('Analysis')
 		if analysis_mode == 'Analyse Validation Data':
