@@ -11,6 +11,10 @@ The primary goal of JARVIS to make markerless 3D pose estimation easy to use and
 
 Check out our [Getting Started Guide](https://jarvis-mocap.github.io/jarvis-docs//2021-10-28-gettingstarted.html) if you want to learn more.  
 
+<p align="center">
+<img src="docs/Pytorch_Vid.gif" alt="banner" width="70%"/>
+</p>
+
 ## Install Instructions
 
 - Clone the repository with
