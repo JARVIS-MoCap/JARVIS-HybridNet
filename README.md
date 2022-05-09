@@ -43,4 +43,4 @@ pip install nvidia-pyindex
 pip install torch-tensorrt -f https://github.com/NVIDIA/Torch-TensorRT/releases
 pip install --upgrade nvidia-tensorrt
 ```
-- TODO: Add libnvinfer to path and stuff
+- You will also have to add `libnvinfer.so` to the `PATH` variable
