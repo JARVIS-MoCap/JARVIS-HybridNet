@@ -37,10 +37,10 @@ conda activate jarvis
 - Install JARVIS
   `pip install -e .`
   
- - To be able to use the optional TensorRT acceleration install [Torch-TensorRT](https://github.com/NVIDIA/Torch-TensorRT) and the [TensorRT] pip package with:
+ - To be able to use the **optional** TensorRT acceleration install [Torch-TensorRT](https://github.com/NVIDIA/Torch-TensorRT) and the [TensorRT] pip package with:
 ```
 pip install nvidia-pyindex
 pip install torch-tensorrt -f https://github.com/NVIDIA/Torch-TensorRT/releases
 pip install --upgrade nvidia-tensorrt
 ```
-- You will also have to add `libnvinfer.so` to the `PATH` variable
+- If you want to be able to use TensorRT you also have to add `libnvinfer.so` to the `PATH` variable. This is not required if you're not using TensorRT acceleration.
