@@ -186,4 +186,5 @@ class JarvisPredictor3D(nn.Module):
                         distortionCoefficients.unsqueeze(0))
         else:
             points3D = None
+            confidences = None
         return points3D, confidences
