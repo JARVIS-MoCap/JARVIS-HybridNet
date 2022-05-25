@@ -382,7 +382,7 @@ def check_hybridnet(project, cfg):
     if cfg.HYBRIDNET.GRID_SPACING <= 0:
         st.error("HybridNet Grid Spacing has to be bigger than 0!")
         return False
-    if cfg.HYBRIDNET.ROI_CUBE_SIZE % (cfg.HYBRIDNET.GRID_SPACING*8) != 0:
+    if cfg.HYBRIDNET.ROI_CUBE_SIZE % (cfg.HYBRIDNET.GRID_SPACING*4) != 0:
         st.error("HybirdNet ROI_CUBE_SIZE has to be divisible by 4 * "
                     "GRID_SPACING!")
         return False
