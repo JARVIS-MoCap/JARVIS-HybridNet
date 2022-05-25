@@ -73,6 +73,7 @@ def create_project():
     if dataset3d == '':
         print ('[Info] You have not specified a 3D-dataset, you will not be '
                     'able to train the full 3D network!')
+        dataset3d = None
     if dataset2d == '':
         dataset2d = dataset3d
 

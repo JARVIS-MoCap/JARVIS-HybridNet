@@ -309,19 +309,27 @@ class ProjectManager:
                         Loader=ruamel.yaml.RoundTripLoader)
             self._update_values(config_data, self.cfg)
 
-            dataset_dir = os.path.join(self.cfg.PARENT_DIR,
-                        self.cfg.DATASET.DATASET_ROOT_DIR,
-                        self.cfg.DATASET.DATASET_3D)
+            if self.cfg.DATASET.DATASET_3D != None:
+                dataset_dir = os.path.join(self.cfg.PARENT_DIR,
+                            self.cfg.DATASET.DATASET_ROOT_DIR,
+                            self.cfg.DATASET.DATASET_3D)
+            else:
+                dataset_dir = os.path.join(self.cfg.PARENT_DIR,
+                            self.cfg.DATASET.DATASET_ROOT_DIR,
+                            self.cfg.DATASET.DATASET_2D)
             dataset_json = open(os.path.join(dataset_dir, 'annotations',
                         'instances_val.json'))
             dataset_data = json.load(dataset_json)
-            keypoints = dataset_data['keypoint_names']
-            config_data['KEYPOINT_NAMES'] = keypoints
-            skeleton = []
-            for component in dataset_data['skeleton']:
-                 skeleton.append([component['keypointA'],
-                            component['keypointB']])
-            config_data['SKELETON'] = skeleton
+            try:
+                keypoints = dataset_data['keypoint_names']
+                config_data['KEYPOINT_NAMES'] = keypoints
+                skeleton = []
+                for component in dataset_data['skeleton']:
+                    skeleton.append([component['keypointA'],
+                               component['keypointB']])
+                config_data['SKELETON'] = skeleton
+            except:
+                print ("No keypoint names or skeleton defined in this dataset!")
 
         with open(config_path, 'w') as outfile:
             ruamel.yaml.dump(config_data, outfile,
