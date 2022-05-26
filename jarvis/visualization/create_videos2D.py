@@ -42,8 +42,9 @@ def create_videos2D(params):
                 (img_size[0],img_size[1]))
 
     colors, line_idxs = get_skeleton(cfg)
+    header_info = np.genfromtxt(params.data_csv, delimiter=',', dtype=None, max_rows = 2)
     points2D_all = np.genfromtxt(params.data_csv, delimiter=',')
-    if np.isnan(points2D_all[0,0]):
+    if header_info[1,0] == b'x':
         points2D_all = points2D_all[2:]
 
     assert params.frame_start < cap.get(cv2.CAP_PROP_FRAME_COUNT), \
