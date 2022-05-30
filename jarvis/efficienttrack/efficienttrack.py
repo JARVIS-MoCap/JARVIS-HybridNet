@@ -153,7 +153,7 @@ class EfficientTrack:
                         != self.cfg.NUM_JOINTS):
                 pretrained_dict = {k: v for k, v in pretrained_dict.items()
                             if not k in ['final_conv1.weight',
-                            'final_conv2.weight']}
+                            'final_conv2.weight', 'deconv1.weight']}
             self.model.load_state_dict(pretrained_dict, strict=False)
             clp.info(f'Successfully loaded {pose} weights: {weights_path}')
             return True
