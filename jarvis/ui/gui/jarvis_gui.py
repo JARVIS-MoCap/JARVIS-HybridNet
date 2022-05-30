@@ -77,11 +77,13 @@ if 'results_available' in st.session_state:
 
 	if  'CenterDetect/Train Loss' in st.session_state:
 		train_losses = st.session_state['CenterDetect/Train Loss']
+		train_accs = st.session_state['CenterDetect/Train Accuracy']
 		val_losses = st.session_state['CenterDetect/Val Loss']
 		val_accs = st.session_state['CenterDetect/Val Accuracy']
 		display_results = True
 
 		del st.session_state['CenterDetect/Train Loss']
+		del st.session_state['CenterDetect/Train Accuracy']
 		del st.session_state['CenterDetect/Val Loss']
 		del st.session_state['CenterDetect/Val Accuracy']
 		st.header("CenterDetect")
@@ -89,15 +91,18 @@ if 'results_available' in st.session_state:
 			st.subheader('Loss')
 			st.line_chart({'Train Loss': train_losses, 'Val Loss': val_losses})
 			st.subheader('Accuracy')
-			st.line_chart({'Val Accuracy [px]': val_accs})
+			st.line_chart({'Train Accuracy [px]': train_accs, 'Val Accuracy [px]': val_accs})
+
 
 	if  'KeypointDetect/Train Loss' in st.session_state:
 		train_losses = st.session_state['KeypointDetect/Train Loss']
+		train_accs = st.session_state['CenterDetect/Train Accuracy']
 		val_losses = st.session_state['KeypointDetect/Val Loss']
 		val_accs = st.session_state['KeypointDetect/Val Accuracy']
 		display_results = True
 
 		del st.session_state['KeypointDetect/Train Loss']
+		del st.session_state['KeypointDetect/Train Accuracy']
 		del st.session_state['KeypointDetect/Val Loss']
 		del st.session_state['KeypointDetect/Val Accuracy']
 		st.header("KeypointDetect")
@@ -105,7 +110,7 @@ if 'results_available' in st.session_state:
 			st.subheader('Loss')
 			st.line_chart({'Train Loss': train_losses, 'Val Loss': val_losses})
 			st.subheader('Accuracy')
-			st.line_chart({'Val Accuracy [px]': val_accs})
+			st.line_chart({'Train Accuracy [px]': train_accs, 'Val Accuracy [px]': val_accs})
 
 	if 'HybridNet/3D_only/Train Loss' in st.session_state:
 		train_losses = st.session_state['HybridNet/3D_only/Train Loss']

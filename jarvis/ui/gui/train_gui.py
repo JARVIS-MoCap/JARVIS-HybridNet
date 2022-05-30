@@ -120,6 +120,9 @@ def train_center_detect_gui(project, cfg):
         weights = st.text_input("Weights:", value = "",
                     help = "Use 'latest' to load you last saved weights, or "
                                 "specify the path to a '.pth' file.")
+        available_pretrains = get_available_pretrains(cfg.PARENT_DIR)
+        pretrain = st.selectbox('Pretraining to use',
+                    ['None'] + available_pretrains)
         submitted = st.form_submit_button("Train")
     if submitted:
         if not check_config_center_detect(project, cfg):
@@ -137,7 +140,10 @@ def train_center_detect_gui(project, cfg):
         st.subheader("Accuracy Monitor")
         plot_acc = st.empty()
         if weights == "":
-            weights = None
+            if pretrain != "None":
+                weights = pretrain
+            else:
+                weights = None
         elif weights != "latest" and (not os.path.isfile(weights)
                     or weights.split(".")[-1] != "pth"):
             st.error("Weights is not a valid file!")
@@ -162,6 +168,9 @@ def train_keypoint_detect_gui(project, cfg):
         weights = st.text_input("Weights:", value = "",
                     help = "Use 'latest' to load you last saved weights, or "
                                 "specify the path to a '.pth' file.")
+        available_pretrains = get_available_pretrains(cfg.PARENT_DIR)
+        pretrain = st.selectbox('Pretraining to use',
+                    ['None'] + available_pretrains)
         submitted = st.form_submit_button("Train")
     if submitted:
         if not check_config_keypoint_detect(project, cfg):
@@ -179,7 +188,10 @@ def train_keypoint_detect_gui(project, cfg):
         st.subheader("Accuracy Monitor")
         plot_acc = st.empty()
         if weights == "":
-            weights = None
+            if pretrain != "None":
+                weights = pretrain
+            else:
+                weights = None
         elif weights != "latest" and (not os.path.isfile(weights)
                     or weights.split(".")[-1] != "pth"):
             st.error("Weights is not a valid file!")
@@ -189,8 +201,8 @@ def train_keypoint_detect_gui(project, cfg):
                     streamlitWidgets = [progressBar_epoch, progressBar_total,
                                         epoch_counter, plot_loss, plot_acc])
         st.balloons()
-        #time.sleep(1)
-        #st.experimental_rerun()
+        time.sleep(1)
+        st.experimental_rerun()
 
 def train_hybridnet_gui(project, cfg):
     st.header("Train Hybridnet")
