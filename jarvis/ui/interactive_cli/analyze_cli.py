@@ -136,10 +136,10 @@ def plot_error_histogram():
         add_more = inq.list_input( "Add another '.csv' file containing "
                     "predictions?", choices =["Yes", "No"], default = "No")
         if add_more == "Yes":
-            pred_name = inq.text("Path to prediction '.csv' file",
+            data_path = inq.text("Path to prediction '.csv' file",
                         validate = lambda _, x: (os.path.isfile(x)
-                        and x.split(".")[-1] == 'csv')),
-            data_path = inq.text("Name of the Predictions for Legend")
+                        and x.split(".")[-1] == 'csv'))
+            pred_name = inq.text("Name of the Predictions for Legend")
             additional_data[pred_name] = data_path
         else:
             add_more_data = False
