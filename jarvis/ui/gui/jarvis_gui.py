@@ -96,7 +96,7 @@ if 'results_available' in st.session_state:
 
 	if  'KeypointDetect/Train Loss' in st.session_state:
 		train_losses = st.session_state['KeypointDetect/Train Loss']
-		train_accs = st.session_state['CenterDetect/Train Accuracy']
+		train_accs = st.session_state['KeypointDetect/Train Accuracy']
 		val_losses = st.session_state['KeypointDetect/Val Loss']
 		val_accs = st.session_state['KeypointDetect/Val Accuracy']
 		display_results = True
