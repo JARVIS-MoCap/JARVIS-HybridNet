@@ -133,8 +133,7 @@ def train_hybridnet():
                 '\'config.yaml\'.')
     print()
     projectManager = ProjectManager()
-    projects = projectManager.get_projects()
-    project_name = inq.list_input("Select project to load", choices=projects)
+    project_name, weights = get_project_and_pretrain()
     if not projectManager.load(project_name):
         clp.error(f"Could not load Project {project_name}!")
         print ()
