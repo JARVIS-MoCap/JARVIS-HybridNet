@@ -213,6 +213,9 @@ def train_hybridnet_gui(project, cfg):
         num_epochs = st.number_input("Epochs:",
                     value = cfg.HYBRIDNET.NUM_EPOCHS,
                     min_value = 1, max_value = 1000)
+        available_pretrains = get_available_pretrains(cfg.PARENT_DIR)
+        pretrain = st.selectbox('Pretraining to use',
+                    ['None'] + available_pretrains)
         weights_keypoint = st.text_input("Weights KeypointDetect:",
                     value = "latest",
                     help = "Use 'latest' to load you last saved weights, or "
@@ -220,9 +223,7 @@ def train_hybridnet_gui(project, cfg):
         weights = st.text_input("Weights:", value = "",
                     help = "Use 'latest' to load you last saved weights, or "
                                 "specify the path to a '.pth' file.")
-        mode = st.selectbox("Training Mode (only use mode different from "
-                    "3D_only if you know what you're doing)",
-                    ['3D_only', 'last_layers', 'all'])
+        mode = st.selectbox("Training Mode", ['3D_only', 'last_layers', 'all'])
         submitted = st.form_submit_button("Train")
     if submitted:
         if not check_config_hybridnet(project, cfg):
@@ -239,19 +240,23 @@ def train_hybridnet_gui(project, cfg):
         plot_loss = st.empty()
         st.subheader("Accuracy Monitor")
         plot_acc = st.empty()
-        if weights == "":
-            weights = None
-        elif weights != "latest" and (not os.path.isfile(weights)
-                    or weights.split(".")[-1] != "pth"):
-            st.error("Weights is not a valid file!")
-            return
-        if weights_keypoint == "":
+        if pretrain != None:
+            weights = pretrain
             weights_keypoint = None
-        elif (weights_keypoint != "latest"
-                    and (not os.path.isfile(weights_keypoint)
-                    or weights_keypoint.split(".")[-1] != "pth")):
-            st.error("Weights KeypointDetect is not a valid file!")
-            return
+        else:
+            if weights == "":
+                weights = None
+            elif weights != "latest" and (not os.path.isfile(weights)
+                        or weights.split(".")[-1] != "pth"):
+                st.error("Weights is not a valid file!")
+                return
+            if weights_keypoint == "":
+                weights_keypoint = None
+            elif (weights_keypoint != "latest"
+                        and (not os.path.isfile(weights_keypoint)
+                        or weights_keypoint.split(".")[-1] != "pth")):
+                st.error("Weights KeypointDetect is not a valid file!")
+                return
         if mode == '3D_only':
             finetune = False
         else:
