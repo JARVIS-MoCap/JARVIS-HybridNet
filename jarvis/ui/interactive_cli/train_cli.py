@@ -133,39 +133,44 @@ def train_hybridnet():
                 '\'config.yaml\'.')
     print()
     projectManager = ProjectManager()
-    projects = projectManager.get_projects()
-    project_name = inq.list_input("Select project to load", choices=projects)
+    project_name, weights_pretrain = get_project_and_pretrain()
+    print (weights_pretrain)
+
     if not projectManager.load(project_name):
         clp.error(f"Could not load Project {project_name}!")
         print ()
         input("Press Enter to go back to main menu...")
         return
 
-    use_latest_keypoint = inq.list_input("Use most recently saved "
-                "KeypointDetect weights?", choices=["Yes", "No"])
-    if use_latest_keypoint == "Yes":
-        weights_keypoint_detect = 'latest'
-    else:
-        weights_keypoint_detect = inq.text("Path to KeypointDetect "
-                    "'.pth' weights file",
-                    validate = lambda _, x: ((os.path.isfile(x)
-                    and x.split(".")[-1] == 'pth') or x == ""))
+    if weights_pretrain == 'None':
+        use_latest_keypoint = inq.list_input("Use most recently saved "
+                    "KeypointDetect weights?", choices=["Yes", "No"])
+        if use_latest_keypoint == "Yes":
+            weights_keypoint_detect = 'latest'
+        else:
+            weights_keypoint_detect = inq.text("Path to KeypointDetect "
+                        "'.pth' weights file",
+                        validate = lambda _, x: ((os.path.isfile(x)
+                        and x.split(".")[-1] == 'pth') or x == ""))
 
-    if weights_keypoint_detect == "":
-        weights_keypoint_detect = None
-        weights_hybridnet = inq.text("Path to '.pth' Hybridnet weights file",
-                    validate = lambda _, x: ((os.path.isfile(x)
-                    and x.split(".")[-1] == 'pth') or x == ""))
-        if weights_hybridnet == "":
+        if weights_keypoint_detect == "":
+            weights_keypoint_detect = None
+            weights_hybridnet = inq.text("Path to '.pth' Hybridnet weights file",
+                        validate = lambda _, x: ((os.path.isfile(x)
+                        and x.split(".")[-1] == 'pth') or x == ""))
+            if weights_hybridnet == "":
+                weights_hybridnet = None
+        else:
             weights_hybridnet = None
+
     else:
-        weights_hybridnet = None
+        weights_keypoint_detect = None
+        weights_hybridnet = weights_pretrain
 
     num_epochs = int(inq.text("Set Number of Epochs to train for",
                 default = projectManager.cfg.HYBRIDNET.NUM_EPOCHS,
                 validate = lambda _, x: (x.isdigit() and int(x) > 0)))
-    mode = inq.list_input("Select training mode (only use mode different from "
-                "3D_only if you know what you're doing)", choices= ['3D_only',
+    mode = inq.list_input("Select training mode", choices= ['3D_only',
                 'last_layers', 'bifpn', 'all'])
     if mode == '3D_only':
         finetune = False

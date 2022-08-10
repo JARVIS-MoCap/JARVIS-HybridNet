@@ -96,6 +96,25 @@ class HybridNet:
         else:
             return True
 
+    def load_pose_pretrain(self, pose):
+        weights_name = f"HybridNet-{self.cfg.KEYPOINTDETECT.MODEL_SIZE}.pth"
+        weights_path = os.path.join(self.cfg.PARENT_DIR, 'pretrained',
+                    pose, weights_name)
+        if os.path.isfile(weights_path):
+            if torch.cuda.is_available():
+                pretrained_dict = torch.load(weights_path)
+            else:
+                pretrained_dict = torch.load(weights_path,
+                            map_location=torch.device('cpu'))
+            #TODO Add check for correct number of joints
+            self.model.load_state_dict(pretrained_dict, strict=True)
+            clp.info(f'Successfully loaded {pose} weights: {weights_path}')
+            return True
+        else:
+            clp.warning(f'Could not load {pose} weights: {weights_path}')
+            return False
+
+
     def get_latest_weights(self):
         search_path = os.path.join(self.cfg.PARENT_DIR, 'projects',
                                    self.cfg.PROJECT_NAME, 'models', 'HybridNet')

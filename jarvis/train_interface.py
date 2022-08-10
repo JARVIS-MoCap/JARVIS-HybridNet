@@ -157,36 +157,41 @@ def train_hybridnet(project_name, num_epochs, weights_keypoint_detect, weights,
 
         effTrack = hybridNet.model.effTrack
 
-        if weights_keypoint_detect == "latest":
-            weights_keypoint_detect = get_latest_weights_efficienttrack(
-                        project.cfg, 'KeypointDetect')
-            if weights_keypoint_detect == None:
-                clp.warning('Could not find previously saved weights'
-                       ' for KeypointDetect, using random initialization '
-                       'instead')
-            found_weights = load_weights_keypoint_detect(effTrack,
-                        weights_keypoint_detect)
-        elif (weights_keypoint_detect == "None"
-                    or weights_keypoint_detect == None):
-            found_weights = True
-        else:
-            found_weights = load_weights_keypoint_detect(effTrack,
-                        weights_keypoint_detect)
-        if not found_weights:
-            clp.error('{Could not load weights from specified '
-                        f'path...')
-            return
+        pose_pretrain_list = get_available_pretrains(project.cfg.PARENT_DIR)
+        if weights in pose_pretrain_list:
+            found_weights = hybridNet.load_pose_pretrain(weights)
 
-        if weights == "latest":
-            weights = hybridNet.get_latest_weights()
-            if weights == None:
-                clp.warning('Could not find previously saved weights, '
-                       'using random initialization instead')
-            found_weights = hybridNet.load_weights(weights)
-        elif weights == "None" or weights == None:
-            found_weights = True
         else:
-            found_weights = hybridNet.load_weights(weights)
+            if weights_keypoint_detect == "latest":
+                weights_keypoint_detect = get_latest_weights_efficienttrack(
+                            project.cfg, 'KeypointDetect')
+                if weights_keypoint_detect == None:
+                    clp.warning('Could not find previously saved weights'
+                           ' for KeypointDetect, using random initialization '
+                           'instead')
+                found_weights = load_weights_keypoint_detect(effTrack,
+                            weights_keypoint_detect)
+            elif (weights_keypoint_detect == "None"
+                        or weights_keypoint_detect == None):
+                found_weights = True
+            else:
+                found_weights = load_weights_keypoint_detect(effTrack,
+                            weights_keypoint_detect)
+            if not found_weights:
+                clp.error('{Could not load weights from specified '
+                            f'path...')
+                return
+
+            if weights == "latest":
+                weights = hybridNet.get_latest_weights()
+                if weights == None:
+                    clp.warning('Could not find previously saved weights, '
+                           'using random initialization instead')
+                found_weights = hybridNet.load_weights(weights)
+            elif weights == "None" or weights == None:
+                found_weights = True
+            else:
+                found_weights = hybridNet.load_weights(weights)
         if not found_weights:
             clp.error('{Could not load weights from specified '
                         f'path...')
