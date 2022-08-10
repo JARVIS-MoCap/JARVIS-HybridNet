@@ -37,7 +37,7 @@ def create_videos2D(params):
     frameRate = cap.get(cv2.CAP_PROP_FPS)
 
     out = cv2.VideoWriter(os.path.join(params.output_dir,
-                params.recording_path.split('/')[-1].split(".")[0] + ".mp4"),
+                params.recording_path.split(os.sep)[-1].split(".")[0] + ".mp4"),
                 cv2.VideoWriter_fourcc('m', 'p', '4', 'v'), frameRate,
                 (img_size[0],img_size[1]))
 
