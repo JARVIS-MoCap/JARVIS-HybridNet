@@ -95,9 +95,9 @@ def predict3D_gui(project):
         with col1:
             params.frame_start = st.number_input("Start Frame:",
                         value = 0, min_value = 0)
-            with col2:
-                params.number_frames = st.number_input("Number of Frames:",
-                            value = -1, min_value = -1)
+        with col2:
+            params.number_frames = st.number_input("Number of Frames:",
+                        value = -1, min_value = -1)
         projectManager = ProjectManager.ProjectManager()
         projectManager.load(project)
         cfg = projectManager.cfg
@@ -108,7 +108,10 @@ def predict3D_gui(project):
             calib_root_path = os.path.join(cfg.PARENT_DIR,
                         cfg.DATASET.DATASET_ROOT_DIR, dataset_name,
                         'calib_params')
-        calibrations = os.listdir(calib_root_path)
+        if os.path.isdir(calib_root_path):
+            calibrations = os.listdir(calib_root_path)
+        else:
+            calibrations = []
         if len(calibrations) != 1:
             calibration_selection = st.selectbox('Select the CalibrationSet '
                         'you want to use', calibrations)
