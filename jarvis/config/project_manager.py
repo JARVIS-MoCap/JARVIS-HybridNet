@@ -171,7 +171,7 @@ class ProjectManager:
                 st.error("2D bounding box size has to be divisible by 64.")
                 return
             if dataset3D_path != None:
-                if bbox_size_3D % 8*grid_spacing != 0:
+                if bbox_size_3D % 4*grid_spacing != 0:
                     st.error("3D bounding box size has to be divisible by "
                                 "4*grid_spacing.")
                     return
