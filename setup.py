@@ -28,7 +28,7 @@ setuptools.setup(
         "pandas",
         "seaborn",
         "Click",
-        "streamlit",
+        "streamlit==1.11.0",
         "streamlit_option_menu",
         "inquirer==2.8.0"
     ],
