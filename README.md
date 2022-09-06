@@ -44,3 +44,10 @@ pip install torch-tensorrt -f https://github.com/NVIDIA/Torch-TensorRT/releases
 pip install --upgrade nvidia-tensorrt
 ```
 - If you want to be able to use TensorRT you also have to add `libnvinfer.so` to the `PATH` variable. This is not required if you're not using TensorRT acceleration.
+
+# Contact
+JARVIS was developed at the **Neurobiology Lab of the German Primate Center ([DPZ](https://www.dpz.eu/de/startseite.html))**.
+If you have any questions or other inquiries related to JARVIS please contact:
+
+Timo Hüser - [@hueser_timo](https://mobile.twitter.com/hueser_timo) - timo.hueser@gmail.com
+
