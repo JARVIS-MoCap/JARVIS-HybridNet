@@ -1,42 +1,42 @@
 #General Configuration
-DATALOADER_NUM_WORKERS: 4
+DATALOADER_NUM_WORKERS: 4       #Number of threads used for dataloading
 
 #Dataset Configuration
 DATASET:
-  DATASET_2D: Example_Dataset
-  DATASET_3D: Example_Dataset
+  DATASET_2D: Example_Dataset   #2D dataset path (usually same as DATASET_3D)
+  DATASET_3D: Example_Dataset   #3D dataset path
 
 #EfficientTrack 2D Center Detector Configuration:
 CENTERDETECT:
-  MODEL_SIZE: 'small'
-  BATCH_SIZE: 8
-  MAX_LEARNING_RATE: 0.01
-  NUM_EPOCHS: 50
-  CHECKPOINT_SAVE_INTERVAL: 10
-  IMAGE_SIZE: 256
+  MODEL_SIZE: 'small'           #Can be 'small', 'medium' or 'large'
+  BATCH_SIZE: 8                 #Set to 4 for very small datasets (<500 Frames) 
+  MAX_LEARNING_RATE: 0.01       #Max learning rate in OneCycle schedule
+  NUM_EPOCHS: 50                #Set to 100 for very small datasets
+  CHECKPOINT_SAVE_INTERVAL: 10  #Saves a .pth checkpoint ever N epochs
+  IMAGE_SIZE: 256               #Frames get resized to NxN
 
 #EfficientTrack 2D Keypoint Detector Configuration
 KEYPOINTDETECT:
-  MODEL_SIZE: 'small'
-  BATCH_SIZE: 8
-  MAX_LEARNING_RATE: 0.01
-  NUM_EPOCHS: 100
-  CHECKPOINT_SAVE_INTERVAL: 10
-  BOUNDING_BOX_SIZE: 256
-  NUM_JOINTS: 23
+  MODEL_SIZE: 'small'           #Can be 'small', 'medium' or 'large'
+  BATCH_SIZE: 8                 #Set to 4 for very small datasets (<500 Frames) 
+  MAX_LEARNING_RATE: 0.01       #Max learning rate in OneCycle schedule
+  NUM_EPOCHS: 100               #Set to 200 for very small datasets
+  CHECKPOINT_SAVE_INTERVAL: 10  #Saves a .pth checkpoint ever N epochs
+  BOUNDING_BOX_SIZE: 256        #Size of the crop around the subject that gets 
+                                # fed into KeypointDetect
+  NUM_JOINTS: 23                #Number of keypoints (Don't change!)
 
 #hybridNet Configuration
 HYBRIDNET:
-  BATCH_SIZE: 1
-  MAX_LEARNING_RATE: 0.003
-  NUM_EPOCHS: 30
-  CHECKPOINT_SAVE_INTERVAL: 10
+  BATCH_SIZE: 1                 #Currently only batch size 1 is supported
+  MAX_LEARNING_RATE: 0.003      #Max learning rate in OneCycle schedule
+  NUM_EPOCHS: 30                #Set to 60 for very small datasets (<500 Frames)
+  CHECKPOINT_SAVE_INTERVAL: 10  #Saves a .pth checkpoint ever N epochs
+  NUM_CAMERAS: 12               #Number fo cameras (Don't change!)
+  ROI_CUBE_SIZE: 144            #Size of the 3D bounding box in mm 
+  GRID_SPACING: 2               #Resolution of the 3D bounding box in mm 
 
-  NUM_CAMERAS: 12
-  ROI_CUBE_SIZE: 144
-  GRID_SPACING: 2
-
-KEYPOINT_NAMES:
+KEYPOINT_NAMES:                 #List of all keypoint names (for visualization)
 - Pinky_T
 - Pinky_D
 - Pinky_M
@@ -61,7 +61,7 @@ KEYPOINT_NAMES:
 - Wrist_U
 - Wrist_R
 
-SKELETON:
+SKELETON:                   #List of all joints (for visualization only)
 - - Pinky_T
   - Pinky_D
 - - Pinky_D
