@@ -54,7 +54,7 @@ def predict_2D():
     cfg = projectManager.get_cfg()
 
     recording_path = inq.text("Video Path",
-                validate = lambda _, x: (os.path.isfile(x)))
+                validate = lambda _, x: (os.path.exists(x)))
 
     params = Predict2DParams(project_name, recording_path)
     params.trt_mode = get_trt_mode(cfg, "2D")
@@ -162,18 +162,25 @@ def get_frame_start_number(video_path):
         frame_start = 0
         number_frames = -1
     else:
-        cap = cv2.VideoCapture(video_path)
-        total_number_frames = cap.get(cv2.CAP_PROP_FRAME_COUNT)
-        frame_start = int(inq.text(f"Frame to start predictions at "
-                    f"(Max: {int(total_number_frames)})", default = "0",
-                    validate = lambda _, x: (x.isdigit() and int(x) >= 0
-                    and int(x) < total_number_frames)))
-        max_num_frames = total_number_frames - frame_start
-        number_frames = int(inq.text(f"Number of frames to predict pose for "
-                    f"(Max: {int(max_num_frames)})", default = "-1",
-                    validate = lambda _, x: (x.lstrip("-").isdigit()
-                    and (int(x) > 0 or int(x) == -1)
-                    and int(x) < max_num_frames)))
+        if (os.path.isfile(video_path)):
+            cap = cv2.VideoCapture(video_path)
+            total_number_frames = cap.get(cv2.CAP_PROP_FRAME_COUNT)
+            frame_start = int(inq.text(f"Frame to start predictions at "
+                        f"(Max: {int(total_number_frames)})", default = "0",
+                        validate = lambda _, x: (x.isdigit() and int(x) >= 0
+                        and int(x) < total_number_frames)))
+            max_num_frames = total_number_frames - frame_start
+            number_frames = int(inq.text(f"Number of frames to predict pose for "
+                        f"(Max: {int(max_num_frames)})", default = "-1",
+                        validate = lambda _, x: (x.lstrip("-").isdigit()
+                        and (int(x) > 0 or int(x) == -1)
+                        and int(x) < max_num_frames)))
+        else:
+            frame_start = int(inq.text(f"Frame to start predictions at ", default = "0",
+                        validate = lambda _, x: (x.isdigit() and int(x) >= 0)))
+            number_frames = int(inq.text(f"Number of frames to predict pose for ", default = "-1",
+                        validate = lambda _, x: (x.lstrip("-").isdigit()
+                        and (int(x) > 0 or int(x) == -1))))
     return frame_start, number_frames
 
 

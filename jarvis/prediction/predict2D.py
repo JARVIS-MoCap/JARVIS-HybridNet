@@ -45,58 +45,76 @@ def predict2D(params):
     jarvisPredictor = JarvisPredictor2D(cfg, params.weights_center_detect,
                 params.weights_keypoint_detect, params.trt_mode)
 
-    cap = cv2.VideoCapture(params.recording_path)
-    cap.set(1,params.frame_start)
-    img_size  = [int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)),
-                 int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))]
+    recording_paths = []
+    multiple_videos = False
 
-    csvfile = open(os.path.join(params.output_dir, 'data2D.csv'), 'w',
-                newline='')
-    writer = csv.writer(csvfile, delimiter=',',
-                    quotechar='"', quoting=csv.QUOTE_MINIMAL)
+    if os.path.isfile(params.recording_path):
+        recording_paths.append(params.recording_path)
+    elif os.path.exists(params.recording_path):
+        print ("DIRECTORY!")
+        multiple_videos = True
+        recording_paths = [os.path.join(params.recording_path, file) for file in os.listdir(params.recording_path)]
+        print (recording_paths)
 
-    #if keypoint names are defined, add header to csvs
-    if (len(cfg.KEYPOINT_NAMES) == cfg.KEYPOINTDETECT.NUM_JOINTS):
-        create_header(writer, cfg)
 
-    assert params.frame_start < cap.get(cv2.CAP_PROP_FRAME_COUNT), \
-                "frame_start bigger than total framecount!"
-    if (params.number_frames == -1):
-        params.number_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) \
-                    - params.frame_start
-    else:
-        assert params.frame_start+params.number_frames \
-                    <= cap.get(cv2.CAP_PROP_FRAME_COUNT), \
-                    "make sure your selected segment is not longer that the " \
-                    "total video!"
+    for recording_path in recording_paths:
+        cap = cv2.VideoCapture(recording_path)
+        cap.set(1,params.frame_start)
+        img_size  = [int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)),
+                    int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))]
 
-    for frame_num in tqdm(range(params.number_frames)):
-        ret, img_orig = cap.read()
-        img = torch.from_numpy(
-                img_orig).cuda().float().permute(2,0,1)[[2, 1, 0]]/255.
+        csv_filename = 'data2D.csv'
 
-        points2D, confidences = jarvisPredictor(img.unsqueeze(0))
+        if multiple_videos:
+            csv_filename =  f'{recording_path.split(os.sep)[-1].split(".")[0]}_{csv_filename}'
 
-        if points2D != None:
-            points2D = points2D.cpu().numpy()
-            confidences = confidences.cpu().numpy()
-            row = []
-            for i,point in enumerate(points2D):
-                row = row + point.tolist() + [confidences[i]]
-            writer.writerow(row)
+        csvfile = open(os.path.join(params.output_dir, csv_filename), 'w',
+                    newline='')
+        writer = csv.writer(csvfile, delimiter=',',
+                        quotechar='"', quoting=csv.QUOTE_MINIMAL)
 
+        #if keypoint names are defined, add header to csvs
+        if (len(cfg.KEYPOINT_NAMES) == cfg.KEYPOINTDETECT.NUM_JOINTS):
+            create_header(writer, cfg)
+
+        assert params.frame_start < cap.get(cv2.CAP_PROP_FRAME_COUNT), \
+                    "frame_start bigger than total framecount!"
+        if (params.number_frames == -1):
+            params.number_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) \
+                        - params.frame_start
         else:
-            row = []
-            for i in range(cfg.KEYPOINTDETECT.NUM_JOINTS*3):
-                row = row + ['NaN']
-            writer.writerow(row)
+            assert params.frame_start+params.number_frames \
+                        <= cap.get(cv2.CAP_PROP_FRAME_COUNT), \
+                        "make sure your selected segment is not longer that the " \
+                        "total video!"
+
+        for frame_num in tqdm(range(params.number_frames)):
+            ret, img_orig = cap.read()
+            img = torch.from_numpy(
+                    img_orig).cuda().float().permute(2,0,1)[[2, 1, 0]]/255.
+
+            points2D, confidences = jarvisPredictor(img.unsqueeze(0))
+
+            if points2D != None:
+                points2D = points2D.cpu().numpy()
+                confidences = confidences.cpu().numpy()
+                row = []
+                for i,point in enumerate(points2D):
+                    row = row + point.tolist() + [confidences[i]]
+                writer.writerow(row)
+
+            else:
+                row = []
+                for i in range(cfg.KEYPOINTDETECT.NUM_JOINTS*3):
+                    row = row + ['NaN']
+                writer.writerow(row)
 
 
-        if params.progress_bar != None:
-            params.progress_bar.progress(float(frame_num+1)
-                        / float(params.number_frames))
+            if params.progress_bar != None:
+                params.progress_bar.progress(float(frame_num+1)
+                            / float(params.number_frames))
 
-    cap.release()
+        cap.release()
 
 
 def create_header(writer, cfg):

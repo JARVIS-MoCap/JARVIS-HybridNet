@@ -50,7 +50,7 @@ def predict2D_gui(project):
         projectManager = ProjectManager.ProjectManager()
         projectManager.load(project)
         cfg = projectManager.cfg
-        if not os.path.isfile(video_path):
+        if not os.path.exists(video_path):
             st.error("Video File does not exist!")
             return
         if not (params.weights_center_detect == "latest"
