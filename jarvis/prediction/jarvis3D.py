@@ -161,9 +161,9 @@ class JarvisPredictor3D(nn.Module):
             centerHMs = self.reproTool.reprojectPoint(
                         center3D.unsqueeze(0)).int()
             centerHMs[:,0] = torch.clamp(centerHMs[:,0], self.bbox_hw,
-                        img_size[0]-1-self.bbox_hw)
+                        img_size[0]-self.bbox_hw)
             centerHMs[:,1] = torch.clamp(centerHMs[:,1], self.bbox_hw,
-                        img_size[1]-1-self.bbox_hw)
+                        img_size[1]-self.bbox_hw)
 
             imgs_cropped = torch.zeros((self.num_cameras,3,
                         self.bounding_box_size, self.bounding_box_size),
