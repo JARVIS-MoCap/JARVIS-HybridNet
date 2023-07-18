@@ -21,7 +21,7 @@ class ReprojectionTool(nn.Module):
             self.cameras = {}
             for camera in calib_paths:
                 self.cameras[camera] = TorchCamera(camera,
-                            os.path.join(root_dir, calib_paths[camera]))
+                            os.path.join(root_dir, calib_paths[camera]), device)
             self.camera_list = [self.cameras[cam] for cam in self.cameras]
             self.num_cameras = len(self.camera_list)
             self.cameraMatrices = torch.zeros((self.num_cameras, 4,3),
@@ -91,20 +91,20 @@ class ReprojectionTool(nn.Module):
 
 
 class TorchCamera(nn.Module):
-    def __init__(self, name, calib_path):
+    def __init__(self, name, calib_path, device = 'cuda'):
         super(TorchCamera, self).__init__()
         self.name = name
         self.position = torch.from_numpy(self.get_mat_from_file(
-                    calib_path, 'T')).float().cuda()
+                    calib_path, 'T')).float().to(device)
         self.rotationMatrix = torch.from_numpy(self.get_mat_from_file(
-                    calib_path, 'R')).float().cuda()
+                    calib_path, 'R')).float().to(device)
         self.intrinsicMatrix = torch.from_numpy(self.get_mat_from_file(
-                    calib_path, 'intrinsicMatrix')).float().cuda()
+                    calib_path, 'intrinsicMatrix')).float().to(device)
         self.distortionCoeffccients = torch.from_numpy(self.get_mat_from_file(
-                    calib_path, 'distortionCoefficients')).float().cuda()
+                    calib_path, 'distortionCoefficients')).float().to(device)
         self.cameraMatrix = torch.transpose(torch.matmul(
                     torch.cat((self.rotationMatrix, self.position.reshape(1,3)),
-                    axis = 0), (self.intrinsicMatrix)), 0,1).float().cuda()
+                    axis = 0), (self.intrinsicMatrix)), 0,1).float().to(device)
 
     def get_mat_from_file(self, filepath, nodeName):
         fs = cv2.FileStorage(filepath, cv2.FILE_STORAGE_READ)
@@ -127,7 +127,7 @@ def get_repro_tool(cfg, dataset_name, device = 'cuda'):
             for cam in data['calibrations'][calibParams]:
                 calibPaths[cam] = \
                         data['calibrations'][calibParams][cam].split("/")[-1]
-            reproTool = ReprojectionTool(dataset_name, calibPaths)
+            reproTool = ReprojectionTool(dataset_name, calibPaths, device)
         else:
             print (f'{CLIColors.FAIL}Could not load reprojection Tool for'
                         f'specified project...{CLIColors.ENDC}')
