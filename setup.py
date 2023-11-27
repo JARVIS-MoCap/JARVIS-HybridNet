@@ -30,7 +30,8 @@ setuptools.setup(
         "Click",
         "streamlit==1.11.0",
         "streamlit_option_menu",
-        "inquirer==2.8.0"
+        "inquirer==2.8.0",
+        "altair<5" 
     ],
     entry_points={
         'console_scripts': [
